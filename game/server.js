@@ -16,6 +16,6 @@ var startServer = function(config, callback) {
 
 exports.startServer = startServer;
 exports.startServer({
-	port: 3006,
-	rtcport: 3007
+	port: 3000,
+	rtcport: 3001
 }, function(webserver, io, rtc) {});
