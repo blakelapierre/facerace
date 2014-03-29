@@ -15,7 +15,7 @@ module.exports = function(grunt) {
 				bg: false
 			},
 			startClient: {
-				cmd: 'xdg-open http://localhost:3006'
+				cmd: 'xdg-open http://localhost:2888'
 			}
 		}
 	});

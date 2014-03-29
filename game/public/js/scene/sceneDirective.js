@@ -5,7 +5,8 @@ var angular = require('angular'),
 	mathjs = require('mathjs'),
 	math = mathjs();
 
-module.exports = function SceneDirective() {
+module.exports = ['socket', function SceneDirective(socket) {
+	socket.emit('hello!');
 	return {
 		restrict: 'E',
 		template: require('./sceneTemplate.html'),
@@ -167,4 +168,4 @@ module.exports = function SceneDirective() {
 			window.requestAnimationFrame(render);
 		}
 	};
-};
+}];
