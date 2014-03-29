@@ -43,9 +43,6 @@ var startServer = function(config, callback) {
 
 			socket.emit('document', {p: path, obj: obj});
 		});
-		socket.on('hello!', function() {
-			console.log('woot');
-		});
 	});
 
 	return callback(webserver, io, rtc);

@@ -6,7 +6,6 @@ var angular = require('angular'),
 	math = mathjs();
 
 module.exports = ['socket', function SceneDirective(socket) {
-	socket.emit('hello!');
 	return {
 		restrict: 'E',
 		template: require('./sceneTemplate.html'),
