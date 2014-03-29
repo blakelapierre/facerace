@@ -10,6 +10,14 @@ module.exports = ['socket', function SceneDirective(socket) {
 		restrict: 'E',
 		template: require('./sceneTemplate.html'),
 		link: function($scope, element, attributes) {
+			socket.emit('watch', {p: 'facerace'});
+
+			socket.on('obj', function(data) {
+				console.log('obj', data);
+			});
+
+			socket.emit('apply', {p: 'facerace', ops: [{p: ['test'], oi: 1}]});
+
 			var width = window.innerWidth,
 				height = window.innerHeight,
 				scene = new THREE.Scene(),

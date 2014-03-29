@@ -8,7 +8,8 @@
     "socket.io": "latest",
     "webrtc.io": "latest",
     "webrtc.io-client": "latest",
-    "ottypes": "latest"
+    "ottypes": "latest",
+    "underscore": "latest"
   },
   "devDependencies": {
     "grunt": "latest",

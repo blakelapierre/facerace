@@ -4,6 +4,7 @@ var startServer = function(config, callback) {
 		webRTC = require('webrtc.io'),
 		path = require('path'),
 		otj = require('ottypes/lib/json0'),
+		_ = require('underscore'),
 		app = express();
 
 	app.use(express.static(path.join(__dirname, '/public')));
@@ -38,10 +39,28 @@ var startServer = function(config, callback) {
 
 	io.sockets.on('connection', function(socket) {
 		socket.on('watch', function(data) {
-			var path = data.path,
-				obj = db[path] || otj.apply(db, [{p: path, oi: {}}])[path];
+			var path = data.p,
+				obj = db[path] || otj.apply(db, [{p: [path], oi: {}}])[path];
 
-			socket.emit('document', {p: path, obj: obj});
+			socket.emit('obj', {p: path, obj: obj});
+		});
+
+		socket.on('apply', function(data) {
+			var path = data.p,
+				ops = data.ops,
+				obj = db[path];
+
+			if (obj == null) {
+				socket.emit('error', {msg: path + ' doesn\'t exist!', data: data});
+				return;
+			}
+
+			obj = otj.apply(obj, ops);
+			_.each(ops, function(op) {
+				console.log(op);
+			});
+
+			socket.emit('obj', {p: path, obj: obj});
 		});
 	});
 
