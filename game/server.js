@@ -35,7 +35,27 @@ var startServer = function(config, callback) {
 		rtc = webRTC.listen(config.rtcport),
 		io = socketIO.listen(webserver);
 
-	var db = otj.create({});	
+	var hook = function (obj) {
+		for (var key in obj) {
+			var thisKey = key;
+			
+			obj.__defineGetter__(key, function() {
+				return obj[thisKey];
+			});
+
+			obj.__defineSetter__(key, function(value) {
+				obj[thisKey] = value;
+			});
+		}
+	};
+
+	var db = otj.create({});
+
+	var change = function(path, object) {
+		console.log(arguments);
+	};
+	otj.on('move', change);
+	otj.on('set', change);
 
 	io.sockets.on('connection', function(socket) {
 		socket.on('watch', function(data) {
