@@ -8,7 +8,7 @@
     "socket.io": "latest",
     "webrtc.io": "latest",
     "webrtc.io-client": "latest",
-    "ottypes": "latest",
+    "ottypes": "git+https://github.com/blakelapierre/ottypes",
     "underscore": "latest"
   },
   "devDependencies": {
