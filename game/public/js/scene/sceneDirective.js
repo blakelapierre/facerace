@@ -4,7 +4,7 @@ var angular = require('angular'),
 	_ = require('lodash'),
 	mathjs = require('mathjs'),
 	math = mathjs(),
-	db = require('./../db');
+	db = require('./../db/db');
 
 module.exports = ['socket', function SceneDirective(socket) {
 	return {
