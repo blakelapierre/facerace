@@ -33,6 +33,7 @@ var liveGenerator = function(proxy) {
 			_.each(listeners, function(listener) {
 				listener.apply(null, args);
 			});
+			console.dir({_rev: args[1], change: args[2]});
 		};
 
 		var leave = function() {
@@ -54,7 +55,7 @@ var liveGenerator = function(proxy) {
 			if (change.set) _.extend(data, change.set);
 			if (change.remove) _.keys(change.remove, function(key) { delete data[key]; });
 
-			notify(obj._rev, 'change', change);
+			notify('change', obj._rev, change);
 
 			return data;
 		};
