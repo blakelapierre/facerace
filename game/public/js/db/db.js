@@ -61,7 +61,9 @@ var liveGenerator = function(proxy) {
 
 		if (proxy) {
 			return _.extend({
-				change: change
+				change: function(_rev, c) {
+					if (_rev > obj._rev) change(_rev, c);
+				}
 			}, core);
 		}
 		else 
