@@ -1,7 +1,7 @@
 var angular = require('angular'),
 	THREE = require('three'),
 	Stats = require('stats'),
-	_ = require('underscore'),
+	_ = require('lodash'),
 	mathjs = require('mathjs'),
 	math = mathjs();
 
@@ -10,13 +10,16 @@ module.exports = ['socket', function SceneDirective(socket) {
 		restrict: 'E',
 		template: require('./sceneTemplate.html'),
 		link: function($scope, element, attributes) {
-			socket.emit('watch', {p: 'facerace'});
+			socket.emit('watch', {p: ['facerace']});
 
-			socket.on('obj', function(data) {
+			socket.on('data', function(data) {
 				console.log('obj', data);
 			});
 
-			socket.emit('apply', {p: 'facerace', ops: [{p: ['test'], oi: 1}]});
+			socket.emit('apply', {p: ['facerace'], ops: [{p: ['test'], oi: 1}]});
+			socket.emit('apply', {p: ['facerace'], ops: [{p: ['test'], oi: 2}]});
+			socket.emit('apply', {p: ['facerace'], ops: [{p: ['test2'], oi: 2}]});
+			socket.emit('apply', {p: ['facerace'], ops: [{p: ['test3'], oi: 3}]});
 
 			var width = window.innerWidth,
 				height = window.innerHeight,

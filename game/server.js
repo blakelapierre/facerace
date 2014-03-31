@@ -4,7 +4,7 @@ var startServer = function(config, callback) {
 		webRTC = require('webrtc.io'),
 		path = require('path'),
 		otj = require('ottypes/lib/json0'),
-		_ = require('underscore'),
+		_ = require('lodash'),
 		app = express();
 
 	app.use(express.static(path.join(__dirname, '/public')));
@@ -49,39 +49,72 @@ var startServer = function(config, callback) {
 		}
 	};
 
-	var db = otj.create({});
+	var db = {};
+
+	var watch = function(path, callback) {
+		path = path.join('.');
+
+		var doc = db[path] || create(path);
+
+		doc.listeners.push(callback);
+
+		db[path] = doc;
+		return doc;
+	};
+
+	var create = function(path) {
+		return {
+			path: path,
+			listeners: [],
+			data: otj.create({}),
+			version: 0
+		};
+	};
+
+	var apply = function(path, operations) {
+		path = path.join('.');
+
+		var doc = db[path];
+		
+		doc.data = otj.apply(doc.data, operations);
+		doc.version++;
+
+		_.each(doc.listeners, function(callback) { callback(path, operations); });
+
+		return doc;
+	};
 
 	var change = function(path, object) {
 		console.log(arguments);
 	};
 	otj.on('move', change);
 	otj.on('set', change);
+	otj.on('delete', change);
 
+	_.extend(db, {
+		watch: watch,
+		create: create,
+		apply: apply
+	});
+  
 	io.sockets.on('connection', function(socket) {
-		socket.on('watch', function(data) {
-			var path = data.p,
-				obj = db[path] || otj.apply(db, [{p: [path], oi: {}}])[path];
-
-			socket.emit('obj', {p: path, obj: obj});
-		});
-
-		socket.on('apply', function(data) {
-			var path = data.p,
-				ops = data.ops,
-				obj = db[path];
-
-			if (obj == null) {
-				socket.emit('error', {msg: path + ' doesn\'t exist!', data: data});
-				return;
-			}
-
-			obj = otj.apply(obj, ops);
-			_.each(ops, function(op) {
-				console.log(op);
+		var watch = function(data) {
+			var doc = db.watch(data.p, function(path, operations) {
+				socket.emit('apply', {p: path, ops: operations});
 			});
 
-			socket.emit('obj', {p: path, obj: obj});
-		});
+			socket.emit('data', {path: path, doc: doc});
+		};
+
+		var apply = function(data) {
+			var path = data.p,
+				operations = data.ops,
+				doc = db.apply(path, operations);
+			console.dir(doc);
+		};
+
+		socket.on('watch', watch);
+		socket.on('apply', apply);
 	});
 
 	return callback(webserver, io, rtc);

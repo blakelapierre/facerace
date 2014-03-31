@@ -9,7 +9,7 @@
     "webrtc.io": "latest",
     "webrtc.io-client": "latest",
     "ottypes": "git+https://github.com/blakelapierre/ottypes",
-    "underscore": "latest"
+    "lodash": "latest"
   },
   "devDependencies": {
     "grunt": "latest",
@@ -33,6 +33,7 @@
     "webrtc.io": "global:rtc",
     "socket.io": "global:io",
     "underscore": "global:_",
+    "lodash": "global:_",
     "mathjs": "global:mathjs"
   }
 }

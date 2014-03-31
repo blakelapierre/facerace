@@ -1,5 +1,5 @@
 var angular = require('angular'),
-	_ = require('underscore');
+	_ = require('lodash');
 
 module.exports = ['$sce', function CameraDirective($sce) {
 	return {
@@ -25,9 +25,6 @@ module.exports = ['$sce', function CameraDirective($sce) {
 
 			rtc.createStream({video: true, audio: true}, function(stream) {
 				var video = createVideo(stream);
-				_.each(stream.audioTracks(), function(track) {
-					track.enabled = false;
-				});
 				$scope.sources[video.socketID] = video;
 				$scope.$apply();
 			});
