@@ -24,23 +24,27 @@ var live = function(path, listener) {
 		});
 	};
 
+	var change = function(change) {
+		obj._rev++;
+
+		if (change.set) _.extend(data, change.set);
+		if (change.remove) _.keys(change.remove, function(key) { delete data[key]; });
+
+		notify(obj._rev, 'change', change);
+	};
+
+	var leave = function() {
+		var index = _.indexOf(listeners, listener);
+		listeners.splice(index, 1);
+	};
+	
 	return {
 		snapshot: {
 			_rev: obj._rev,
 			data: data
 		},
-		change: function(change) {
-			obj._rev++;
-
-			if (change.set) _.extend(data, change.set);
-			if (change.remove) _.keys(change.remove, function(key) { delete data[key]; });
-
-			notify(obj._rev, 'change', change);
-		},
-		leave: function() {
-			var index = _.indexOf(listeners, listener);
-			listeners.splice(index, 1);
-		}
+		change: change,
+		leave: leave
 	};
 };
 
@@ -61,26 +65,34 @@ var liveProxy = function(path, listener) {
 		});
 	};
 
+	var change = function(_rev, change) {
+		var data = obj.data;
+		
+		obj._rev = _rev;
+
+		if (change.set) _.extend(data, change.set);
+		if (change.remove) _.keys(change.remove, function(key) { delete data[key]; });
+
+		notify(obj._rev, 'change', change);
+	};
+
+	var leave = function() {
+		var index = _.indexOf(listeners, listener);
+		listeners.splice(index, 1);
+	};
+
+	var snapshot = function(_rev, data) {
+		obj._rev = _rev;
+		obj.data = data;
+		notify(obj.rev, 'snapshot', data);
+		return data;
+	};
+
 	return {
 		data: data,
-		change: function(_rev, change) {
-			console.log('change', change);
-			obj._rev = _rev;
-
-			if (change.set) _.extend(data, change.set);
-			if (change.remove) _.keys(change.remove, function(key) { delete data[key]; });
-
-			notify(obj._rev, 'change', change);
-		},
-		leave: function() {
-			var index = _.indexOf(listeners, listener);
-			listeners.splice(index, 1);
-		},
-		snapshot: function(_rev, data) {
-			obj._rev = _rev;
-			obj.data = data;
-			notify(obj.rev, 'snapshot', data);
-		}
+		change: change,
+		leave: leave,
+		snapshot: snapshot
 	};
 };
 

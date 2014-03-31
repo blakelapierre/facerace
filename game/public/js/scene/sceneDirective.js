@@ -11,54 +11,24 @@ module.exports = ['socket', function SceneDirective(socket) {
 		restrict: 'E',
 		template: require('./sceneTemplate.html'),
 		link: function($scope, element, attributes) {
-			// socket.emit('watch', {p: ['facerace']});
-
-			// socket.on('data', function(data) {
-			// 	console.log('obj', data);
-			// });
-
-			// socket.emit('apply', {p: ['facerace'], ops: [{p: ['test'], oi: 1}]});
-			// socket.emit('apply', {p: ['facerace'], ops: [{p: ['test'], oi: 2}]});
-			// socket.emit('apply', {p: ['facerace'], ops: [{p: ['test2'], oi: 2}]});
-			// socket.emit('apply', {p: ['facerace'], ops: [{p: ['test3'], oi: 3}]});
-
-			// var path = 'test',
-			// 	db = {};
-			// socket.emit('live', {path: path});
-
-			// socket.on('live:' + path, function(data) {
-			// 	var _rev = data._rev,
-			// 		type = data.type,
-			// 		property = data.property,
-			// 		value = data.value;
-
-			// 	if (type == 'set') db[property] = value;
-			// 	else if (type == 'remove') delete db[property];
-
-			// 	console.log('live:' + path, data, db);
-			// });
-
-			// socket.emit('live:' + path, {type: 'set', property: 'test', value: 1});
-
-			console.log('db', db);
-
 			var path = 'test',
 				test = db.liveProxy('test'),
 				endpoint = 'live:' + path;
 
+			$scope.test = test.data;
+
 			socket.emit('live', {path: path});
 
 			socket.on(endpoint, function(data) {
-console.log('b', endpoint, data, test)
 				var type = data.type;
 
 				if (type == 'change') test.change(data._rev, data);
-				else if (type == 'snapshot') test.snapshot(data._rev, data.data);
-				console.log('e', endpoint, data, test);
+				else if (type == 'snapshot') $scope.test = test.snapshot(data._rev, data.data);
+				socket.emit(endpoint, {type: 'change', set: {newProp: $scope.test.newProp ? $scope.test.newProp + 1 : 2, allNew: true}});
+				$scope.$apply();
 			});
 
-			socket.emit(endpoint, {type: 'set', property: 'newProp', value: 1});
-			socket.emit(endpoint, {type: 'change', set: {newProp: 2, allNew: true}});
+			socket.emit(endpoint, {type: 'change', set: {newProp: $scope.test.newProp ? $scope.test.newProp + 1 : 2, allNew: true}});
 
 
 			var width = window.innerWidth,
