@@ -23,7 +23,6 @@ module.exports = ['socket', function SceneDirective(socket) {
 				var type = data.type;
 
 				if (type == 'change') test.change(data._rev, data);
-				else if (type == 'snapshot') $scope.test = test.snapshot(data._rev, data.data);
 				socket.emit(endpoint, {type: 'change', set: {newProp: $scope.test.newProp ? $scope.test.newProp + 1 : 2, allNew: true}});
 				$scope.$apply();
 			});

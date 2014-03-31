@@ -43,7 +43,6 @@ var liveGenerator = function(proxy) {
 		var core = {
 			_rev: obj._rev,
 			data: data,
-			notify: notify,
 			leave: leave
 		};
 
@@ -59,16 +58,8 @@ var liveGenerator = function(proxy) {
 		};
 
 		if (proxy) {
-			var snapshot = function(_rev, data) {
-				obj._rev = _rev;
-				obj.data = data;
-				notify(obj.rev, 'snapshot', data);
-				return data;
-			};
-
 			return _.extend({
-				change: change,
-				snapshot: snapshot
+				change: change
 			}, core);
 		}
 		else 

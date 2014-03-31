@@ -103,9 +103,9 @@ var startServer = function(config, callback) {
 				_rev = live._rev;
 
 			socket.emit(endpoint, {
-				type: 'snapshot',
+				type: 'change',
 				_rev: _rev,
-				data: snapshot
+				set: snapshot
 			});
 		});
 	});
