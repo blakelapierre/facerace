@@ -21,23 +21,23 @@ var db = require('./db');
 
 var socketIOdb = function(io) {
 	io.sockets.on('connection', function(socket) {
-		var watch = function(data) {
-			var doc = db.watch(data.p, function(path, operations) {
-				socket.emit('apply', {p: path, ops: operations});
-			});
+		// var watch = function(data) {
+		// 	var doc = db.watch(data.p, function(path, operations) {
+		// 		socket.emit('apply', {p: path, ops: operations});
+		// 	});
 
-			socket.emit('data', {path: path, doc: doc});
-		};
+		// 	socket.emit('data', {path: path, doc: doc});
+		// };
 
-		var apply = function(data) {
-			var path = data.p,
-				operations = data.ops,
-				doc = db.apply(path, operations);
-			console.dir(doc);
-		};
+		// var apply = function(data) {
+		// 	var path = data.p,
+		// 		operations = data.ops,
+		// 		doc = db.apply(path, operations);
+		// 	console.dir(doc);
+		// };
 
-		socket.on('watch', watch);
-		socket.on('apply', apply);
+		// socket.on('watch', watch);
+		// socket.on('apply', apply);
 
 		socket.on('live', function(data) {
 			var path = data.path,
