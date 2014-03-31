@@ -55,6 +55,8 @@ var liveGenerator = function(proxy) {
 			if (change.remove) _.keys(change.remove, function(key) { delete data[key]; });
 
 			notify(obj._rev, 'change', change);
+
+			return data;
 		};
 
 		if (proxy) {

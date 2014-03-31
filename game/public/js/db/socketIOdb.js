@@ -70,4 +70,34 @@ var socketIOdb = function(io) {
 	});
 };
 
-module.exports = socketIOdb;
+var socketIOdbProxy = function(socket, path, listener) {
+	var proxy = db.liveProxy(path),
+		endpoint = 'live:' + path;
+
+	socket.emit('live', {path: path});
+
+	socket.on(endpoint, function(message) {
+		var data = test.change(message._rev, message);
+		listener(data, message.set, message.remove);
+	});
+
+	var set = function(toSet, toRemove) {
+		socket.emit(endpoint, {type: 'change', set: toSet, remove: toRemove});
+	};
+
+	var leave = function() {
+		socket.emit(endpoint, {type: 'leave'});
+	};
+
+	return {
+		snapshot: proxy.data,
+		set: set,
+		leave: leave
+	};
+};
+
+
+module.exports = {
+	host: socketIOdb,
+	proxy: socketIOdbProxy
+};

@@ -12,7 +12,7 @@ var startServer = function(config, callback) {
 	var webserver = app.listen(config.port),
 		rtc = webRTC.listen(config.rtcport),
 		io = socketIO.listen(webserver),
-		db = socketIOdb(io);
+		db = socketIOdb.host(io);
 	
 
 	return callback(webserver, io, rtc);

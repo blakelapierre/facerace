@@ -3,34 +3,24 @@ var angular = require('angular'),
 	Stats = require('stats'),
 	_ = require('lodash'),
 	mathjs = require('mathjs'),
-	math = mathjs(),
-	db = require('./../db/db');
+	math = mathjs();
 
-module.exports = ['socket', function SceneDirective(socket) {
+module.exports = ['socketIOdbProxy', function SceneDirective(proxy) {
 	return {
 		restrict: 'E',
 		template: require('./sceneTemplate.html'),
 		link: function($scope, element, attributes) {
-			var path = 'test',
-				test = db.liveProxy('test'),
-				endpoint = 'live:' + path;
-
-			$scope.test = test.data;
-
-			socket.emit('live', {path: path});
-
-			socket.on(endpoint, function(data) {
-				var type = data.type;
-
-				if (type == 'change') test.change(data._rev, data);
+			var test = proxy.live('test', function() {
 				$scope.$apply();
 			});
 
+			$scope.test = test.snapshot;
+
 			$scope.$watchCollection('test', function(newValue, anotherNewValue, $scope) {
-				socket.emit(endpoint, {type: 'change', set: newValue});
+				test.set(newValue);
 			});
 
-			socket.emit(endpoint, {type: 'change', set: {newProp: $scope.test.newProp ? $scope.test.newProp + 1 : 2, allNew: true}});
+			test.set({newProp: $scope.test.newProp ? $scope.test.newProp + 1 : 2, allNew: true});
 
 
 			var width = window.innerWidth,
