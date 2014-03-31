@@ -23,8 +23,11 @@ module.exports = ['socket', function SceneDirective(socket) {
 				var type = data.type;
 
 				if (type == 'change') test.change(data._rev, data);
-				socket.emit(endpoint, {type: 'change', set: {newProp: $scope.test.newProp ? $scope.test.newProp + 1 : 2, allNew: true}});
 				$scope.$apply();
+			});
+
+			$scope.$watchCollection('test', function(newValue, anotherNewValue, $scope) {
+				socket.emit(endpoint, {type: 'change', set: newValue});
 			});
 
 			socket.emit(endpoint, {type: 'change', set: {newProp: $scope.test.newProp ? $scope.test.newProp + 1 : 2, allNew: true}});
