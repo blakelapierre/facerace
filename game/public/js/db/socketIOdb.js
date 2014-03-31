@@ -40,7 +40,6 @@ var socketIOdb = function(io) {
 		socket.on('apply', apply);
 
 		socket.on('live', function(data) {
-			console.log(data);
 			var path = data.path,
 				endpoint = 'live:' + path;
 
@@ -54,14 +53,12 @@ var socketIOdb = function(io) {
 			});
 
 			var listener = function(data) {
-				console.log(data);
 				if (data.type == 'change') live.change(data);
 				else if (data.type == 'leave') {
-					socket.removeListener('live:' + path, listener);
+					socket.removeListener(endpoint, listener);
 					live.leave();
 				}
 			};
-
 			socket.on(endpoint, listener);
 
 			var snapshot = live.data,
