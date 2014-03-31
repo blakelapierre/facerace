@@ -44,16 +44,14 @@ var socketIOdb = function(io) {
 			var path = data.path,
 				endpoint = 'live:' + path;
 
-			var callback = function(_rev, type, property, value) {
+			var live = db.live(path, function(_rev, type, property, value) {
 				socket.emit(endpoint, {
 					_rev: _rev,
 					type: type,
 					set: property.set,
 					remove: property.remove
 				});
-			};
-
-			var live = db.live(path, callback);
+			});
 
 			var listener = function(data) {
 				console.log(data);
