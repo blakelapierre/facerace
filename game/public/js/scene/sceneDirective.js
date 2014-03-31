@@ -14,10 +14,11 @@ module.exports = ['socketIOdbProxy', function SceneDirective(proxy) {
 				$scope.$apply();
 			});
 
-			$scope.test = test.snapshot;
+			$scope.test = test.data;
 
 			$scope.$watchCollection('test', function(newValue, anotherNewValue, $scope) {
-				test.set(newValue);
+				console.log('phase', $scope.$$phase);
+				if ($scope.$$phase != 'digest') test.set(newValue);
 			});
 
 			test.set({newProp: $scope.test.newProp ? $scope.test.newProp + 1 : 2, allNew: true});

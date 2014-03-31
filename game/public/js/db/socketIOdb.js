@@ -77,7 +77,7 @@ var socketIOdbProxy = function(socket, path, listener) {
 	socket.emit('live', {path: path});
 
 	socket.on(endpoint, function(message) {
-		var data = test.change(message._rev, message);
+		var data = proxy.change(message._rev, message);
 		listener(data, message.set, message.remove);
 	});
 
@@ -90,7 +90,7 @@ var socketIOdbProxy = function(socket, path, listener) {
 	};
 
 	return {
-		snapshot: proxy.data,
+		data: proxy.data,
 		set: set,
 		leave: leave
 	};
