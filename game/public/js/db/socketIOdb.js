@@ -61,13 +61,10 @@ var socketIOdb = function(io) {
 			};
 			socket.on(endpoint, listener);
 
-			var snapshot = live.data,
-				_rev = live._rev;
-
 			socket.emit(endpoint, {
 				type: 'change',
-				_rev: _rev,
-				set: snapshot
+				_rev: live._rev,
+				set: live.data
 			});
 		});
 	});
