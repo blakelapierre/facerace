@@ -53,8 +53,6 @@ console.log('b', endpoint, data, test)
 				var type = data.type;
 
 				if (type == 'change') test.change(data._rev, data);
-				else if (type == 'set') test.set(data._rev, data.property, data.value);
-				else if (type == 'remove') test.remove(data._rev, data.property);
 				else if (type == 'snapshot') test.snapshot(data._rev, data.data);
 				console.log('e', endpoint, data, test);
 			});

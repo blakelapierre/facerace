@@ -37,15 +37,6 @@ var live = function(path, listener) {
 
 			notify(obj._rev, 'change', change);
 		},
-		set: function(property, value) {
-			obj._rev++;
-			data[property] = value;
-			notify(obj._rev, 'set', property, value);
-		},
-		remove: function(property) {
-			delete data[property];
-			notify(obj._rev, 'remove', property);
-		},
 		leave: function() {
 			var index = _.indexOf(listeners, listener);
 			listeners.splice(index, 1);
@@ -81,16 +72,6 @@ var liveProxy = function(path, listener) {
 
 			notify(obj._rev, 'change', change);
 		},
-		set: function(_rev, property, value) {
-			obj._rev = _rev;
-			data[property] = value;
-			notify(obj._rev, 'set', property, value);
-		},
-		remove: function(_rev, property) {
-			obj._rev = _rev;
-			delete data[property];
-			notify(obj._rev, 'remove', property);
-		},
 		leave: function() {
 			var index = _.indexOf(listeners, listener);
 			listeners.splice(index, 1);
@@ -98,7 +79,7 @@ var liveProxy = function(path, listener) {
 		snapshot: function(_rev, data) {
 			obj._rev = _rev;
 			obj.data = data;
-			notify(_obj.rev, 'snapshot', data);
+			notify(obj.rev, 'snapshot', data);
 		}
 	};
 };

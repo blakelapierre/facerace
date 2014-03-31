@@ -78,22 +78,12 @@ var startServer = function(config, callback) {
 				endpoint = 'live:' + path;
 
 			var callback = function(_rev, type, property, value) {
-				if (type == 'change') {
-					socket.emit(endpoint, {
-						_rev: _rev,
-						type: type,
-						set: property.set,
-						remove: property.remove
-					});
-				}
-				else {
-					socket.emit(endpoint, {
-						_rev: _rev,
-						type: type,
-						property: property,
-						value: value
-					});
-				}
+				socket.emit(endpoint, {
+					_rev: _rev,
+					type: type,
+					set: property.set,
+					remove: property.remove
+				});
 			};
 
 			var live = db.live(path, callback);
@@ -101,8 +91,6 @@ var startServer = function(config, callback) {
 			var listener = function(data) {
 				console.log(data);
 				if (data.type == 'change') live.change(data);
-				else if (data.type == 'set') live.set(data.property, data.value);
-				else if (data.type == 'remove') live.remove(data.property);
 				else if (data.type == 'leave') {
 					socket.removeListener('live:' + path, listener);
 					live.leave();
