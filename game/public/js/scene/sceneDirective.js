@@ -3,23 +3,65 @@ var angular = require('angular'),
 	Stats = require('stats'),
 	_ = require('lodash'),
 	mathjs = require('mathjs'),
-	math = mathjs();
+	math = mathjs(),
+	db = require('./../db');
 
 module.exports = ['socket', function SceneDirective(socket) {
 	return {
 		restrict: 'E',
 		template: require('./sceneTemplate.html'),
 		link: function($scope, element, attributes) {
-			socket.emit('watch', {p: ['facerace']});
+			// socket.emit('watch', {p: ['facerace']});
 
-			socket.on('data', function(data) {
-				console.log('obj', data);
+			// socket.on('data', function(data) {
+			// 	console.log('obj', data);
+			// });
+
+			// socket.emit('apply', {p: ['facerace'], ops: [{p: ['test'], oi: 1}]});
+			// socket.emit('apply', {p: ['facerace'], ops: [{p: ['test'], oi: 2}]});
+			// socket.emit('apply', {p: ['facerace'], ops: [{p: ['test2'], oi: 2}]});
+			// socket.emit('apply', {p: ['facerace'], ops: [{p: ['test3'], oi: 3}]});
+
+			// var path = 'test',
+			// 	db = {};
+			// socket.emit('live', {path: path});
+
+			// socket.on('live:' + path, function(data) {
+			// 	var _rev = data._rev,
+			// 		type = data.type,
+			// 		property = data.property,
+			// 		value = data.value;
+
+			// 	if (type == 'set') db[property] = value;
+			// 	else if (type == 'remove') delete db[property];
+
+			// 	console.log('live:' + path, data, db);
+			// });
+
+			// socket.emit('live:' + path, {type: 'set', property: 'test', value: 1});
+
+			console.log('db', db);
+
+			var path = 'test',
+				test = db.liveProxy('test'),
+				endpoint = 'live:' + path;
+
+			socket.emit('live', {path: path});
+
+			socket.on(endpoint, function(data) {
+console.log('b', endpoint, data, test)
+				var type = data.type;
+
+				if (type == 'change') test.change(data._rev, data);
+				else if (type == 'set') test.set(data._rev, data.property, data.value);
+				else if (type == 'remove') test.remove(data._rev, data.property);
+				else if (type == 'snapshot') test.snapshot(data._rev, data.data);
+				console.log('e', endpoint, data, test);
 			});
 
-			socket.emit('apply', {p: ['facerace'], ops: [{p: ['test'], oi: 1}]});
-			socket.emit('apply', {p: ['facerace'], ops: [{p: ['test'], oi: 2}]});
-			socket.emit('apply', {p: ['facerace'], ops: [{p: ['test2'], oi: 2}]});
-			socket.emit('apply', {p: ['facerace'], ops: [{p: ['test3'], oi: 3}]});
+			socket.emit(endpoint, {type: 'set', property: 'newProp', value: 1});
+			socket.emit(endpoint, {type: 'change', set: {newProp: 2, allNew: true}});
+
 
 			var width = window.innerWidth,
 				height = window.innerHeight,

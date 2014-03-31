@@ -5,29 +5,30 @@ var startServer = function(config, callback) {
 		path = require('path'),
 		otj = require('ottypes/lib/json0'),
 		_ = require('lodash'),
+		db = require('./public/js/db'),
 		app = express();
 
 	app.use(express.static(path.join(__dirname, '/public')));
 
-	console.dir(otj);
+	// console.dir(otj);
 
-	var db = otj.create({
-		test: 'value',
-		number: 1,
-		sub: {
-			child: 2
-		}
-	});
+	// var db = otj.create({
+	// 	test: 'value',
+	// 	number: 1,
+	// 	sub: {
+	// 		child: 2
+	// 	}
+	// });
 
-	console.dir(db);
+	// console.dir(db);
 
-	var db2 = otj.apply(db, [{p:['test'], od: 'value', oi: 'value2'}]);
-	console.dir(db);
-	console.dir(db2);
+	// var db2 = otj.apply(db, [{p:['test'], od: 'value', oi: 'value2'}]);
+	// console.dir(db);
+	// console.dir(db2);
 
-	var sub = otj.apply(db.sub, [{p:['child2'], oi: 'woah'}]);
-	console.dir(sub);
-	console.dir(db);
+	// var sub = otj.apply(db.sub, [{p:['child2'], oi: 'woah'}]);
+	// console.dir(sub);
+	// console.dir(db);
 
 
 
@@ -49,53 +50,8 @@ var startServer = function(config, callback) {
 		}
 	};
 
-	var db = {};
 
-	var watch = function(path, callback) {
-		path = path.join('.');
 
-		var doc = db[path] || create(path);
-
-		doc.listeners.push(callback);
-
-		db[path] = doc;
-		return doc;
-	};
-
-	var create = function(path) {
-		return {
-			path: path,
-			listeners: [],
-			data: otj.create({}),
-			version: 0
-		};
-	};
-
-	var apply = function(path, operations) {
-		path = path.join('.');
-
-		var doc = db[path];
-		
-		doc.data = otj.apply(doc.data, operations);
-		doc.version++;
-
-		_.each(doc.listeners, function(callback) { callback(path, operations); });
-
-		return doc;
-	};
-
-	var change = function(path, object) {
-		console.log(arguments);
-	};
-	otj.on('move', change);
-	otj.on('set', change);
-	otj.on('delete', change);
-
-	_.extend(db, {
-		watch: watch,
-		create: create,
-		apply: apply
-	});
   
 	io.sockets.on('connection', function(socket) {
 		var watch = function(data) {
@@ -115,6 +71,55 @@ var startServer = function(config, callback) {
 
 		socket.on('watch', watch);
 		socket.on('apply', apply);
+
+		socket.on('live', function(data) {
+			console.log(data);
+			var path = data.path,
+				endpoint = 'live:' + path;
+
+			var callback = function(_rev, type, property, value) {
+				if (type == 'change') {
+					socket.emit(endpoint, {
+						_rev: _rev,
+						type: type,
+						set: property.set,
+						remove: property.remove
+					});
+				}
+				else {
+					socket.emit(endpoint, {
+						_rev: _rev,
+						type: type,
+						property: property,
+						value: value
+					});
+				}
+			};
+
+			var live = db.live(path, callback);
+
+			var listener = function(data) {
+				console.log(data);
+				if (data.type == 'change') live.change(data);
+				else if (data.type == 'set') live.set(data.property, data.value);
+				else if (data.type == 'remove') live.remove(data.property);
+				else if (data.type == 'leave') {
+					socket.removeListener('live:' + path, listener);
+					live.leave();
+				}
+			};
+
+			socket.on(endpoint, listener);
+
+			var snapshot = live.snapshot,
+				_rev = snapshot._rev;
+
+			socket.emit(endpoint, {
+				type: 'snapshot',
+				_rev: _rev,
+				data: snapshot.data
+			});
+		});
 	});
 
 	return callback(webserver, io, rtc);
