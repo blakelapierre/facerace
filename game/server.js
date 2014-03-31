@@ -99,13 +99,13 @@ var startServer = function(config, callback) {
 
 			socket.on(endpoint, listener);
 
-			var snapshot = live.snapshot,
-				_rev = snapshot._rev;
+			var snapshot = live.data,
+				_rev = live._rev;
 
 			socket.emit(endpoint, {
 				type: 'snapshot',
 				_rev: _rev,
-				data: snapshot.data
+				data: snapshot
 			});
 		});
 	});

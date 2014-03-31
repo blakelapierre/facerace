@@ -7,103 +7,93 @@ var db = {
 	shared: {} // Objects in here might have some kind of process for collaborative modifications
 };
 
-var live = function(path, listener) {
-	var l = db.live,
-		obj = l[path] || createLive(path),
-		data = obj.data,
-		listeners = obj.listeners;
 
-	if (listener) listeners.push(listener);
-
-	l[path] = obj;
-
-	var notify = function() {
-		var args = arguments;
-		_.each(listeners, function(listener) {
-			listener.apply(null, args);
-		});
+var liveGenerator = function(proxy) {
+	var createLive = function(path) {
+		return {
+			_rev: 0,
+			path: path,
+			listeners: [],
+			data: {}
+		};
 	};
 
-	var change = function(change) {
-		obj._rev++;
+	return function(path, listener) {
+		var l = db.live,
+			obj = l[path] || createLive(path),
+			data = obj.data,
+			listeners = obj.listeners;
 
-		if (change.set) _.extend(data, change.set);
-		if (change.remove) _.keys(change.remove, function(key) { delete data[key]; });
+		if (listener) listeners.push(listener);
 
-		notify(obj._rev, 'change', change);
-	};
+		l[path] = obj;
 
-	var leave = function() {
-		var index = _.indexOf(listeners, listener);
-		listeners.splice(index, 1);
-	};
-	
-	return {
-		snapshot: {
+		var notify = function() {
+			var args = arguments;
+			_.each(listeners, function(listener) {
+				listener.apply(null, args);
+			});
+		};
+
+		var leave = function() {
+			var index = _.indexOf(listeners, listener);
+			listeners.splice(index, 1);
+		};
+
+		var core = {
 			_rev: obj._rev,
-			data: data
-		},
-		change: change,
-		leave: leave
+			data: data,
+			notify: notify,
+			leave: leave
+		};
+
+		if (proxy) {
+			var changeProxy = function(_rev, change) {
+				var data = obj.data;
+				
+				obj._rev = _rev;
+
+				if (change.set) _.extend(data, change.set);
+				if (change.remove) _.keys(change.remove, function(key) { delete data[key]; });
+
+				notify(obj._rev, 'change', change);
+			};
+
+			var snapshot = function(_rev, data) {
+				obj._rev = _rev;
+				obj.data = data;
+				notify(obj.rev, 'snapshot', data);
+				return data;
+			};
+
+			return _.extend({
+				change: changeProxy,
+				snapshot: snapshot
+			}, core);
+		}
+		else 
+		{
+			var change = function(change) {
+				var data = obj.data;
+
+				obj._rev++;
+
+				if (change.set) _.extend(data, change.set);
+				if (change.remove) _.keys(change.remove, function(key) { delete data[key]; });
+
+				notify(obj._rev, 'change', change);
+			};
+
+			return _.extend({
+				change: change
+			}, core);
+		}
 	};
 };
 
-var liveProxy = function(path, listener) {
-	var l = db.live,
-		obj = l[path] || createLive(path),
-		data = obj.data,
-		listeners = obj.listeners;
+var live = liveGenerator(),
+	liveProxy = liveGenerator(true);
 
-	if (listener) listeners.push(listener);
-
-	l[path] = obj;
-
-	var notify = function() {
-		var args = arguments;
-		_.each(listeners, function(listener) {
-			listener.apply(null, args);
-		});
-	};
-
-	var change = function(_rev, change) {
-		var data = obj.data;
-		
-		obj._rev = _rev;
-
-		if (change.set) _.extend(data, change.set);
-		if (change.remove) _.keys(change.remove, function(key) { delete data[key]; });
-
-		notify(obj._rev, 'change', change);
-	};
-
-	var leave = function() {
-		var index = _.indexOf(listeners, listener);
-		listeners.splice(index, 1);
-	};
-
-	var snapshot = function(_rev, data) {
-		obj._rev = _rev;
-		obj.data = data;
-		notify(obj.rev, 'snapshot', data);
-		return data;
-	};
-
-	return {
-		data: data,
-		change: change,
-		leave: leave,
-		snapshot: snapshot
-	};
-};
-
-var createLive = function(path) {
-	return {
-		_rev: 0,
-		path: path,
-		listeners: [],
-		data: {}
-	};
-};
 
 // var watch = function(path, callback) {
 // 	path = path.join('.');
