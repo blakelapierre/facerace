@@ -47,18 +47,18 @@ var liveGenerator = function(proxy) {
 			leave: leave
 		};
 
+		var change = function(_rev, change) {
+			var data = obj.data;
+			
+			obj._rev = _rev;
+
+			if (change.set) _.extend(data, change.set);
+			if (change.remove) _.keys(change.remove, function(key) { delete data[key]; });
+
+			notify(obj._rev, 'change', change);
+		};
+
 		if (proxy) {
-			var changeProxy = function(_rev, change) {
-				var data = obj.data;
-				
-				obj._rev = _rev;
-
-				if (change.set) _.extend(data, change.set);
-				if (change.remove) _.keys(change.remove, function(key) { delete data[key]; });
-
-				notify(obj._rev, 'change', change);
-			};
-
 			var snapshot = function(_rev, data) {
 				obj._rev = _rev;
 				obj.data = data;
@@ -67,25 +67,16 @@ var liveGenerator = function(proxy) {
 			};
 
 			return _.extend({
-				change: changeProxy,
+				change: change,
 				snapshot: snapshot
 			}, core);
 		}
 		else 
 		{
-			var change = function(change) {
-				var data = obj.data;
-
-				obj._rev++;
-
-				if (change.set) _.extend(data, change.set);
-				if (change.remove) _.keys(change.remove, function(key) { delete data[key]; });
-
-				notify(obj._rev, 'change', change);
-			};
-
 			return _.extend({
-				change: change
+				change: function(c) {
+					change(obj._rev + 1, c);
+				}
 			}, core);
 		}
 	};
