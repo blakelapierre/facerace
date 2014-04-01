@@ -5,16 +5,6 @@ module.exports = function(eventHandlers, getEventsFn, updateFn) {
 		eventQ = [],
 		history = {};
 
-	var step = function() {
-		clock += 1;
-
-		processEventQ();
-		
-		updateFn(clock);
-
-		return history[clock].concat(swapQ());
-	};
-
 	var swapQ = function(newQ) {
 		var events = newQ || eventQ;
 		eventQ = [];
@@ -28,5 +18,13 @@ module.exports = function(eventHandlers, getEventsFn, updateFn) {
 		});
 	};
 
-	return step;
+	return function() {
+		clock += 1;
+
+		processEventQ();
+		
+		updateFn(clock);
+
+		return history[clock].concat(swapQ());
+	};
 };
