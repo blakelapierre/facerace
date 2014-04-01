@@ -12,12 +12,12 @@ module.exports = function(eventHandlers, getEventsFn, updateFn) {
 		
 		updateFn(clock);
 
-		return history[clock].concat(swapQ);
+		return history[clock].concat(swapQ());
 	};
 
 	var swapQ = function(newQ) {
-		var events = eventQ;
-		eventQ = newQ || [];
+		var events = newQ || eventQ;
+		eventQ = [];
 		return events;
 	};
 

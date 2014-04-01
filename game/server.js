@@ -13,6 +13,11 @@ var startServer = function(config, callback) {
 		rtc = webRTC.listen(config.rtcport),
 		io = socketIO.listen(webserver),
 		db = socketIOdb.host(io);
+
+	var facerace = require('./public/js/facerace/facerace')
+		facerace = facerace(io);
+	
+	for(var i = 0; i < 5; i++) {facerace()};
 	
 
 	return callback(webserver, io, rtc);
