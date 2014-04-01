@@ -4,6 +4,7 @@ module.exports = function(io) {
 	var eventHandlers = {
 		message: function(event) {
 			console.log(event);
+			return true;
 		}
 	};
 

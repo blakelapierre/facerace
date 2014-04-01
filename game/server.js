@@ -17,7 +17,9 @@ var startServer = function(config, callback) {
 	var facerace = require('./public/js/facerace/facerace')
 		facerace = facerace(io);
 	
-	for(var i = 0; i < 5; i++) {facerace()};
+	for(var i = 0; i < 5; i++) {
+		console.log(facerace());
+	};
 	
 
 	return callback(webserver, io, rtc);
