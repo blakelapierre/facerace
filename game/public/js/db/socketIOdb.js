@@ -46,6 +46,7 @@ console.log('going live at', path);
 	});
 
 	var change = function(set, remove) {
+		console.log('emitting ', set, 'on', endpoint);
 		socket.emit(endpoint, {type: 'change', set: set, remove: remove});
 	};
 

@@ -47,7 +47,6 @@ var liveGenerator = function(proxy) {
 		};
 
 		var change = function(_rev, change) {
-			console.log('got change', _rev, change);
 			var data = obj.data;
 			
 			obj._rev = _rev;
