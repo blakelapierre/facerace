@@ -1,35 +1,32 @@
-module.exports = (function(eventHandlers, updateFn) {
+var _ = require('lodash');
+
+module.exports = function(eventHandlers, getEventsFn, updateFn) {
 	var clock = 0,
 		eventQ = [],
 		history = {};
 
 	var step = function() {
 		clock += 1;
+
 		processEventQ();
+		
 		updateFn(clock);
-		return sendEvents();
+
+		return history[clock].concat(swapQ);
 	};
 
-	var swapQ = function() {
+	var swapQ = function(newQ) {
 		var events = eventQ;
-		eventQ = [];
+		eventQ = newQ || [];
 		return events;
 	};
 
 	var processEventQ = function() {
-		var events = swapQ();
+		var events = swapQ(getEventsFn());
 		history[clock] = _.filter(events, function(event) {
 			return (eventHandlers[event.type] || function() { return false; })(event);
 		});
 	};
 
-	var sendEvents = function() {
-		var events = swapQ();
-		return history[clock].concat(events);
-	};
-
-	return {
-		eventHandlers: eventHandlers,
-		step: step
-	};
-})();
+	return step;
+};
