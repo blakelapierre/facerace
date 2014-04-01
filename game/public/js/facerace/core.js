@@ -1,35 +1,40 @@
 module.exports = (function() {
 	var clock = 0,
-		eventQ = []
+		eventQ = [],
+		eventHandlers = {},
 		history = {};
-
 
 	var step = function() {
 		clock += 1;
 		processEventQ();
-		update();
+		update(clock);
 		sendEvents();
 	};
 
-	var processEventQ = function() {
+	var swapQ = function() {
 		var events = eventQ;
 		eventQ = [];
+		return events;
+	};
 
-		for (var i = 0; i < eventQ.length; i++) {
-			processEvent(events[i]);
-		}
+	var processEventQ = function() {
+		var events = swapQ();
+		history[clock] = _.filter(events, processEvent);
 	};
 
 	var processEvent = function(event) {
-		var valid = false;
-		switch(event.type) {
-			case 'input':
-				valid = processInputEvent(event);
-				break;
-		}
+		return (eventHandlers[event.type] || falseFn)(event);
+	};
+	var falseFn = function() { return false; };
+
+	var sendEvents = function() {
+		var events = swapQ();
+		// probably need to do something else here
+		return history[clock].concat(events);
 	};
 
-	var processInputEvent = function(inputEvent) {
-
+	return {
+		eventHandlers: eventHandlers,
+		step: step
 	};
 })();
