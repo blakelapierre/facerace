@@ -1,14 +1,13 @@
-module.exports = (function() {
+module.exports = (function(eventHandlers, updateFn) {
 	var clock = 0,
 		eventQ = [],
-		eventHandlers = {},
 		history = {};
 
 	var step = function() {
 		clock += 1;
 		processEventQ();
-		update(clock);
-		sendEvents();
+		updateFn(clock);
+		return sendEvents();
 	};
 
 	var swapQ = function() {
@@ -26,7 +25,6 @@ module.exports = (function() {
 
 	var sendEvents = function() {
 		var events = swapQ();
-		// probably need to do something else here
 		return history[clock].concat(events);
 	};
 
