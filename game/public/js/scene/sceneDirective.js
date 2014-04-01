@@ -18,10 +18,10 @@ module.exports = ['socketIOdbProxy', function SceneDirective(proxy) {
 
 			$scope.$watchCollection('test', function(newValue, anotherNewValue, $scope) {
 				console.log('phase', $scope.$$phase);
-				if ($scope.$$phase != 'digest') test.set(newValue);
+				if ($scope.$$phase != 'digest') test.change(newValue);
 			});
 
-			test.set({newProp: $scope.test.newProp ? $scope.test.newProp + 1 : 2, allNew: true});
+			test.change({newProp: $scope.test.newProp ? $scope.test.newProp + 1 : 2, allNew: true});
 
 
 			var width = window.innerWidth,

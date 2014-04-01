@@ -1,49 +1,12 @@
 var db = require('./db');
 
-
-	// var hook = function (obj) {
-	// 	for (var key in obj) {
-	// 		var thisKey = key;
-			
-	// 		obj.__defineGetter__(key, function() {
-	// 			return obj[thisKey];
-	// 		});
-
-	// 		obj.__defineSetter__(key, function(value) {
-	// 			obj[thisKey] = value;
-	// 		});
-	// 	}
-	// };
-
-
-
-  
-
 var socketIOdb = function(io) {
 	io.sockets.on('connection', function(socket) {
-		// var watch = function(data) {
-		// 	var doc = db.watch(data.p, function(path, operations) {
-		// 		socket.emit('apply', {p: path, ops: operations});
-		// 	});
-
-		// 	socket.emit('data', {path: path, doc: doc});
-		// };
-
-		// var apply = function(data) {
-		// 	var path = data.p,
-		// 		operations = data.ops,
-		// 		doc = db.apply(path, operations);
-		// 	console.dir(doc);
-		// };
-
-		// socket.on('watch', watch);
-		// socket.on('apply', apply);
-
 		socket.on('live', function(data) {
 			var path = data.path,
 				endpoint = 'live:' + path;
 
-			var live = db.live(path, function(_rev, type, property, value) {
+			var live = db.live(path, function(type, _rev, property, value) {
 				socket.emit(endpoint, {
 					_rev: _rev,
 					type: type,
@@ -73,16 +36,17 @@ var socketIOdb = function(io) {
 var socketIOdbProxy = function(socket, path, listener) {
 	var proxy = db.liveProxy(path),
 		endpoint = 'live:' + path;
-
+console.log('going live at', path);
 	socket.emit('live', {path: path});
 
 	socket.on(endpoint, function(message) {
+		console.log(endpoint, message);
 		var data = proxy.change(message._rev, message);
 		listener(data, message.set, message.remove);
 	});
 
-	var set = function(toSet, toRemove) {
-		socket.emit(endpoint, {type: 'change', set: toSet, remove: toRemove});
+	var change = function(set, remove) {
+		socket.emit(endpoint, {type: 'change', set: set, remove: remove});
 	};
 
 	var leave = function() {
@@ -91,7 +55,7 @@ var socketIOdbProxy = function(socket, path, listener) {
 
 	return {
 		data: proxy.data,
-		set: set,
+		change: change,
 		leave: leave
 	};
 };

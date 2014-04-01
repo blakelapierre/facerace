@@ -19,21 +19,20 @@ var liveGenerator = function(proxy) {
 	};
 
 	return function(path, listener) {
-		var l = db.live,
-			obj = l[path] || createLive(path),
+		var live = db.live,
+			obj = live[path] || createLive(path),
 			data = obj.data,
 			listeners = obj.listeners;
 
 		if (listener) listeners.push(listener);
 
-		l[path] = obj;
+		live[path] = obj;
 
 		var notify = function() {
 			var args = arguments;
 			_.each(listeners, function(listener) {
-				listener.apply(null, args);
+				listener.apply(listener, args);
 			});
-			console.dir({_rev: args[1], change: args[2]});
 		};
 
 		var leave = function() {
@@ -48,6 +47,7 @@ var liveGenerator = function(proxy) {
 		};
 
 		var change = function(_rev, change) {
+			console.log('got change', _rev, change);
 			var data = obj.data;
 			
 			obj._rev = _rev;
@@ -80,53 +80,6 @@ var liveGenerator = function(proxy) {
 
 var live = liveGenerator(),
 	liveProxy = liveGenerator(true);
-
-
-// var watch = function(path, callback) {
-// 	path = path.join('.');
-
-// 	var doc = db[path] || create(path);
-	
-// 	doc.listeners.push(callback);
-
-// 	db[path] = doc;
-// 	return doc;
-// };
-
-// var create = function(path) {
-// 	return {
-// 		path: path,
-// 		listeners: [],
-// 		data: otj.create({}),
-// 		version: 0
-// 	};
-// };
-
-// var apply = function(path, operations) {
-// 	path = path.join('.');
-
-// 	var doc = db[path];
-	
-// 	doc.data = otj.apply(doc.data, operations);
-// 	doc.version++;
-
-// 	_.each(doc.listeners, function(callback) { callback(path, operations); });
-
-// 	return doc;
-// };
-
-// var change = function(path, object) {
-// 	console.log(arguments);
-// };
-// otj.on('move', change);
-// otj.on('set', change);
-// otj.on('delete', change);
-
-// _.extend(db, {
-// 	watch: watch,
-// 	create: create,
-// 	apply: apply
-// });
 
 module.exports = {
 	db: db,
