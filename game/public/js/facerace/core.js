@@ -19,13 +19,10 @@ module.exports = (function() {
 
 	var processEventQ = function() {
 		var events = swapQ();
-		history[clock] = _.filter(events, processEvent);
+		history[clock] = _.filter(events, function(event) {
+			return (eventHandlers[event.type] || function() { return false; })(event);
+		});
 	};
-
-	var processEvent = function(event) {
-		return (eventHandlers[event.type] || falseFn)(event);
-	};
-	var falseFn = function() { return false; };
 
 	var sendEvents = function() {
 		var events = swapQ();
