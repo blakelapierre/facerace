@@ -2,7 +2,8 @@ var _ = require('lodash'),
 	core = require('./core');
 
 module.exports = function(io, onEvent) {
-	var eventQ = []
+	var eventQ = [],
+		sockets = {},
 		players = [];
 
 	var swapQ = function(newQ) {
@@ -13,18 +14,25 @@ module.exports = function(io, onEvent) {
 
 	onEvent = onEvent(); //compile?
 
-	var addPlayer = function(socket) {
-		return {
+	var newPlayer = function(socket) {
+		var player = {
 			id: socket.id,
-			socket: socket,
 			position: [0,0,0]
 		};
+
+		players.push(player);
+
+		eventQ.push({type: 'player', data: player});
+
+		return player;
 	};
 
 	io.sockets.on('connection', function(socket) {
 		console.log(socket.id);
-		var player = addPlayer(socket);
-		players.push(player);
+
+		sockets[socket.id] = socket;
+		
+		var player = newPlayer(socket);
 
 		socket.on('position', function(data) {
 			eventQ.push({player: player, type: 'position', data: data});
@@ -35,7 +43,7 @@ module.exports = function(io, onEvent) {
 	return (function(core) {
 		var broadcast = function(player, type, data) {
 			_.each(players, function(p) {
-				if (player != p) p.socket.emit(type, data);
+				if (player != p) sockets[p.id].emit(type, data);
 			});
 		};
 
@@ -47,6 +55,12 @@ module.exports = function(io, onEvent) {
 			return events;
 		};	
 	})(core({
+		player: function(event) {
+			var player = event.data;
+			console.log('player joined', player);
+
+			return true;
+		},
 		position: function(event) {
 			var data = event.data;
 				player = event.player;
