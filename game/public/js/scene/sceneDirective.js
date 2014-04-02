@@ -25,6 +25,12 @@ module.exports = ['socket', function SceneDirective(socket) {
 
 			socket.emit('position', {x: 1, y: 2, z: 3});
 
+			$scope.test = {};
+			socket.on('position', function(data) {
+				$scope.test.position = data;
+				$scope.$apply();
+			});
+
 
 			var width = window.innerWidth,
 				height = window.innerHeight,
