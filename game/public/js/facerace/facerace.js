@@ -13,39 +13,46 @@ module.exports = function(io, onEvent) {
 
 	onEvent = onEvent(); //compile?
 
+	var addPlayer = function(socket) {
+		return {
+			id: socket.id,
+			socket: socket,
+			position: [0,0,0]
+		};
+	};
+
 	io.sockets.on('connection', function(socket) {
 		console.log(socket.id);
-		players.push(socket);
+		var player = addPlayer(socket);
+		players.push(player);
 
 		socket.on('position', function(data) {
-			eventQ.push({socket: socket, type: 'position', data: data});
+			eventQ.push({player: player, type: 'position', data: data});
 			onEvent(data);
 		});
 	});
 
 	return (function(core) {
-		var broadcast = function(socket, type, data) {
-			_.each(players, function(s) {
-				if (socket != s) s.emit(type, data);
+		var broadcast = function(player, type, data) {
+			_.each(players, function(p) {
+				if (player != p) p.socket.emit(type, data);
 			});
 		};
 
 		return function(additionalEvents) {
 			var events = core();
 			_.each(events, function(event) {
-				console.log(event);
-				broadcast(event.socket, event.type, event.data);
+				broadcast(event.player, event.type, event.data);
 			});
 			return events;
 		};	
 	})(core({
-		message: function(event) {
-			console.log(event);
-			return true;
-		},
 		position: function(event) {
 			var data = event.data;
-			console.log('position', data);
+				player = event.player;
+
+			player.position = data;
+			console.log('position', player.position);
 			return true;
 		}
 	}, function() {
