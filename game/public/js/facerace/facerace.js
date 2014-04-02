@@ -20,6 +20,15 @@ module.exports = function(isServer, rtc, io, onEvent) {
 			console.log('players', players);
 			return true;
 		},
+		state: function(player, state) {
+			console.log('state', state);
+			if (state.state == null) {
+				state.state = {
+					players: players
+				};
+			}
+			return true;
+		},
 		video: function(player, socketID) {
 			player.videoSocketID = socketID;
 			return true;
@@ -33,7 +42,7 @@ module.exports = function(isServer, rtc, io, onEvent) {
 	_.each(_.keys(eventHandlers), function(key) {
 		var fn = eventHandlers[key];
 		eventHandlers[key] = function(e) {
-			fn(e._player, e._event);
+			return fn(e._player, e._event);
 		};
 	});
 
@@ -53,32 +62,36 @@ module.exports = function(isServer, rtc, io, onEvent) {
 			socket.on(key, function(event) {
 				console.log(key, event);
 				eventQ.push({type: key, _player: socket.player, _event: event});
-				onEvent(event);
+				onEvent(players, event);
 			});
 		});
 
-		eventQ.push({type: 'player', _player: player, _event: player});
-		onEvent({});
+		if (isServer) {
+			var event = {type: 'player', _player: player, _event: player};
+			eventQ.push(event);
+		}
+		else {
+			var event = {type: 'state', _player: player, _event: {}};
+			eventQ.push(event);
+		}
 	};
 
 	if (isServer) io.sockets.on('connection', hookSocket);
 	else hookSocket(io);
 
 	return (function(core) {
-		var broadcast = isServer ? (function(player, type, data) {
+		var broadcast = isServer ? (function(event) {
+			var player = event._player;
 			_.each(players, function(p) {
-				if (player != p) sockets[p.id].emit(type, data);
+				if (player != p) sockets[p.id].emit(event.type, event._event);
 			});
 		}) : (function(player, type, data) {
-
+			console.log('client');
 		});
 
 		return function(additionalEvents) {
 			var events = core();
-			_.each(events.concat(additionalEvents || []), function(event) {
-				broadcast(event._player, event.type, event.data);
-			});
-			console.log(players);
+			_.each(events.concat(additionalEvents || []), broadcast);
 			return events;
 		};	
 	})(core(isServer, eventHandlers, function() {

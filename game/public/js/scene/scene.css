@@ -11,3 +11,17 @@ scene {
 	left: 0%;
 	color: #fff;
 }
+
+.players {
+	position: absolute;
+	right: 0%;
+	top: 0%;
+	color: #fff;
+}
+
+.lastEvent {
+	position: absolute;
+	right: 0%;
+	bottom: 0%;
+	color: #fff;
+}

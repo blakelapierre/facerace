@@ -3,7 +3,8 @@ var angular = require('angular'),
 	Stats = require('stats'),
 	_ = require('lodash'),
 	mathjs = require('mathjs'),
-	math = mathjs();
+	math = mathjs(),
+	facerace = require('./../facerace/facerace');
 
 module.exports = ['socket', function SceneDirective(socket) {
 	return {
@@ -22,6 +23,16 @@ module.exports = ['socket', function SceneDirective(socket) {
 			// });
 
 			// test.change({newProp: $scope.test.newProp ? $scope.test.newProp + 1 : 2, allNew: true});
+
+			facerace = facerace(false, rtc, socket, function() { 
+				return function(players, event) {
+					facerace();
+					$scope.lastEvent = event;
+					$scope.players = players;
+					$scope.$apply();
+				};
+			});
+			facerace();
 
 			socket.emit('position', {x: 1, y: 2, z: 3});
 
