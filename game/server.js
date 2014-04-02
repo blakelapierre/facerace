@@ -14,12 +14,11 @@ var startServer = function(config, callback) {
 		io = socketIO.listen(webserver),
 		db = socketIOdb.host(io);
 
+	io.set('log level', 0);
+
 	var facerace = require('./public/js/facerace/facerace')
-		facerace = facerace(io);
+		facerace = facerace(io, function() { return function() { facerace(); } });
 	
-	for(var i = 0; i < 5; i++) {
-		console.log(facerace());
-	};
 
 
 	var core = {

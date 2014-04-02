@@ -1,7 +1,7 @@
 var _ = require('lodash'),
 	core = require('./core');
 
-module.exports = function(io) {
+module.exports = function(io, onEvent) {
 	var eventQ = [];
 
 	var swapQ = function(newQ) {
@@ -10,9 +10,13 @@ module.exports = function(io) {
 		return events;
 	};
 
+	onEvent = onEvent(); //compile?
+
 	io.sockets.on('connection', function(socket) {
+		console.log(socket.id);
 		socket.on('position', function(data) {
 			eventQ.push({socket: socket, type: 'position', data: data});
+			onEvent(data);
 		});
 	});
 

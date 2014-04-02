@@ -5,23 +5,25 @@ var angular = require('angular'),
 	mathjs = require('mathjs'),
 	math = mathjs();
 
-module.exports = ['socketIOdbProxy', function SceneDirective(proxy) {
+module.exports = ['socket', function SceneDirective(socket) {
 	return {
 		restrict: 'E',
 		template: require('./sceneTemplate.html'),
 		link: function($scope, element, attributes) {
-			var test = proxy.live('test', function() {
-				$scope.$apply();
-			});
+			// var test = proxy.live('test', function() {
+			// 	$scope.$apply();
+			// });
 
-			$scope.test = test.data;
+			// $scope.test = test.data;
 
-			$scope.$watchCollection('test', function(newValue, anotherNewValue, $scope) {
-				console.log('phase', $scope.$$phase);
-				if ($scope.$$phase != 'digest') test.change(newValue);
-			});
+			// $scope.$watchCollection('test', function(newValue, anotherNewValue, $scope) {
+			// 	console.log('phase', $scope.$$phase);
+			// 	if ($scope.$$phase != 'digest') test.change(newValue);
+			// });
 
-			test.change({newProp: $scope.test.newProp ? $scope.test.newProp + 1 : 2, allNew: true});
+			// test.change({newProp: $scope.test.newProp ? $scope.test.newProp + 1 : 2, allNew: true});
+
+			socket.emit('position', {x: 1, y: 2, z: 3});
 
 
 			var width = window.innerWidth,
