@@ -1,6 +1,6 @@
 var _ = require('lodash');
 
-module.exports = function(eventHandlers, getEventsFn, updateFn) {
+module.exports = function(isServer, eventHandlers, getEventsFn, updateFn) {
 	var clock = 0,
 		eventQ = [],
 		history = {};
@@ -25,6 +25,6 @@ module.exports = function(eventHandlers, getEventsFn, updateFn) {
 		
 		updateFn(clock);
 
-		return history[clock].concat(swapQ());
+		return isServer ? history[clock].concat(swapQ()) : swapQ(); // move this out of the function!
 	};
 };

@@ -1,7 +1,7 @@
 var _ = require('lodash'),
 	core = require('./core');
 
-module.exports = function(rtc, io, onEvent) {
+module.exports = function(isServer, rtc, io, onEvent) {
 	var eventQ = [],
 		sockets = {},
 		players = [];
@@ -62,11 +62,13 @@ module.exports = function(rtc, io, onEvent) {
 	});
 
 	return (function(core) {
-		var broadcast = function(player, type, data) {
+		var broadcast = isServer ? (function(player, type, data) {
 			_.each(players, function(p) {
 				if (player != p) sockets[p.id].emit(type, data);
 			});
-		};
+		}) : (function(player, type, data) {
+
+		});
 
 		return function(additionalEvents) {
 			var events = core();
@@ -76,7 +78,7 @@ module.exports = function(rtc, io, onEvent) {
 			console.log(players);
 			return events;
 		};	
-	})(core(eventHandlers, function() {
+	})(core(isServer, eventHandlers, function() {
 		return swapQ();
 	}, function(clock) {
 		console.log(clock);
