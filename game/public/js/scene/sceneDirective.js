@@ -24,23 +24,9 @@ module.exports = ['socket', function SceneDirective(socket) {
 
 			// test.change({newProp: $scope.test.newProp ? $scope.test.newProp + 1 : 2, allNew: true});
 
-			facerace = facerace(false, rtc, socket, function() { 
-				return function(players, event) {
-					facerace();
-					$scope.lastEvent = event;
-					$scope.players = players;
-					$scope.$apply();
-				};
-			});
-			facerace();
+			
 
 			socket.emit('position', {x: 1, y: 2, z: 3});
-
-			$scope.test = {};
-			socket.on('position', function(data) {
-				$scope.test.position = data;
-				$scope.$apply();
-			});
 
 
 			var width = window.innerWidth,
@@ -137,7 +123,7 @@ module.exports = ['socket', function SceneDirective(socket) {
 					videoSource.material = material;
 					liveSources[newKey] = videoSource;
 
-					socket.emit('video', {socketID: videoSource.socketID});
+					socket.emit('video', videoSource.socketID);
 				});
 
 				_.each(removableKeys, function(removableKey) {
@@ -171,6 +157,13 @@ module.exports = ['socket', function SceneDirective(socket) {
 				});
 			}, true);
 
+			facerace = facerace(false, rtc, socket, function() { 
+				return function(state, event) {
+					$scope.lastEvent = event;
+					$scope.$apply();
+				};
+			});
+
 			var maxfps = 1,
 				lastFrame = new Date().getTime();
 			var render = function() {
@@ -192,6 +185,11 @@ module.exports = ['socket', function SceneDirective(socket) {
 					}
 					source.material.uniforms.time.value += 1;
 				});
+
+				var result = facerace();
+				console.log('state', result.state);
+				$scope.players = result.state;
+				$scope.$apply();
 
 				renderer.render(scene, camera);
 				stats.update();
