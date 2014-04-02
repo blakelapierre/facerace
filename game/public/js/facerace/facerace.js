@@ -16,17 +16,15 @@ module.exports = function(rtc, io, onEvent) {
 
 	var eventHandlers = {
 		player: function(player, event) {
-			var player = event.data;
 			console.log('player joined', player);
-
 			return true;
 		},
-		video: function(player, event) {
-			var data = event.data;
+		video: function(player, socketID) {
+			player.videoSocketID = socketID;
+			return true;
 		},
 		position: function(player, position) {
 			player.position = position;
-			console.log('position', player.position);
 			return true;
 		}
 	};
@@ -39,7 +37,7 @@ module.exports = function(rtc, io, onEvent) {
 
 		players.push(player);
 
-		eventQ.push({type: 'player', data: player});
+		eventQ.push({type: 'player', _player: player, event: player});
 
 		return player;
 	};
@@ -55,8 +53,13 @@ module.exports = function(rtc, io, onEvent) {
 			var fn = eventHandlers[key];
 
 			socket.on(key, function(event) {
-				fn(player, event);
+				eventQ.push({type: key, _player: player, _event: event});
+				onEvent(event);
 			});
+
+			eventHandlers[key] = function(e) {
+				fn(e._player, e._event);
+			};
 		});
 
 		console.log(rtc.rtc.rooms);
@@ -74,6 +77,7 @@ module.exports = function(rtc, io, onEvent) {
 			_.each(events.concat(additionalEvents || []), function(event) {
 				broadcast(event._player, event.type, event.data);
 			});
+			console.log(players);
 			return events;
 		};	
 	})(core(eventHandlers, function() {
