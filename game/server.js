@@ -20,7 +20,21 @@ var startServer = function(config, callback) {
 	for(var i = 0; i < 5; i++) {
 		console.log(facerace());
 	};
-	
+
+
+	var core = {
+		update: function() {console.log('update')},
+		test: 'test'
+	};
+
+	with (core) {
+		(function() {
+			update();
+			console.log(test);
+			var test = 'no';
+			console.log(test);
+		})();
+	}	
 
 	return callback(webserver, io, rtc);
 };

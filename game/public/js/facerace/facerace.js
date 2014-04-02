@@ -16,5 +16,10 @@ module.exports = function(io) {
 		console.log(clock);
 	};
 
-	return core(eventHandlers, getEvents, update);
+	return (function(core) {
+		return function(additionalEvents) {
+			var events = core();
+			return events;
+		};	
+	})(core(eventHandlers, getEvents, update));
 };
