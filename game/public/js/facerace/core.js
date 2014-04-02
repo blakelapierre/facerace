@@ -14,7 +14,7 @@ module.exports = function(isServer, eventHandlers, getEventsFn, updateFn) {
 	var processEventQ = function() {
 		var events = swapQ(getEventsFn());
 		history[clock] = _.filter(events, function(event) {
-			return (eventHandlers[event.type] || function() { return false; })(event);
+			return (eventHandlers[event.type] || function() { return false; })(eventQ, event);
 		});
 	};
 
@@ -24,7 +24,7 @@ module.exports = function(isServer, eventHandlers, getEventsFn, updateFn) {
 		processEventQ();
 		
 		updateFn(clock);
-		
+
 		var events = swapQ();
 		return isServer ? history[clock].concat(events) : events; // move this out of the function!
 	};
