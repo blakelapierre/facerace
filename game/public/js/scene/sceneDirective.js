@@ -123,7 +123,7 @@ module.exports = ['socket', function SceneDirective(socket) {
 					videoSource.material = material;
 					liveSources[newKey] = videoSource;
 
-					socket.emit('video', videoSource.socketID);
+					facerace.video(videoSource.socketID);
 				});
 
 				_.each(removableKeys, function(removableKey) {

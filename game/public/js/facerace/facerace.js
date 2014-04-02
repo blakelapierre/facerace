@@ -6,7 +6,7 @@ module.exports = function(isServer, rtc, io, onEvent) {
 		sockets = {},
 		state = {
 			state: {
-				players: []
+				players: {}
 			}
 		},
 		stateEvents = []; // *ONLY* used to keep track that we need to send the full state to incoming sockets *after* we process their entry to the game.
@@ -39,23 +39,20 @@ module.exports = function(isServer, rtc, io, onEvent) {
 		player: {
 			pre: function(eventQ, player, newPlayer) {
 				var state = getState();
-				state.players.push(newPlayer);
+				state.players[newPlayer.id] = newPlayer;
 				return true;
 			}
 		},
 		playerLeave: {
 			pre: function(eventQ, player, id) {
-				var state = getState(),
-					index = _.indexOf(state.players, player);
-				state.players.splice(index, 1);
+				var state = getState();
+				delete state.players[id];
 				return true;
 			}
 		},
 		video: {
 			pre: function(eventQ, player, socketID) {
 				player.videoSocketID = socketID;
-				console.log(player);
-				console.log(getState());
 				return true;
 			}
 		},
@@ -80,33 +77,14 @@ module.exports = function(isServer, rtc, io, onEvent) {
 	var hookSocket = function(socket) {
 		sockets[socket.id || 'local'] = socket;
 
-		_.each(_.keys(eventHandlers), function(key) {
-			if (isServer) {
-				var player = {
-					id: socket.id,
-					position: [0,0,0]
-				};
-				socket.player = player;
-
-				socket.on(key, function(event) {
-					console.log('incoming -->', key, event);
-					eventQ.push({type: key, _player: player, _event: event});
-					onEvent(getState(), event);
-				});
-			}
-			else {
-				socket.on(key, function(event) {
-					console.log('incoming -->', key, event);
-					var state = getState(),
-						player = _.find(state.players, function(p) { return p.id == event._fromID; });
-					eventQ.push({type: key, _player: player, _event: event._event});
-					onEvent(state, event);
-				});
-			}	
-		});
-
 		if (isServer) {
-			var player = socket.player;
+			var player = {
+				id: socket.id,
+				position: [0,0,0]
+			};
+
+			socket.player = player;
+			
 			eventQ.push({type: 'player', _player: player, _event: player});
 			stateEvents.push(function() {
 				var state = getState();
@@ -121,6 +99,26 @@ module.exports = function(isServer, rtc, io, onEvent) {
 				onEvent(state, event);
 			});
 		}
+
+		_.each(_.keys(eventHandlers), function(key) {
+			if (isServer) {
+				var player = socket.player;
+				socket.on(key, function(event) {
+					console.log('incoming -->', key, event);
+					eventQ.push({type: key, _player: player, _event: event});
+					onEvent(getState(), event);
+				});
+			}
+			else {
+				socket.on(key, function(event) {
+					console.log('incoming -->', key, event);
+					var state = getState(),
+						player = state.players[event._fromID];
+					eventQ.push({type: key, _player: player, _event: event._event});
+					onEvent(state, event);
+				});
+			}	
+		});
 	};
 
 	if (isServer) io.sockets.on('connection', hookSocket);
@@ -131,15 +129,22 @@ module.exports = function(isServer, rtc, io, onEvent) {
 			var state = getState(),
 				player = event._player,
 				clientEvent = {_fromID: player.id, _event: event._event};
-			console.log(event.type, clientEvent);
-			_.each(state.players, function(p) {
-				if (player !== p) sockets[p.id].emit(event.type, clientEvent);
+			console.log('<-- outgoing', state, event.type, clientEvent);
+			_.forOwn(state.players, function(p, playerID) {
+				if (player.id != playerID) sockets[playerID].emit(event.type, clientEvent);
 			});
 		}) : (function(event) {
 			io.emit(event.type, event._event);
 		});
 
-		return function() {
+		var serverExtensions = {},
+			clientExtensions = {
+				video: function(socketID) {
+					io.emit('video', socketID);
+				}
+			};
+
+		return _.extend(function() {
 			var events = core();
 			_.each(events, function(event) {
 				(eventHandlers.post[event.type] || function() { })(null, event);
@@ -151,7 +156,7 @@ module.exports = function(isServer, rtc, io, onEvent) {
 				state: state,
 				events: events
 			};
-		};	
+		}, isServer ? serverExtensions : clientExtensions);	
 	})(core(isServer, eventHandlers.pre, function() {
 		return swapQ();
 	}, function(clock) {
