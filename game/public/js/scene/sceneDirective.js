@@ -125,6 +125,8 @@ module.exports = ['socket', function SceneDirective(socket) {
 					videoSource.texture = texture;
 					videoSource.material = material;
 					liveSources[newKey] = videoSource;
+
+					socket.emit('video', {socketID: videoSource.socketID});
 				});
 
 				_.each(removableKeys, function(removableKey) {
@@ -145,14 +147,13 @@ module.exports = ['socket', function SceneDirective(socket) {
 					parser = math.parser();
 
 				_.each(liveSources, function(videoSource) {
-					var mesh = videoSource.mesh; 
-
 					parser.eval('a = ' + i);
 					parser.eval('p = floor(sqrt(4 * a + 1))');
 					parser.eval('q = a - floor(p^2 / 4)');
 					
 					var point = parser.eval('q * i^p + (floor((p + 2) / 4) - floor((p + 1) / 4) * i) * i^(p - 1)');
 
+					var mesh = videoSource.mesh; 
 					mesh.position.y = point.re;
 					mesh.position.x = point.im;
 					i++;

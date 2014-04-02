@@ -24,7 +24,7 @@ module.exports = ['$sce', function CameraDirective($sce) {
 			$scope.sources = {};
 
 			rtc.createStream({video: true, audio: true}, function(stream) {
-				var video = createVideo(stream);
+				var video = createVideo(stream, rtc._me);
 				$scope.sources[video.socketID] = video;
 				$scope.$apply();
 			});
@@ -34,7 +34,7 @@ module.exports = ['$sce', function CameraDirective($sce) {
 			});
 
 			var room = window.location.hash || '#facerace';
-			rtc.connect('ws://' + window.location.hostname + ':3007', room.split('-')[0]);
+			rtc.connect('ws://' + window.location.hostname + ':2887', room.split('-')[0]);
 			$scope.room = room;
 
 			rtc.on('add remote stream', function(stream, socketID) {

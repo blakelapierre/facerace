@@ -1,7 +1,7 @@
 var _ = require('lodash'),
 	core = require('./core');
 
-module.exports = function(io, onEvent) {
+module.exports = function(rtc, io, onEvent) {
 	var eventQ = [],
 		sockets = {},
 		players = [];
@@ -13,6 +13,23 @@ module.exports = function(io, onEvent) {
 	};
 
 	onEvent = onEvent(); //compile?
+
+	var eventHandlers = {
+		player: function(player, event) {
+			var player = event.data;
+			console.log('player joined', player);
+
+			return true;
+		},
+		video: function(player, event) {
+			var data = event.data;
+		},
+		position: function(player, position) {
+			player.position = position;
+			console.log('position', player.position);
+			return true;
+		}
+	};
 
 	var newPlayer = function(socket) {
 		var player = {
@@ -31,13 +48,18 @@ module.exports = function(io, onEvent) {
 		console.log(socket.id);
 
 		sockets[socket.id] = socket;
-		
+
 		var player = newPlayer(socket);
 
-		socket.on('position', function(data) {
-			eventQ.push({player: player, type: 'position', data: data});
-			onEvent(data);
+		_.each(_.keys(eventHandlers), function(key) {
+			var fn = eventHandlers[key];
+
+			socket.on(key, function(event) {
+				fn(player, event);
+			});
 		});
+
+		console.log(rtc.rtc.rooms);
 	});
 
 	return (function(core) {
@@ -49,27 +71,12 @@ module.exports = function(io, onEvent) {
 
 		return function(additionalEvents) {
 			var events = core();
-			_.each(events, function(event) {
-				broadcast(event.player, event.type, event.data);
+			_.each(events.concat(additionalEvents || []), function(event) {
+				broadcast(event._player, event.type, event.data);
 			});
 			return events;
 		};	
-	})(core({
-		player: function(event) {
-			var player = event.data;
-			console.log('player joined', player);
-
-			return true;
-		},
-		position: function(event) {
-			var data = event.data;
-				player = event.player;
-
-			player.position = data;
-			console.log('position', player.position);
-			return true;
-		}
-	}, function() {
+	})(core(eventHandlers, function() {
 		return swapQ();
 	}, function(clock) {
 		console.log(clock);

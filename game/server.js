@@ -17,9 +17,12 @@ var startServer = function(config, callback) {
 	io.set('log level', 0);
 
 	var facerace = require('./public/js/facerace/facerace')
-		facerace = facerace(io, function() { return function() { facerace(); } });
+		facerace = facerace(rtc, io, function() { return function() { facerace(); } });
 	
-
+		
+	app.get('/channels', function(req, res) {
+		res.json(rtc.rtc.rooms);
+	});
 
 	// var core = {
 	// 	update: function() {console.log('update')},
