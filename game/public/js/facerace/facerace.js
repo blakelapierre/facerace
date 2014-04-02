@@ -52,25 +52,19 @@ module.exports = function(isServer, rtc, io, onEvent) {
 		}
 	};
 
-	var preEventHandlers = {},
-		postEventHandlers = {};
-
-	_.each(_.keys(eventHandlers), function(key) {
-		_.each(['pre', 'post'], function(hookPoint) {
+	_.each(['pre', 'post'], function(hookPoint) {
+		eventHandlers[hookPoint] = {};
+		_.each(_.keys(eventHandlers), function(key) {
 			var fn = eventHandlers[key][hookPoint] || function() {};
-			eventHandlers[key][hookPoint] = function(eventQ, event) {
+			eventHandlers[hookPoint][key] = function(eventQ, event) {
 				return fn(eventQ, event._player, event._event);
 			}
 		});
-
-		preEventHandlers[key] = eventHandlers[key]['pre'];
-		postEventHandlers[key] = eventHandlers[key]['post'];
 	});
+	console.log(eventHandlers);
 
 	var hookSocket = function(socket) {
-		console.log(socket.id);
-
-		sockets[socket.id] = socket;
+		sockets[socket.id || 'local'] = socket;
 
 		_.each(_.keys(eventHandlers), function(key) {
 			if (isServer) {
@@ -122,19 +116,19 @@ module.exports = function(isServer, rtc, io, onEvent) {
 		return function() {
 			var events = core();
 			_.each(events, function(event) {
-				(postEventHandlers[event.type] || function() { })(null, event);
+				(eventHandlers.post[event.type] || function() { })(null, event);
 			});
-			_.each(events, broadcast);
 			_.each(stateEvents, function(event) { event(); });
+			_.each(events, broadcast);
 			stateEvents = [];
 			return {
 				state: state,
 				events: events
 			};
 		};	
-	})(core(isServer, preEventHandlers, function() {
+	})(core(isServer, eventHandlers.pre, function() {
 		return swapQ();
 	}, function(clock) {
-		console.log(clock);
+		// console.log(clock);
 	}));
 };

@@ -13,7 +13,7 @@ module.exports = function(isServer, eventHandlers, getEventsFn, updateFn) {
 
 	var processEventQ = function() {
 		var events = swapQ(getEventsFn());
-		history[clock] = _.filter(events, function(event) {
+		history[clock] = _.filter(events, function(event) { // we will want to pick these off of the history object probably
 			return (eventHandlers[event.type] || function() { return false; })(eventQ, event);
 		});
 	};

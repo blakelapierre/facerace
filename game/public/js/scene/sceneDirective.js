@@ -187,8 +187,7 @@ module.exports = ['socket', function SceneDirective(socket) {
 				});
 
 				var result = facerace();
-				console.log('state', result.state);
-				$scope.players = result.state;
+				$scope.players = JSON.stringify(result.state, null, '|--');
 				$scope.$apply();
 
 				renderer.render(scene, camera);
