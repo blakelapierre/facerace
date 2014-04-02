@@ -65,7 +65,6 @@ module.exports = ['socket', function SceneDirective(socket) {
 			stats.domElement.style.top = '0px';
 
 			var resize = function(e) {
-				console.log('resize', e, element);
 				var height = e.target.innerHeight,
 					width = e.target.innerWidth;
 					
@@ -78,17 +77,14 @@ module.exports = ['socket', function SceneDirective(socket) {
 
 			$scope.liveSources = {};
 			$scope.$watchCollection('sources', function(newValue, ALSONEWVALUEಠ_ಠ, $scope) {
-				console.log('sources',newValue);
 				var liveSources = $scope.liveSources,
 					currentKeys = _.keys(newValue),
 					oldKeys = _.keys(liveSources),
 					newKeys = _.difference(currentKeys, oldKeys),
 					removableKeys = _.difference(oldKeys, currentKeys);
 
-				console.log(currentKeys, oldKeys, newKeys, removableKeys);	
 
 				_.each(newKeys, function(newKey) {
-					console.log(newKey);
 					var videoSource = newValue[newKey],
 						video = videoSource.element,
 						width = 1,
@@ -123,7 +119,7 @@ module.exports = ['socket', function SceneDirective(socket) {
 					videoSource.material = material;
 					liveSources[newKey] = videoSource;
 
-					facerace.video(videoSource.socketID);
+					if (videoSource.socketID == rtc._me) facerace.video(videoSource.socketID);
 				});
 
 				_.each(removableKeys, function(removableKey) {
@@ -191,6 +187,8 @@ module.exports = ['socket', function SceneDirective(socket) {
 				//var result = facerace();
 				// $scope.players = JSON.stringify(result.state, null, '|--');
 				// $scope.$apply();
+
+				facerace();
 
 				renderer.render(scene, camera);
 				stats.update();

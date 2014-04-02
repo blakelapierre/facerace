@@ -129,22 +129,29 @@ module.exports = function(isServer, rtc, io, onEvent) {
 			var state = getState(),
 				player = event._player,
 				clientEvent = {_fromID: player.id, _event: event._event};
-			console.log('<-- outgoing', state, event.type, clientEvent);
+			console.log('<-- outgoing', event.type, clientEvent);
 			_.forOwn(state.players, function(p, playerID) {
 				if (player.id != playerID) sockets[playerID].emit(event.type, clientEvent);
 			});
 		}) : (function(event) {
+			console.log('<-- outgoing', event.type, event._event);
 			io.emit(event.type, event._event);
 		});
 
 		var serverExtensions = {},
 			clientExtensions = {
 				video: function(socketID) {
+					var state = getState();
+
 					io.emit('video', socketID);
+					var event = {type: 'video', _player: state.players[state._yourID], _event: socketID};
+					console.log('self send', event);
+					eventQ.push(event);
 				}
 			};
 
 		return _.extend(function() {
+			if (eventQ.length == 0) return {state: getState, events: null};
 			var events = core();
 			_.each(events, function(event) {
 				(eventHandlers.post[event.type] || function() { })(null, event);
