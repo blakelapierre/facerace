@@ -20,7 +20,7 @@ module.exports = function(io) {
 		return function(additionalEvents) {
 			var events = core();
 			_.each(events, function(event) {
-				event.socket.broadcast({type: event.type, data: event.data})
+				event.socket.broadcast(event.type, event.data);
 			});
 			return events;
 		};	
