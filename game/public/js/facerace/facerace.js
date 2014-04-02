@@ -5,10 +5,21 @@ module.exports = function(isServer, rtc, io, onEvent) {
 	var eventQ = [],
 		sockets = {},
 		state = {
-			players: []
+			state: {
+				players: []
+			}
 		},
 		stateEvents = []; // *ONLY* used to keep track that we need to send the full state to incoming sockets *after* we process their entry to the game.
 		//NEVER USE FOR ANYTHING ELSE ^^^^^ TRY TO GET RID OF IT!
+
+	var getState = function() {
+		return state.state;
+	};
+
+	var setState = function(newState) {
+		if (newState.state == null) new Error('!!!!');
+		state.state = newState;
+	};
 
 	var swapQ = function(newQ) {
 		var events = newQ || eventQ;
@@ -21,21 +32,21 @@ module.exports = function(isServer, rtc, io, onEvent) {
 	var eventHandlers = {
 		state: {
 			pre: function(eventQ, player, newState) {
-				if (newState.state == null) new Error('!!!!');
-				state = newState;
+				setState(newState);
 				return false;
 			}
 		},	
 		player: {
 			pre: function(eventQ, player, newPlayer) {
+				var state = getState();
 				state.players.push(newPlayer);
 				return true;
 			}
 		},
 		playerLeave: {
 			pre: function(eventQ, player, id) {
-				console.log('playerLeave', arguments);
-				var index = _.indexOf(state.players, player);
+				var state = getState(),
+					index = _.indexOf(state.players, player);
 				state.players.splice(index, 1);
 				return true;
 			}
@@ -43,6 +54,8 @@ module.exports = function(isServer, rtc, io, onEvent) {
 		video: {
 			pre: function(eventQ, player, socketID) {
 				player.videoSocketID = socketID;
+				console.log(player);
+				console.log(getState());
 				return true;
 			}
 		},
@@ -63,7 +76,6 @@ module.exports = function(isServer, rtc, io, onEvent) {
 			}
 		});
 	});
-	console.log(eventHandlers);
 
 	var hookSocket = function(socket) {
 		sockets[socket.id || 'local'] = socket;
@@ -77,15 +89,16 @@ module.exports = function(isServer, rtc, io, onEvent) {
 				socket.player = player;
 
 				socket.on(key, function(event) {
-					console.log(key, event);
+					console.log('incoming -->', key, event);
 					eventQ.push({type: key, _player: player, _event: event});
-					onEvent(state, event);
+					onEvent(getState(), event);
 				});
 			}
 			else {
 				socket.on(key, function(event) {
-					console.log(key, event);
-					var player = _.find(state.players, function(p) { return p.id == event._fromID; });
+					console.log('incoming -->', key, event);
+					var state = getState(),
+						player = _.find(state.players, function(p) { return p.id == event._fromID; });
 					eventQ.push({type: key, _player: player, _event: event._event});
 					onEvent(state, event);
 				});
@@ -96,11 +109,14 @@ module.exports = function(isServer, rtc, io, onEvent) {
 			var player = socket.player;
 			eventQ.push({type: 'player', _player: player, _event: player});
 			stateEvents.push(function() {
+				var state = getState();
 				socket.emit('state', {_event: _.extend({_yourID: player.id}, state)});
+				console.log('<-- sent state', state);
 			});
 
 			socket.on('disconnect', function(data) {
-				var event = {type: 'playerLeave', _player: player, _event: player.id};
+				var state = getState(),
+					event = {type: 'playerLeave', _player: player, _event: player.id};
 				eventQ.push(event);
 				onEvent(state, event);
 			});
@@ -112,8 +128,10 @@ module.exports = function(isServer, rtc, io, onEvent) {
 
 	return (function(core) {
 		var broadcast = isServer ? (function(event) {
-			var player = event._player,
+			var state = getState(),
+				player = event._player,
 				clientEvent = {_fromID: player.id, _event: event._event};
+			console.log(event.type, clientEvent);
 			_.each(state.players, function(p) {
 				if (player !== p) sockets[p.id].emit(event.type, clientEvent);
 			});

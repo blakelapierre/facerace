@@ -166,7 +166,7 @@ module.exports = ['socket', function SceneDirective(socket) {
 				};
 			});
 
-			var maxfps = 1,
+			var maxfps = 24,
 				lastFrame = new Date().getTime();
 			var render = function() {
 				window.requestAnimationFrame(render);
