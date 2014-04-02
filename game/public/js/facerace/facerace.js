@@ -32,6 +32,14 @@ module.exports = function(isServer, rtc, io, onEvent) {
 				return true;
 			}
 		},
+		playerLeave: {
+			pre: function(eventQ, player, id) {
+				console.log('playerLeave', arguments);
+				var index = _.indexOf(state.players, player);
+				state.players.splice(index, 1);
+				return true;
+			}
+		},
 		video: {
 			pre: function(eventQ, player, socketID) {
 				player.videoSocketID = socketID;
@@ -89,6 +97,12 @@ module.exports = function(isServer, rtc, io, onEvent) {
 			eventQ.push({type: 'player', _player: player, _event: player});
 			stateEvents.push(function() {
 				socket.emit('state', {_event: _.extend({_yourID: player.id}, state)});
+			});
+
+			socket.on('disconnect', function(data) {
+				var event = {type: 'playerLeave', _player: player, _event: player.id};
+				eventQ.push(event);
+				onEvent(state, event);
 			});
 		}
 	};

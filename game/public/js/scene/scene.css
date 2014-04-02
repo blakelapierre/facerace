@@ -5,19 +5,24 @@ scene {
 	overflow: hidden;
 }
 
+#stats {
+	right: 0%;
+}
+
 .room-name {
 	position: absolute;
 	bottom: 0%;
-	left: 0%;
+	right: 0%;
 	color: #fff;
 }
 
 .players {
 	position: absolute;
-	right: 0%;
+	left: 0%;
 	top: 0%;
 	color: #fff;
 	font-size: xx-small;
+	height: 100%;
 }
 
 .lastEvent {
