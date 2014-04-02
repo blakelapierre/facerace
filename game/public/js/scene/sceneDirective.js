@@ -159,7 +159,9 @@ module.exports = ['socket', function SceneDirective(socket) {
 
 			facerace = facerace(false, rtc, socket, function() { 
 				return function(state, event) {
+					state = facerace().state || state;
 					$scope.lastEvent = event;
+					$scope.players = JSON.stringify(state, null, '|--');
 					$scope.$apply();
 				};
 			});
@@ -186,9 +188,9 @@ module.exports = ['socket', function SceneDirective(socket) {
 					source.material.uniforms.time.value += 1;
 				});
 
-				var result = facerace();
-				$scope.players = JSON.stringify(result.state, null, '|--');
-				$scope.$apply();
+				//var result = facerace();
+				// $scope.players = JSON.stringify(result.state, null, '|--');
+				// $scope.$apply();
 
 				renderer.render(scene, camera);
 				stats.update();

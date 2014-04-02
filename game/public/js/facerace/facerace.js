@@ -21,21 +21,15 @@ module.exports = function(isServer, rtc, io, onEvent) {
 	var eventHandlers = {
 		state: {
 			pre: function(eventQ, player, newState) {
-				console.log('pre state', newState);
 				if (newState.state == null) new Error('!!!!');
 				state = newState;
-				console.log('SET STATE TO', state);
 				return false;
 			}
 		},	
 		player: {
 			pre: function(eventQ, player, newPlayer) {
-				console.log('players', state.players);
-				return true;
-			},
-			post: function(eventQ, player, newPlayer) {
-				console.log('post player', newPlayer);
 				state.players.push(newPlayer);
+				return true;
 			}
 		},
 		video: {
@@ -55,7 +49,7 @@ module.exports = function(isServer, rtc, io, onEvent) {
 	_.each(['pre', 'post'], function(hookPoint) {
 		eventHandlers[hookPoint] = {};
 		_.each(_.keys(eventHandlers), function(key) {
-			var fn = eventHandlers[key][hookPoint] || function() {};
+			var fn = eventHandlers[key][hookPoint] || function() { return true; };
 			eventHandlers[hookPoint][key] = function(eventQ, event) {
 				return fn(eventQ, event._player, event._event);
 			}
