@@ -15,8 +15,9 @@ module.exports = function(rtc, io, onEvent) {
 	onEvent = onEvent(); //compile?
 
 	var eventHandlers = {
-		player: function(player, event) {
-			console.log('player joined', player);
+		player: function(player, newPlayer) {
+			players.push(newPlayer);
+			console.log('players', players);
 			return true;
 		},
 		video: function(player, socketID) {
@@ -29,40 +30,35 @@ module.exports = function(rtc, io, onEvent) {
 		}
 	};
 
-	var newPlayer = function(socket) {
-		var player = {
-			id: socket.id,
-			position: [0,0,0]
+	_.each(_.keys(eventHandlers), function(key) {
+		var fn = eventHandlers[key];
+		eventHandlers[key] = function(e) {
+			fn(e._player, e._event);
 		};
-
-		players.push(player);
-
-		eventQ.push({type: 'player', _player: player, event: player});
-
-		return player;
-	};
+	});
 
 	io.sockets.on('connection', function(socket) {
 		console.log(socket.id);
 
 		sockets[socket.id] = socket;
 
-		var player = newPlayer(socket);
+		var player = {
+			id: socket.id,
+			position: [0,0,0]
+		};
 
 		_.each(_.keys(eventHandlers), function(key) {
-			var fn = eventHandlers[key];
+			socket.player = player;
 
 			socket.on(key, function(event) {
-				eventQ.push({type: key, _player: player, _event: event});
+				console.log(key, event);
+				eventQ.push({type: key, _player: socket.player, _event: event});
 				onEvent(event);
 			});
-
-			eventHandlers[key] = function(e) {
-				fn(e._player, e._event);
-			};
 		});
 
-		console.log(rtc.rtc.rooms);
+		eventQ.push({type: 'player', _player: player, _event: player});
+		onEvent({});
 	});
 
 	return (function(core) {
