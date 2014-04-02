@@ -37,7 +37,7 @@ module.exports = function(isServer, rtc, io, onEvent) {
 		};
 	});
 
-	io.sockets.on('connection', function(socket) {
+	var hookSocket = function(socket) {
 		console.log(socket.id);
 
 		sockets[socket.id] = socket;
@@ -59,7 +59,10 @@ module.exports = function(isServer, rtc, io, onEvent) {
 
 		eventQ.push({type: 'player', _player: player, _event: player});
 		onEvent({});
-	});
+	};
+
+	if (isServer) io.sockets.on('connection', hookSocket);
+	else hookSocket(io);
 
 	return (function(core) {
 		var broadcast = isServer ? (function(player, type, data) {
