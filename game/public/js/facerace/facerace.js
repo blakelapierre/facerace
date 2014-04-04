@@ -44,10 +44,9 @@ module.exports = function(isServer, rtc, io, onEvent) {
 			}
 		},
 		playerLeave: {
-			pre: function(eventQ, player, id) {
+			post: function(eventQ, player, id) {
 				var state = getState();
 				delete state.players[id];
-				return true;
 			}
 		},
 		video: {
@@ -85,7 +84,9 @@ module.exports = function(isServer, rtc, io, onEvent) {
 
 			socket.player = player;
 			
-			eventQ.push({type: 'player', _player: player, _event: player});
+			var event = {type: 'player', _player: player, _event: player};
+			eventQ.push(event);
+			onEvent(state, event);
 			stateEvents.push(function() {
 				var state = getState();
 				socket.emit('state', {_event: _.extend({_yourID: player.id}, state)});
@@ -140,7 +141,7 @@ module.exports = function(isServer, rtc, io, onEvent) {
 
 		var serverExtensions = {},
 			clientExtensions = {
-				video: function(socketID) {
+				video: function(socketID) { // we should be able to generate this?!
 					var state = getState();
 
 					io.emit('video', socketID);
@@ -151,7 +152,7 @@ module.exports = function(isServer, rtc, io, onEvent) {
 			};
 
 		return _.extend(function() {
-			if (eventQ.length == 0) return {state: getState, events: null};
+			if (eventQ.length == 0) return {state: getState(), events: null};
 			var events = core();
 			_.each(events, function(event) {
 				(eventHandlers.post[event.type] || function() { })(null, event);
