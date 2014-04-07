@@ -139,12 +139,14 @@ module.exports = ['socket', function SceneDirective(socket) {
 				});
 			}, true);
 
+			var jsonSeperator = '|\u00b7\u00b7';
+
 			facerace = facerace(false, rtc, socket, function() { 
 				return function(state, event) {
 					state = facerace().state || state;
-					$scope.lastEvent = JSON.stringify(event, null, '|__');
+					$scope.lastEvent = JSON.stringify(event, null, jsonSeperator);
 					$scope.state = state;
-					$scope.players = JSON.stringify(state, null, '|__');
+					$scope.players = JSON.stringify(state, null, jsonSeperator);
 					$scope.$apply();
 				};
 			});
@@ -176,7 +178,7 @@ module.exports = ['socket', function SceneDirective(socket) {
 				camera.rotateZ(Math.PI * (1 / (60 * 4)));
 
 				var result = facerace();
-				JSON.stringify(result, null, '|__');
+				JSON.stringify(result, null, jsonSeperator);
 				$scope.$apply();
 
 				controls.update();
