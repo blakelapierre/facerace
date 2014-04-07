@@ -25,9 +25,11 @@ scene {
 	height: 100%;
 }
 
-.last-vent {
+.last-event {
 	position: absolute;
 	right: 0%;
-	bottom: 50%;
-	color: #fff;
+	top: 25%;
+	width: 33%;
+	color: #f63;
+	font-size: xx-small;
 }

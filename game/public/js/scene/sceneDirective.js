@@ -102,7 +102,10 @@ module.exports = ['socket', function SceneDirective(socket) {
 					videoSource.material = material;
 					liveSources[newKey] = videoSource;
 
-					if (videoSource.socketID == rtc._me) facerace.video(videoSource.socketID);
+					if (videoSource.socketID == rtc._me) {
+						facerace.video(videoSource.socketID);
+						videoSource.mesh.add(camera);
+					}
 				});
 
 				_.each(removableKeys, function(removableKey) {
@@ -139,9 +142,9 @@ module.exports = ['socket', function SceneDirective(socket) {
 			facerace = facerace(false, rtc, socket, function() { 
 				return function(state, event) {
 					state = facerace().state || state;
-					$scope.lastEvent = event;
+					$scope.lastEvent = JSON.stringify(event, null, '|__');
 					$scope.state = state;
-					$scope.players = JSON.stringify(state, null, '|--');
+					$scope.players = JSON.stringify(state, null, '|__');
 					$scope.$apply();
 				};
 			});
@@ -173,7 +176,7 @@ module.exports = ['socket', function SceneDirective(socket) {
 				camera.rotateZ(Math.PI * (1 / (60 * 4)));
 
 				var result = facerace();
-				$scope.players = JSON.stringify(result.state, null, '|--');
+				JSON.stringify(result, null, '|__');
 				$scope.$apply();
 
 				controls.update();
