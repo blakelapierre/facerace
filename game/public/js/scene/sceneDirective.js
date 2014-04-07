@@ -11,24 +11,6 @@ module.exports = ['socket', function SceneDirective(socket) {
 		restrict: 'E',
 		template: require('./sceneTemplate.html'),
 		link: function($scope, element, attributes) {
-			// var test = proxy.live('test', function() {
-			// 	$scope.$apply();
-			// });
-
-			// $scope.test = test.data;
-
-			// $scope.$watchCollection('test', function(newValue, anotherNewValue, $scope) {
-			// 	console.log('phase', $scope.$$phase);
-			// 	if ($scope.$$phase != 'digest') test.change(newValue);
-			// });
-
-			// test.change({newProp: $scope.test.newProp ? $scope.test.newProp + 1 : 2, allNew: true});
-
-			
-
-			socket.emit('position', {x: 1, y: 2, z: 3});
-
-
 			var width = window.innerWidth,
 				height = window.innerHeight,
 				scene = new THREE.Scene(),
@@ -36,6 +18,7 @@ module.exports = ['socket', function SceneDirective(socket) {
 				camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000),
 				// camera = new THREE.OrthographicCamera( width / - 2, width / 2, height / 2, height / - 2, 1, 1000 ), // play around with this some more
 				stats = new Stats(),
+				controls = new THREE.TrackballControls(camera),
 				swirl = window.location.hash.indexOf('-swirl') > -1 ? '-swirl' : '';
 
 			element.prepend(stats.domElement);
@@ -146,7 +129,7 @@ module.exports = ['socket', function SceneDirective(socket) {
 					
 					var point = parser.eval('q * i^p + (floor((p + 2) / 4) - floor((p + 1) / 4) * i) * i^(p - 1)');
 
-					var mesh = videoSource.mesh; 
+					var mesh = videoSource.mesh;
 					mesh.position.y = point.re;
 					mesh.position.x = point.im;
 					i++;
@@ -157,6 +140,7 @@ module.exports = ['socket', function SceneDirective(socket) {
 				return function(state, event) {
 					state = facerace().state || state;
 					$scope.lastEvent = event;
+					$scope.state = state;
 					$scope.players = JSON.stringify(state, null, '|--');
 					$scope.$apply();
 				};
@@ -182,14 +166,17 @@ module.exports = ['socket', function SceneDirective(socket) {
 						source.texture.lastUpdate = now;
 					}
 					source.material.uniforms.time.value += 1;
+
+
 				});
 
-				//var result = facerace();
-				// $scope.players = JSON.stringify(result.state, null, '|--');
-				// $scope.$apply();
+				camera.rotateZ(Math.PI * (1 / (60 * 4)));
 
-				facerace();
+				var result = facerace();
+				$scope.players = JSON.stringify(result.state, null, '|--');
+				$scope.$apply();
 
+				controls.update();
 				renderer.render(scene, camera);
 				stats.update();
 

@@ -25,9 +25,9 @@ scene {
 	height: 100%;
 }
 
-.lastEvent {
+.last-vent {
 	position: absolute;
 	right: 0%;
-	bottom: 0%;
+	bottom: 50%;
 	color: #fff;
 }

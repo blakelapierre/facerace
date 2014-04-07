@@ -86,12 +86,12 @@ module.exports = function(isServer, rtc, io, onEvent) {
 			
 			var event = {type: 'player', _player: player, _event: player};
 			eventQ.push(event);
-			onEvent(state, event);
 			stateEvents.push(function() {
 				var state = getState();
 				socket.emit('state', {_event: _.extend({_yourID: player.id}, state)});
 				console.log('<-- sent state', state);
 			});
+			onEvent(state, event);
 
 			socket.on('disconnect', function(data) {
 				var state = getState(),
