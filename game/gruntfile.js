@@ -1,26 +1,42 @@
 module.exports = function(grunt) {
 	var pkg = grunt.file.readJSON('package.json');
 
+	require('load-grunt-tasks')(grunt);
+
 	grunt.initConfig({
 		pkg: pkg,
 		bgShell: {
 			_defaults: {
 				bg: true
 			},
-			browserify: {
-				cmd: 'browserify public/js/facerace.js > public/js/bundle.js'
-			},
-			startServer: {
-				cmd: 'node server.js',
-				bg: false
-			},
 			startClient: {
 				cmd: 'xdg-open http://localhost:2888'
 			}
+		},
+		watch: {
+			game: {
+				files: ['server.js', 'public/**/*.*', '!public/js/bundle.js'],
+				tasks: ['browserify:bundle', 'express:dev'],
+				options: {
+					livereload: true
+				}
+			}
+		},
+		browserify: {
+			bundle: {
+				files: {
+					'public/js/bundle.js': ['public/js/facerace.js']
+				}
+			}
+		},
+		express: {
+			dev: {
+				options: {
+					script: 'server.js'
+				}
+			}
 		}
 	});
-
-	grunt.loadNpmTasks('grunt-bg-shell');
 
 	grunt.registerTask('default' , '', function(numberClients) {
 		numberClients = numberClients || 1;
@@ -32,7 +48,6 @@ module.exports = function(grunt) {
 	});
 
 	grunt.registerTask('serve', 'test', function() {
-		grunt.task.run('bgShell:browserify');
-		grunt.task.run('bgShell:startServer');
+		grunt.task.run('browserify:bundle', 'express:dev', 'watch:game');
 	});
 };

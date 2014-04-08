@@ -47,4 +47,4 @@ exports.startServer = startServer;
 exports.startServer({
 	port: 2888,
 	rtcport: 2887
-}, function(webserver, io, rtc) {});
+}, function(webserver, io, rtc) { });

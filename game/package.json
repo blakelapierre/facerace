@@ -21,7 +21,11 @@
     "browserify-shim": "3.3.2",
     "partialify": "~3.1.1",
     "uglifyify": "~2.1.1",
-    "grunt-cli": "~0.1.13"
+    "grunt-cli": "~0.1.13",
+    "grunt-contrib-watch": "~0.6.1",
+    "grunt-browserify": "~2.0.3",
+    "load-grunt-tasks": "~0.4.0",
+    "grunt-express-server": "~0.4.13"
   },
   "browserify": {
     "transform": [
