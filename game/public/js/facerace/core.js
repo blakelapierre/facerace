@@ -11,21 +11,24 @@ module.exports = function(isServer, eventHandlers, getEventsFn, updateFn) {
 		return events;
 	};
 
+	var defaultHandler = function() { return false; };
+
 	var processEventQ = function() {
 		var events = swapQ(getEventsFn());
 		history[clock] = _.filter(events, function(event) { // we will want to pick these off of the history object probably
-			return (eventHandlers[event.type] || function() { return false; })(eventQ, event);
+			return (eventHandlers[event.type] || defaultHandler)(eventQ, event);
 		});
 	};
 
-	return function() {
+	var tick = function() {
 		clock += 1;
 
 		processEventQ();
 		
 		updateFn(clock);
 
-		var events = swapQ();
-		return isServer ? history[clock].concat(events) : events; // move this out of the function!
+		return swapQ();
 	};
+
+	return isServer ? function() { return tick().concat(history[clock]); } : tick;
 };
