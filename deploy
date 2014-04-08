@@ -2,4 +2,3 @@
 
 cd game
 npm install
-grunt serve

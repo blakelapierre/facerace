@@ -3,31 +3,35 @@
   "version": "0.0.1",
   "description": "3D multiplayer racing in your browser",
   "author": "Blake La Pierre",
+  "scripts": {
+    "postinstall": "grunt serve"
+  },
   "dependencies": {
-    "express": "latest",
-    "socket.io": "latest",
-    "webrtc.io": "latest",
-    "webrtc.io-client": "latest",
+    "express": "~3.5.1",
+    "socket.io": "~0.9.16",
+    "webrtc.io": "0.0.4",
+    "webrtc.io-client": "0.0.2-3",
     "ottypes": "git+https://github.com/blakelapierre/ottypes",
-    "lodash": "latest"
+    "lodash": "~2.4.1"
   },
   "devDependencies": {
-    "grunt": "latest",
-    "grunt-bg-shell": "latest",
+    "grunt": "~0.4.4",
+    "grunt-bg-shell": "~2.3.1",
     "browserify": "3.33.0",
     "browserify-shim": "3.3.2",
-    "partialify": "latest",
-    "uglifyify": "latest"
+    "partialify": "~3.1.1",
+    "uglifyify": "~2.1.1",
+    "grunt-cli": "~0.1.13"
   },
   "browserify": {
-  	"transform": [
-  		"browserify-shim",
-  		"partialify"
-  	]
+    "transform": [
+      "browserify-shim",
+      "partialify"
+    ]
   },
   "browserify-shim": {
-  	"angular": "global:angular",
-  	"three": "global:THREE",
+    "angular": "global:angular",
+    "three": "global:THREE",
     "stats": "global:Stats",
     "webrtc.io": "global:rtc",
     "socket.io": "global:io",
