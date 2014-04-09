@@ -126,7 +126,7 @@ module.exports = function(isServer, rtc, io, onEvent) {
 	if (isServer) io.sockets.on('connection', hookSocket);
 	else hookSocket(io);
 
-	return (function(core) {
+	return (function(tick) {
 		var broadcast = isServer ? (function(event) {
 			var state = getState(),
 				player = event._player,
@@ -155,12 +155,12 @@ module.exports = function(isServer, rtc, io, onEvent) {
 		var transport = {};
 		return _.extend(function() {
 			if (eventQ.length == 0) return {state: getState(), events: null};
-			transport = core(transport);
+			transport = tick(transport);
 			_.each(transport.outgoingEvents, function(event) {
 				(eventHandlers.post[event.type] || function() { })(null, event);
 			});
 			_.each(stateEvents, function(event) { event(); });
-			console.log(transport);
+
 			_.each(isServer ? transport.outgoingEvents.concat(transport.processedEvents) : transport.outgoingEvents, broadcast);
 			stateEvents = [];
 			return {
