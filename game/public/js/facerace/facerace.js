@@ -47,6 +47,7 @@ module.exports = function(isServer, rtc, io, onEvent) {
 			post: function(eventQ, player, id) {
 				var state = getState();
 				delete state.players[id];
+				console.log('deleted', player, id);
 			}
 		},
 		video: {
@@ -158,7 +159,7 @@ module.exports = function(isServer, rtc, io, onEvent) {
 		return _.extend(function() {
 			if (eventQ.length == 0) return {state: getState(), events: null};
 			transport = tick(transport);
-			_.each(transport.outgoingEvents, function(event) {
+			_.each(transport.processedEvents, function(event) {
 				(eventHandlers.post[event.type] || function() { })(null, event);
 			});
 			_.each(stateEvents, function(event) { event(); });
