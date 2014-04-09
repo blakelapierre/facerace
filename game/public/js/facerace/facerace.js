@@ -127,16 +127,14 @@ module.exports = function(isServer, rtc, io, onEvent) {
 	else hookSocket(io);
 
 	var serverExtensions = {},
-		clientExtensions = {
-			video: function(socketID) { // we should be able to generate this?!
+		clientExtensions = _.mapValues(events, function(handlers, key) {
+			return function(data) {
 				var state = getState();
 
-				io.emit('video', socketID);
-				var event = {type: 'video', _player: state.players[state._yourID], _event: socketID};
-				console.log('self send', event);
-				eventQ.push(event);
+				io.emit(key, data);
+				eventQ.push({type: key, _player: state.players[state._yourID], _event: data});
 			}
-		};
+		});
 
 	var broadcast = isServer ? (function(transport) {
 		_.each(transport.processedEvents.concat(transport.outgoingEvents), function(event) {
