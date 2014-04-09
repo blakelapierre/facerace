@@ -16,7 +16,7 @@ scene {
 	color: #fff;
 }
 
-.players {
+.state {
 	position: absolute;
 	left: 0%;
 	top: 0%;

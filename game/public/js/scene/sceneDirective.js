@@ -143,11 +143,7 @@ module.exports = ['socket', function SceneDirective(socket) {
 
 			facerace = facerace(false, rtc, socket, function() { 
 				return function(state, event) {
-					state = facerace().state || state;
-					$scope.lastEvent = JSON.stringify(event, null, jsonSeperator);
-					$scope.state = state;
-					$scope.players = JSON.stringify(state, null, jsonSeperator);
-					$scope.$apply();
+
 				};
 			});
 
@@ -178,7 +174,8 @@ module.exports = ['socket', function SceneDirective(socket) {
 				camera.rotateZ(Math.PI * (1 / (60 * 4)));
 
 				var result = facerace();
-				JSON.stringify(result, null, jsonSeperator);
+				$scope.lastEvent = JSON.stringify(result.events.processedEvents, null, jsonSeperator);
+				$scope.state = JSON.stringify(result.state, null, jsonSeperator);
 				$scope.$apply();
 
 				controls.update();

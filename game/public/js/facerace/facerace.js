@@ -32,6 +32,7 @@ module.exports = function(isServer, rtc, io, onEvent) {
 	var events = {
 		state: {
 			pre: function(eventQ, player, newState) {
+				console.log('@@', newState)
 				setState(newState);
 				return false;
 			}
@@ -158,11 +159,12 @@ module.exports = function(isServer, rtc, io, onEvent) {
 
 	return (function(tick) {
 		return _.extend(function() {
-			if (eventQ.length == 0) return {state: getState(), events: null};
+			if (eventQ.length == 0) return {state: getState(), events: transport};
+
 			transport = tick(transport);
 
 			_.each(transport.processedEvents, function(event) {
-				(eventHandlers.post[event.type] || function() { })(null, event);
+				(eventHandlers.post[event.type] || function() { })(eventQ, event);
 			});
 
 			_.each(stateEvents, function(event) { event(); });
@@ -172,8 +174,8 @@ module.exports = function(isServer, rtc, io, onEvent) {
 			stateEvents = [];
 
 			return {
-				state: state,
-				events: transport.outgoingEvents
+				state: getState(),
+				events: transport
 			};
 		}, isServer ? serverExtensions : clientExtensions);	
 	})(core(eventHandlers.pre, function() {
