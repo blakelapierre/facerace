@@ -67,7 +67,7 @@ module.exports = function(isServer, rtc, io, onEvent) {
 	_.each(['pre', 'post'], function(hookPoint) {
 		eventHandlers[hookPoint] = _.mapValues(eventHandlers, function(handlers, key) {
 			return (function(fn) {
-				return function(eventQ, event) { console.log('--', key, fn); fn(eventQ, event._player, event._event); };
+				return function(eventQ, event) { return fn(eventQ, event._player, event._event); };
 			})(handlers[hookPoint] || function() { return true; });
 		});
 	});
