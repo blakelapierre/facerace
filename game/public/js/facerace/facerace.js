@@ -27,8 +27,6 @@ module.exports = function(isServer, rtc, io, onEvent) {
 		return events;
 	};
 
-	onEvent = onEvent(); //compile?
-
 	var events = {
 		state: {
 			pre: function(eventQ, player, newState) {
@@ -64,6 +62,8 @@ module.exports = function(isServer, rtc, io, onEvent) {
 			}
 		}
 	};
+
+	onEvent = onEvent || function () {};
 
 	var eventHandlers = {};
 	_.each(['pre', 'post'], function(hookPoint) {

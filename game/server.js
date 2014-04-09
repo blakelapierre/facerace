@@ -18,9 +18,9 @@ var startServer = function(config, callback) {
 
 	var transport = {},
 		facerace = require('./public/js/facerace/facerace'),
-		facerace = facerace(true, rtc, io, function() { return function() { facerace();  } });
+		facerace = facerace(true, rtc, io);
 
-	facerace();
+	setInterval(facerace, 100);
 	
 
 	app.get('/channels', function(req, res) {
