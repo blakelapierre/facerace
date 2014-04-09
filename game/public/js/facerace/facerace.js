@@ -29,7 +29,7 @@ module.exports = function(isServer, rtc, io, onEvent) {
 
 	onEvent = onEvent(); //compile?
 
-	var eventHandlers = {
+	var events = {
 		state: {
 			pre: function(eventQ, player, newState) {
 				setState(newState);
@@ -64,8 +64,9 @@ module.exports = function(isServer, rtc, io, onEvent) {
 		}
 	};
 
+	var eventHandlers = {};
 	_.each(['pre', 'post'], function(hookPoint) {
-		eventHandlers[hookPoint] = _.mapValues(eventHandlers, function(handlers, key) {
+		eventHandlers[hookPoint] = _.mapValues(events, function(handlers, key) {
 			return (function(fn) {
 				return function(eventQ, event) { return fn(eventQ, event._player, event._event); };
 			})(handlers[hookPoint] || function() { return true; });
@@ -100,7 +101,7 @@ module.exports = function(isServer, rtc, io, onEvent) {
 			});
 		}
 
-		_.each(_.keys(eventHandlers), function(key) {
+		_.each(_.keys(events), function(key) {
 			if (isServer) {
 				var player = socket.player;
 				socket.on(key, function(event) {
@@ -169,7 +170,7 @@ module.exports = function(isServer, rtc, io, onEvent) {
 			broadcast(transport);
 	
 			stateEvents = [];
-			
+
 			return {
 				state: state,
 				events: transport.outgoingEvents
