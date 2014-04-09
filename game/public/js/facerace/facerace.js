@@ -66,12 +66,13 @@ module.exports = function(isServer, rtc, io, onEvent) {
 
 	_.each(['pre', 'post'], function(hookPoint) {
 		eventHandlers[hookPoint] = {};
-		_.each(_.keys(eventHandlers), function(key) {
-			var fn = eventHandlers[key][hookPoint] || function() { return true; };
-			eventHandlers[hookPoint][key] = function(eventQ, event) {
-				return fn(eventQ, event._player, event._event);
-			}
-		});
+		for (var key in eventHandlers) {
+			(function(fn) {
+				eventHandlers[hookPoint][key] = function(eventQ, event) {
+					return fn(eventQ, event._player, event._event);
+				}	
+			})(eventHandlers[key][hookPoint] || function() { return true; });
+		}
 	});
 
 	var hookSocket = function(socket) {

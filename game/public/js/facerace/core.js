@@ -24,6 +24,7 @@ module.exports = function(eventHandlers, getEventsFn, updateFn) {
 	var tick = function(transport) {
 		clock += 1;
 
+		transport.clock = clock;
 		transport.processedEvents = processEventQ();
 
 		updateFn(clock);
