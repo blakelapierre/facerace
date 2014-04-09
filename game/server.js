@@ -16,8 +16,9 @@ var startServer = function(config, callback) {
 
 	io.set('log level', 0);
 
-	var facerace = require('./public/js/facerace/facerace'),
-		facerace = facerace(true, rtc, io, function() { return function() { facerace(); } });
+	var transport = {},
+		facerace = require('./public/js/facerace/facerace'),
+		facerace = facerace(true, rtc, io, function() { return function() { facerace();  } });
 
 	facerace();
 	

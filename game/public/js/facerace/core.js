@@ -1,9 +1,10 @@
 var _ = require('lodash');
 
-module.exports = function(isServer, eventHandlers, getEventsFn, updateFn) {
+module.exports = function(eventHandlers, getEventsFn, updateFn) {
 	var clock = 0,
-		eventQ = [],
-		history = {};
+		eventQ = [];
+
+		console.log(eventHandlers);
 
 	var swapQ = function(newQ) {
 		var events = newQ || eventQ;
@@ -11,24 +12,25 @@ module.exports = function(isServer, eventHandlers, getEventsFn, updateFn) {
 		return events;
 	};
 
-	var defaultHandler = function() { return false; };
+	var defaultHandler = function() { console.log('default', arguments); return false; };
 
 	var processEventQ = function() {
 		var events = swapQ(getEventsFn());
-		history[clock] = _.filter(events, function(event) { // we will want to pick these off of the history object probably
+		return _.filter(events, function(event) {
 			return (eventHandlers[event.type] || defaultHandler)(eventQ, event);
 		});
 	};
 
-	var tick = function() {
+	var tick = function(transport) {
 		clock += 1;
 
-		processEventQ();
-		
+		transport.processedEvents = processEventQ();
+
 		updateFn(clock);
 
-		return swapQ();
+		transport.outgoingEvents = swapQ();
+		return transport;
 	};
 
-	return isServer ? function() { return tick().concat(history[clock]); } : tick;
+	return tick;
 };

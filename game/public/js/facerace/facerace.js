@@ -51,6 +51,7 @@ module.exports = function(isServer, rtc, io, onEvent) {
 		},
 		video: {
 			pre: function(eventQ, player, socketID) {
+				console.log('***video')
 				player.videoSocketID = socketID;
 				return true;
 			}
@@ -151,21 +152,23 @@ module.exports = function(isServer, rtc, io, onEvent) {
 				}
 			};
 
+		var transport = {};
 		return _.extend(function() {
 			if (eventQ.length == 0) return {state: getState(), events: null};
-			var events = core();
-			_.each(events, function(event) {
+			transport = core(transport);
+			_.each(transport.outgoingEvents, function(event) {
 				(eventHandlers.post[event.type] || function() { })(null, event);
 			});
 			_.each(stateEvents, function(event) { event(); });
-			_.each(events, broadcast);
+			console.log(transport);
+			_.each(isServer ? transport.outgoingEvents.concat(transport.processedEvents) : transport.outgoingEvents, broadcast);
 			stateEvents = [];
 			return {
 				state: state,
-				events: events
+				events: transport.outgoingEvents
 			};
 		}, isServer ? serverExtensions : clientExtensions);	
-	})(core(isServer, eventHandlers.pre, function() {
+	})(core(eventHandlers.pre, function() {
 		return swapQ();
 	}, function(clock) {
 		// console.log(clock);
