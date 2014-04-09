@@ -4,8 +4,6 @@ module.exports = function(eventHandlers, getEventsFn, updateFn) {
 	var clock = 0,
 		eventQ = [];
 
-		console.log(eventHandlers);
-
 	var swapQ = function(newQ) {
 		var events = newQ || eventQ;
 		eventQ = [];
@@ -25,11 +23,13 @@ module.exports = function(eventHandlers, getEventsFn, updateFn) {
 		clock += 1;
 
 		transport.clock = clock;
+		
 		transport.processedEvents = processEventQ();
 
 		updateFn(clock);
 
 		transport.outgoingEvents = swapQ();
+
 		return transport;
 	};
 
