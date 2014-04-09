@@ -33,3 +33,9 @@ scene {
 	color: #f63;
 	font-size: xx-small;
 }
+
+.controls {
+	position: absolute;
+	bottom: 0%;
+	margin: 0 auto;
+}

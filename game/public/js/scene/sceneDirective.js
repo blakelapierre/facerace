@@ -55,7 +55,6 @@ module.exports = ['socket', function SceneDirective(socket) {
 				camera.aspect = width / height;
 				camera.updateProjectionMatrix();
 			};
-
 			window.addEventListener('resize', resize, false);
 
 			$scope.liveSources = {};
@@ -139,13 +138,13 @@ module.exports = ['socket', function SceneDirective(socket) {
 				});
 			}, true);
 
+$scope.toggleMode = function() {
+	facerace.mode('testMode');
+};
+
 			var jsonSeperator = '|\u00b7\u00b7';
 
-			facerace = facerace(false, rtc, socket, function() { 
-				return function(state, event) {
-
-				};
-			});
+			facerace = facerace(false, rtc, socket);
 
 			var maxfps = 24,
 				lastFrame = new Date().getTime();

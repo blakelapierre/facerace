@@ -1,6 +1,7 @@
-<span class="room-name">{{room}} {{test}} <input ng-model="test.input" /></span>
+<span class="room-name">{{room}}</span>
 <div class="state"><pre>{{state}}<pre></div>
 <div class="last-event"><pre>{{lastEvent}}</pre></div>
+<div class="controls"><input type="button" ng-click="toggleMode()" value="Push Me" /></div>
 <script id="plane-vertex-shader" type="x-shader/x-vertex">
 	varying vec2 vUv;
 

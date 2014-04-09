@@ -30,7 +30,6 @@ module.exports = function(isServer, rtc, io, onEvent) {
 	var events = {
 		state: {
 			pre: function(eventQ, player, newState) {
-				console.log('@@', newState)
 				setState(newState);
 				return false;
 			}
@@ -58,6 +57,14 @@ module.exports = function(isServer, rtc, io, onEvent) {
 		position: {
 			pre: function(eventQ, player, position) {
 				player.position = position;
+				return true;
+			}
+		},
+		mode: {
+			pre: function(eventQ, player, mode) {
+				var state = getState();
+
+				state.mode = mode;
 				return true;
 			}
 		}
