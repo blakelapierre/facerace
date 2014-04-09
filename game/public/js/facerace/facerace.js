@@ -65,14 +65,11 @@ module.exports = function(isServer, rtc, io, onEvent) {
 	};
 
 	_.each(['pre', 'post'], function(hookPoint) {
-		eventHandlers[hookPoint] = {};
-		for (var key in eventHandlers) {
-			(function(fn) {
-				eventHandlers[hookPoint][key] = function(eventQ, event) {
-					return fn(eventQ, event._player, event._event);
-				}	
-			})(eventHandlers[key][hookPoint] || function() { return true; });
-		}
+		eventHandlers[hookPoint] = _.mapValues(eventHandlers, function(handlers, key) {
+			return (function(fn) {
+				return function(eventQ, event) { console.log('--', key, fn); fn(eventQ, event._player, event._event); };
+			})(handlers[hookPoint] || function() { return true; });
+		});
 	});
 
 	var hookSocket = function(socket) {
