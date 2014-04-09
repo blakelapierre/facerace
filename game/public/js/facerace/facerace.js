@@ -47,7 +47,6 @@ module.exports = function(isServer, rtc, io, onEvent) {
 			post: function(eventQ, player, id) {
 				var state = getState();
 				delete state.players[id];
-				console.log('deleted', player, id);
 			}
 		},
 		video: {
@@ -125,48 +124,52 @@ module.exports = function(isServer, rtc, io, onEvent) {
 	if (isServer) io.sockets.on('connection', hookSocket);
 	else hookSocket(io);
 
-	return (function(tick) {
-		var broadcast = isServer ? (function(transport) {
-			_.each(transport.processedEvents.concat(transport.outgoingEvents), function(event) {
-				var state = getState(),
-					player = event._player,
-					clientEvent = {_fromID: player.id, _event: event._event};
-				console.log('<-- outgoing', event.type, clientEvent);
-				_.forOwn(state.players, function(p, playerID) {
-					if (player.id != playerID) sockets[playerID].emit(event.type, clientEvent);
-				});
-			})
-		}) : (function(transport) {
-			_.each(transport.outgoingEvents, function(event) {
-				console.log('<-- outgoing', event.type, event._event);
-				io.emit(event.type, event._event);
+	var serverExtensions = {},
+		clientExtensions = {
+			video: function(socketID) { // we should be able to generate this?!
+				var state = getState();
+
+				io.emit('video', socketID);
+				var event = {type: 'video', _player: state.players[state._yourID], _event: socketID};
+				console.log('self send', event);
+				eventQ.push(event);
+			}
+		};
+
+	var broadcast = isServer ? (function(transport) {
+		_.each(transport.processedEvents.concat(transport.outgoingEvents), function(event) {
+			var state = getState(),
+				player = event._player,
+				clientEvent = {_fromID: player.id, _event: event._event};
+			console.log('<-- outgoing', event.type, clientEvent);
+			_.forOwn(state.players, function(p, playerID) {
+				if (player.id != playerID) sockets[playerID].emit(event.type, clientEvent);
 			});
+		})
+	}) : (function(transport) {
+		_.each(transport.outgoingEvents, function(event) {
+			console.log('<-- outgoing', event.type, event._event);
+			io.emit(event.type, event._event);
 		});
+	});
 
-		var serverExtensions = {},
-			clientExtensions = {
-				video: function(socketID) { // we should be able to generate this?!
-					var state = getState();
+	var transport = {};
 
-					io.emit('video', socketID);
-					var event = {type: 'video', _player: state.players[state._yourID], _event: socketID};
-					console.log('self send', event);
-					eventQ.push(event);
-				}
-			};
-
-		var transport = {};
+	return (function(tick) {
 		return _.extend(function() {
 			if (eventQ.length == 0) return {state: getState(), events: null};
 			transport = tick(transport);
+
 			_.each(transport.processedEvents, function(event) {
 				(eventHandlers.post[event.type] || function() { })(null, event);
 			});
+
 			_.each(stateEvents, function(event) { event(); });
 
 			broadcast(transport);
 	
 			stateEvents = [];
+			
 			return {
 				state: state,
 				events: transport.outgoingEvents
