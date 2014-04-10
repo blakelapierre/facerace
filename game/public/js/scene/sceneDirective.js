@@ -138,13 +138,13 @@ module.exports = ['socket', function SceneDirective(socket) {
 				});
 			}, true);
 
-$scope.toggleMode = function() {
-	facerace.mode('testMode');
-};
-
 			var jsonSeperator = '|\u00b7\u00b7';
 
 			facerace = facerace(false, rtc, socket);
+
+			$scope.toggleMode = function() {
+				facerace.mode('testMode');
+			};
 
 			var maxfps = 24,
 				lastFrame = new Date().getTime();
@@ -157,17 +157,14 @@ $scope.toggleMode = function() {
 				var source = $scope.liveSources['local'];
 				if (source && source.mesh) camera.lookAt(source.mesh.position);
 
-				_.each(_.pairs($scope.liveSources), function(pair) {
-					var source = pair[1],
-						element = source.element;
+				_.each($scope.liveSources, function(source, id) {
+					var element = source.element;
 					if (element.readyState == element.HAVE_ENOUGH_DATA &&
 						now - source.texture.lastUpdate > (1000 / maxfps) ) {
 						source.texture.needsUpdate = true;
 						source.texture.lastUpdate = now;
 					}
 					source.material.uniforms.time.value += 1;
-
-
 				});
 
 				camera.rotateZ(Math.PI * (1 / (60 * 4)));
@@ -176,6 +173,33 @@ $scope.toggleMode = function() {
 				$scope.lastEvent = JSON.stringify(result.events.processedEvents, null, jsonSeperator);
 				$scope.state = JSON.stringify(result.state, null, jsonSeperator);
 				$scope.$apply();
+
+				if (result.state.mode == 'testMode') {
+					_.each($scope.liveSources, function(source) {
+						if (source.mode == 'testMode') return;
+						source.mode = 'testMode';
+						var video = source.element,
+							width = 1,
+							height = 1,
+							material = new THREE.ShaderMaterial({
+								fragmentShader: document.getElementById('plane-fragment-shader-swirl').textContent,
+								vertexShader: document.getElementById('plane-vertex-shader-swirl').textContent,
+								uniforms: {
+									texture: {type: 't', value: source.texture},
+									width: {type: 'f', value: width},
+									height: {type: 'f', value: height},
+									radius: {type: 'f', value: 2},
+									angle: {type: 'f', value: 0.8},
+									center: {type: 'v2', value: new THREE.Vector2(width / 2, height / 2)},
+									time: {type: 'f', value: 1.0}
+								},
+								side: THREE.DoubleSide
+							});
+
+						source.material = material;
+						source.mesh.material = material;
+					});
+				}
 
 				controls.update();
 				renderer.render(scene, camera);
