@@ -152,29 +152,29 @@ Stories:
                 --047d7b33d4fe3e55d704f4db541d--
 
 
-        [good enough] Commit -> play on dev-test server
+        ~ Commit -> play on dev-test server
 
             x commit -> push to github (run hooks.sh ... is there a way to make this executable by default?)
             
-            [good enough] push to github -> deploy to dev-test server (http://107.170.237.209:3006)
+            ~ push to github -> deploy to dev-test server (http://107.170.237.209:3006)
                 
-                [~] watchmen project to watch for github events (https://github.com/blakelapierre/watchmen)
+                ~ watchmen project to watch for github events (https://github.com/blakelapierre/watchmen)
                 
-                    [~] experiment some more with this...it should be much more powerful
+                    ~ experiment some more with this...it should be much more powerful
                     
-                        very powerful now (commit -> new deployment and/or update existing deployment), can be exponentially more powerful in the future
+                        ~ investigate more featureful deployments (ports configurable, multiple machines, spin up and down without push, etc)
                 
             x game should be more than a black screen that wants access to your mic
-            
-        perspectives (https://github.com/blakelapierre/perspectives)
 
-            x in-game video? it's here
+        x in-game video? it's here
 
-            this doesn't work at all right now
+        ~ perspectives (https://github.com/blakelapierre/perspectives)
+
+            integrate this into pulsar a la Rob's soundcloud widget
         
-        game should actually be in sync
-            
-            needs an in-depth look with refreshed eyes
+        ~ move around
+
+            ~ create events for moving and stuff
             
     Players:
 
