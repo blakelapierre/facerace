@@ -15,6 +15,7 @@ module.exports = function(eventHandlers, getEventsFn, updateFn) {
 	var processEventQ = function() {
 		var events = swapQ(getEventsFn());
 		return _.filter(events, function(event) {
+			event._c = clock;
 			return (eventHandlers[event.type] || defaultHandler)(eventQ, event);
 		});
 	};
@@ -23,7 +24,7 @@ module.exports = function(eventHandlers, getEventsFn, updateFn) {
 		clock += 1;
 
 		transport.clock = clock;
-		
+
 		transport.processedEvents = processEventQ();
 
 		updateFn(clock);

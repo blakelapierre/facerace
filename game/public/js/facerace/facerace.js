@@ -164,8 +164,6 @@ module.exports = function(isServer, rtc, io, onEvent) {
 
 	return (function(tick) {
 		return _.extend(function() {
-			if (eventQ.length == 0) return {state: getState(), events: transport};
-
 			transport = tick(transport);
 
 			_.each(transport.processedEvents, function(event) {
