@@ -24,17 +24,6 @@ module.exports = [function SceneDirective() {
 			element.prepend(stats.domElement);
 			element.prepend(cssRenderer.domElement);
 			cssRenderer.domElement.appendChild(webGLRenderer.domElement);
-			
-			$scope.scene = {
-				scene: scene,
-				cssScene: cssScene,
-				webGLRenderer: webGLRenderer,
-				cssRenderer: cssRenderer,
-				camera: camera,
-				cssCamera: cssCamera,
-				controls: controls,
-				stats: stats
-			};
 
 
 			camera.up.set(0, 1, 0);
@@ -75,7 +64,28 @@ module.exports = [function SceneDirective() {
 			};
 			window.addEventListener('resize', resize, false);
 
-			$scope.$emit('sceneReady');
+			$scope.$emit('sceneReady', {
+				scene: scene,
+				cssScene: cssScene,
+				webGLRenderer: webGLRenderer,
+				cssRenderer: cssRenderer,
+				camera: camera,
+				cssCamera: cssCamera,
+				controls: controls,
+				stats: stats
+			});
+
+			var render = function() {
+				window.requestAnimationFrame(render);
+
+				$scope.updateScene();
+
+				controls.update();
+				webGLRenderer.render(scene, camera);
+				cssRenderer.render(cssScene, cssCamera);
+				stats.update();
+			};
+			window.requestAnimationFrame(render);
 		}
 	};
 }];

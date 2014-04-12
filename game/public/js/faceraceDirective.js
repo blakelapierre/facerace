@@ -9,11 +9,10 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 		template: require('./faceraceTemplate.html'),
 		link: function($scope, element, attributes) { },
 		controller:  ['$scope', function($scope) {
-			$scope.$on('sceneReady', function() {
-				console.log('scene', $scope.scene);
+			$scope.$on('sceneReady', function(e, s) {
+				console.log('scene', s);
 
-				var s = $scope.scene,
-					scene = s.scene,
+				var scene = s.scene,
 					cssScene = s.cssScene,
 					webGLRenderer = s.webGLRenderer,
 					cssRenderer = s.cssRenderer,
@@ -173,9 +172,7 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 
 				var maxfps = 24,
 					lastFrame = new Date().getTime();
-				var render = function() {
-					window.requestAnimationFrame(render);
-
+				$scope.updateScene = function () {
 					var now = new Date().getTime(),
 						dt = now - lastFrame;
 
@@ -201,14 +198,8 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 
 					_.each(result.events.processedEvents, dispatch);
 
-					controls.update();
-					webGLRenderer.render(scene, camera);
-					cssRenderer.render(cssScene, cssCamera);
-					stats.update();
-
 					lastFrame = now;
-				};
-				window.requestAnimationFrame(render);
+				}
 			});
 		}]
 	};
