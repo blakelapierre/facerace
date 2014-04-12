@@ -122,11 +122,13 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 				var geometry = new THREE.PlaneGeometry(1, 1, 1, 1);
 				var planeMesh= new THREE.Mesh( geometry, material );
 
-				planeMesh.position.x = -1;
+				planeMesh.position.x = 0;
 				planeMesh.position.y = 0;
-				sliderObj.scale.multiplyScalar(1 / 63.5);
+				sliderObj.scale.multiplyScalar(1 / 200);
 
-				sliderObj.position = planeMesh.position;
+				//sliderObj.position = planeMesh.position;
+				sliderObj.position.x = -2;
+				sliderObj.position.y = -2;
 				sliderObj.quaternion = planeMesh.quaternion;
 
 				scene.add(planeMesh);

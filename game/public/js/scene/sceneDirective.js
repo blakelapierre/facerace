@@ -23,13 +23,15 @@ module.exports = [function SceneDirective() {
 
 			element.prepend(stats.domElement);
 			element.prepend(cssRenderer.domElement);
-			cssRenderer.domElement.appendChild(webGLRenderer.domElement);
+			// cssRenderer.domElement.appendChild(webGLRenderer.domElement);
+			element.prepend(webGLRenderer.domElement);
 
 
 			camera.up.set(0, 1, 0);
 			camera.position.z = 2;
 
 			cssCamera.up = camera.up;
+			cssCamera.quaternion = camera.quaternion;
 			cssCamera.position = camera.position;
 
 			scene.add(new THREE.AmbientLight(0xffffff));
@@ -80,7 +82,7 @@ module.exports = [function SceneDirective() {
 
 				controls.update();
 				webGLRenderer.render(scene, camera);
-				cssRenderer.render(cssScene, cssCamera);
+				cssRenderer.render(cssScene, camera);
 				stats.update();
 			};
 			window.requestAnimationFrame(render);
