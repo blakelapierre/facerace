@@ -14,12 +14,7 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 
 				var scene = s.scene,
 					cssScene = s.cssScene,
-					webGLRenderer = s.webGLRenderer,
-					cssRenderer = s.cssRenderer,
 					camera = s.camera,
-					cssCamera = s.cssCamera,
-					controls = s.controls,
-					stats = s.stats,
 					swirl = window.location.hash.indexOf('-swirl') > -1 ? '-swirl' : '';
 
 				$scope.liveSources = {};
@@ -163,6 +158,9 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 							source.material = material;
 							source.mesh.material = material;
 						});
+					},
+					player: function(event) {
+						console.log('player', event);
 					}
 				};
 
@@ -175,6 +173,8 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 				$scope.updateScene = function () {
 					var now = new Date().getTime(),
 						dt = now - lastFrame;
+
+					var result = facerace();
 
 					var source = $scope.liveSources['local'];
 					if (source && source.mesh) camera.lookAt(source.mesh.position);
@@ -191,12 +191,14 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 
 					camera.rotateZ(Math.PI * (1 / (60 * 4)));
 
-					var result = facerace();
+					
 					$scope.lastEvent = result.events.processedEvents.length > 0 ? JSON.stringify(result.events.processedEvents, null, jsonSeperator) : $scope.lastEvent;
 					$scope.state = JSON.stringify(result.state, null, jsonSeperator);
 					$scope.$apply();
 
 					_.each(result.events.processedEvents, dispatch);
+
+					$scope.hide_webGLRenderer = !$scope.hide_webGLRenderer;
 
 					lastFrame = now;
 				}

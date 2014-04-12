@@ -34,17 +34,19 @@ module.exports = [function SceneDirective() {
 
 			scene.add(new THREE.AmbientLight(0xffffff));
 
-			webGLRenderer.setSize(width, height);
-			cssRenderer.setSize(width, height);
+			webGLRenderer._rendererName = 'webGLRenderer';
+			cssRenderer._rendererName = 'cssRenderer';
 
 			_.each([webGLRenderer, cssRenderer], function(renderer) {
-				angular.element(renderer.domElement).css({
-					position: 'absolute',
-					top: '0px',
-					left: '0px',
-					width: '100%',
-					height: '100%',
-					overflow: 'hidden'
+				var element = angular.element(renderer.domElement)
+					name = renderer._rendererName;
+				
+				renderer.setSize(width, height);
+
+				element.addClass('renderer').addClass(name);
+
+				$scope.$watch('hide_' + name, function(newValue) {
+					element.css('display', newValue ? 'none' : 'block');
 				});
 			});
 
@@ -67,12 +69,8 @@ module.exports = [function SceneDirective() {
 			$scope.$emit('sceneReady', {
 				scene: scene,
 				cssScene: cssScene,
-				webGLRenderer: webGLRenderer,
-				cssRenderer: cssRenderer,
 				camera: camera,
-				cssCamera: cssCamera,
-				controls: controls,
-				stats: stats
+				cssCamera: cssCamera
 			});
 
 			var render = function() {
