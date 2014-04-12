@@ -198,8 +198,6 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 
 					_.each(result.events.processedEvents, dispatch);
 
-					$scope.hide_webGLRenderer = !$scope.hide_webGLRenderer;
-
 					lastFrame = now;
 				}
 			});
