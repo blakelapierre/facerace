@@ -23,7 +23,6 @@ module.exports = [function SceneDirective() {
 
 			element.prepend(stats.domElement);
 			element.prepend(cssRenderer.domElement);
-			// cssRenderer.domElement.appendChild(webGLRenderer.domElement);
 			element.prepend(webGLRenderer.domElement);
 
 
