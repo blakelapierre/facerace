@@ -14,34 +14,46 @@ module.exports = ['socket', function SceneDirective(socket) {
 			var width = window.innerWidth,
 				height = window.innerHeight,
 				scene = new THREE.Scene(),
-				renderer = new THREE.WebGLRenderer({antialias: false}),
+				cssScene = new THREE.Scene(),
+				webGLRenderer = new THREE.WebGLRenderer({antialias: false}),
+				cssRenderer = new THREE.CSS3DRenderer({}),
 				camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000),
+				cssFactor = 1,
+				cssCamera = new THREE.PerspectiveCamera(75, width / height, 0.1 * cssFactor, 1000 * cssFactor),
 				// camera = new THREE.OrthographicCamera( width / - 2, width / 2, height / 2, height / - 2, 1, 1000 ), // play around with this some more
 				stats = new Stats(),
 				controls = new THREE.TrackballControls(camera),
 				swirl = window.location.hash.indexOf('-swirl') > -1 ? '-swirl' : '';
 
 			element.prepend(stats.domElement);
-			element.prepend(renderer.domElement);
+			element.prepend(cssRenderer.domElement);
+			cssRenderer.domElement.appendChild(webGLRenderer.domElement);
 
 			$scope.scene = scene;
-			$scope.renderer = renderer;
+			$scope.webGLRenderer = webGLRenderer;
+			$scope.cssRenderer = cssRenderer;
 
 
 			camera.up.set(0, 1, 0);
 			camera.position.z = 2;
 
+			cssCamera.up = camera.up;
+			cssCamera.position = camera.position;
+
 			scene.add(new THREE.AmbientLight(0xffffff));
 
-			renderer.setSize(width, height);
+			webGLRenderer.setSize(width, height);
+			cssRenderer.setSize(width, height);
 
-			angular.element(renderer.domElement).css({
-				position: 'absolute',
-				top: '0px',
-				left: '0px',
-				width: '100%',
-				height: '100%',
-				overflow: 'hidden'
+			_.each([webGLRenderer, cssRenderer], function(renderer) {
+				angular.element(renderer.domElement).css({
+					position: 'absolute',
+					top: '0px',
+					left: '0px',
+					width: '100%',
+					height: '100%',
+					overflow: 'hidden'
+				});
 			});
 
 			stats.domElement.style.position = 'absolute';
@@ -51,9 +63,12 @@ module.exports = ['socket', function SceneDirective(socket) {
 				var height = e.target.innerHeight,
 					width = e.target.innerWidth;
 					
-				renderer.setSize(width, height);
+				webGLRenderer.setSize(width, height);
+				cssRenderer.setSize(width, height);
 				camera.aspect = width / height;
 				camera.updateProjectionMatrix();
+				cssCamera.aspect = width / height;
+				cssCamera.updateProjectionMatrix();
 			};
 			window.addEventListener('resize', resize, false);
 
@@ -88,7 +103,7 @@ module.exports = ['socket', function SceneDirective(socket) {
 						}),
 						mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, height, 1, 1), material);
 						
-					// texture.anisotropy = renderer.getMaxAnisotropy();
+					// texture.anisotropy = webGLRenderer.getMaxAnisotropy();
 					// texture.format = THREE.RGBFormat;
 					// texture.generateMipmaps = false;
 
@@ -146,6 +161,30 @@ module.exports = ['socket', function SceneDirective(socket) {
 				$scope.mode = $scope.mode == 'testMode' ? '' : 'testMode';
 				facerace.mode($scope.mode);
 			};
+
+			var slider = document.createElement('input');
+			slider.type = 'range';
+
+			var sliderObj = new THREE.CSS3DObject(slider);
+			cssScene.add(sliderObj);
+
+			var material = new THREE.MeshBasicMaterial({ wireframe: true });
+
+			material.color.set('#fdd');
+			material.opacity = 50;
+			material.blending = THREE.NoBlending;
+
+			var geometry = new THREE.PlaneGeometry(1, 1, 1, 1);
+			var planeMesh= new THREE.Mesh( geometry, material );
+
+			planeMesh.position.x = -1;
+			planeMesh.position.y = 0;
+			sliderObj.scale.multiplyScalar(1 / 63.5);
+
+			sliderObj.position = planeMesh.position;
+			sliderObj.quaternion = planeMesh.quaternion;
+
+			scene.add(planeMesh);
 
 			var eventHandlers = {
 				mode: function(event) {
@@ -212,7 +251,8 @@ module.exports = ['socket', function SceneDirective(socket) {
 				_.each(result.events.processedEvents, dispatch);
 
 				controls.update();
-				renderer.render(scene, camera);
+				webGLRenderer.render(scene, camera);
+				cssRenderer.render(cssScene, cssCamera);
 				stats.update();
 
 				lastFrame = now;
