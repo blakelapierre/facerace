@@ -18,7 +18,7 @@ module.exports = function(grunt) {
 				files: ['server.js', 'public/**/*.*', '!public/js/bundle.js'],
 				tasks: ['browserify:bundle', 'express:dev'],
 				options: {
-					livereload: true
+					//livereload: true
 				}
 			}
 		},
