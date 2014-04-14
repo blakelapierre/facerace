@@ -53,14 +53,33 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 	            //   '/images/wasteland/cubemap-4.png'
 	            // ];
 
+	            // var urls = [
+	            //   '/images/gorse/cubemap-5.png',
+	            //   '/images/gorse/cubemap-3.png',
+	            //   '/images/gorse/cubemap-2.png',
+	            //   '/images/gorse/cubemap-1.png',
+	            //   '/images/gorse/cubemap-0.png',
+	            //   '/images/gorse/cubemap-4.png'
+	            // ];
+
+	            // var urls = [
+	            //   '/images/wyoming/cubemap-px.png',
+	            //   '/images/wyoming/cubemap-nx.png',
+	            //   '/images/wyoming/cubemap-py.png',
+	            //   '/images/wyoming/cubemap-ny.png',
+	            //   '/images/wyoming/cubemap-pz.png',
+	            //   '/images/wyoming/cubemap-nz.png'
+	            // ];
+
 	            var urls = [
-	              '/images/gorse/cubemap-5.png',
-	              '/images/gorse/cubemap-3.png',
-	              '/images/gorse/cubemap-2.png',
-	              '/images/gorse/cubemap-1.png',
-	              '/images/gorse/cubemap-0.png',
-	              '/images/gorse/cubemap-4.png'
+	              '/images/upheaval_dome/cubemap-px.png',
+	              '/images/upheaval_dome/cubemap-nx.png',
+	              '/images/upheaval_dome/cubemap-py.png',
+	              '/images/upheaval_dome/cubemap-ny.png',
+	              '/images/upheaval_dome/cubemap-pz.png',
+	              '/images/upheaval_dome/cubemap-nz.png'
 	            ];
+	            
 
 		        var cubemap = THREE.ImageUtils.loadTextureCube(urls);
 
