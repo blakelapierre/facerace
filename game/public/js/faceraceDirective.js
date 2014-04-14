@@ -26,14 +26,14 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 	   //            '/images/rooftopCubemap-tile-3.png'
 	   //          ];
 
-	            // var urls = [
-	            //   '/images/ptreyes-cubemap-2.png',
-	            //   '/images/ptreyes-cubemap-0.png',
-	            //   '/images/ptreyes-cubemap-3.png',
-	            //   '/images/ptreyes-cubemap-4.png',
-	            //   '/images/ptreyes-cubemap-1.png',
-	            //   '/images/ptreyes-cubemap-5.png'
-	            // ];
+	            var urls = [
+	              '/images/ptreyes-cubemap-2.png',
+	              '/images/ptreyes-cubemap-0.png',
+	              '/images/ptreyes-cubemap-3.png',
+	              '/images/ptreyes-cubemap-4.png',
+	              '/images/ptreyes-cubemap-1.png',
+	              '/images/ptreyes-cubemap-5.png'
+	            ];
 
 	            // var urls = [
 	            //   '/images/palisades/palisadesCubemap-tile-2.png',
@@ -44,14 +44,14 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 	            //   '/images/palisades/palisadesCubemap-tile-5.png'
 	            // ];
 
-	            var urls = [
-	              '/images/wasteland/cubemap-5.png',
-	              '/images/wasteland/cubemap-3.png',
-	              '/images/wasteland/cubemap-2.png',
-	              '/images/wasteland/cubemap-1.png',
-	              '/images/wasteland/cubemap-0.png',
-	              '/images/wasteland/cubemap-4.png'
-	            ];
+	            // var urls = [
+	            //   '/images/wasteland/cubemap-5.png',
+	            //   '/images/wasteland/cubemap-3.png',
+	            //   '/images/wasteland/cubemap-2.png',
+	            //   '/images/wasteland/cubemap-1.png',
+	            //   '/images/wasteland/cubemap-0.png',
+	            //   '/images/wasteland/cubemap-4.png'
+	            // ];
 
 		        var cubemap = THREE.ImageUtils.loadTextureCube(urls);
 
