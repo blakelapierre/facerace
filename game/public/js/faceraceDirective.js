@@ -26,13 +26,31 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 	   //            '/images/rooftopCubemap-tile-3.png'
 	   //          ];
 
+	            // var urls = [
+	            //   '/images/ptreyes-cubemap-2.png',
+	            //   '/images/ptreyes-cubemap-0.png',
+	            //   '/images/ptreyes-cubemap-3.png',
+	            //   '/images/ptreyes-cubemap-4.png',
+	            //   '/images/ptreyes-cubemap-1.png',
+	            //   '/images/ptreyes-cubemap-5.png'
+	            // ];
+
+	            // var urls = [
+	            //   '/images/palisades/palisadesCubemap-tile-2.png',
+	            //   '/images/palisades/palisadesCubemap-tile-0.png',
+	            //   '/images/palisades/palisadesCubemap-tile-3.png',
+	            //   '/images/palisades/palisadesCubemap-tile-4.png',
+	            //   '/images/palisades/palisadesCubemap-tile-1.png',
+	            //   '/images/palisades/palisadesCubemap-tile-5.png'
+	            // ];
+
 	            var urls = [
-	              '/images/ptreyes-cubemap-2.png',
-	              '/images/ptreyes-cubemap-0.png',
-	              '/images/ptreyes-cubemap-3.png',
-	              '/images/ptreyes-cubemap-4.png',
-	              '/images/ptreyes-cubemap-1.png',
-	              '/images/ptreyes-cubemap-5.png'
+	              '/images/wasteland/cubemap-5.png',
+	              '/images/wasteland/cubemap-3.png',
+	              '/images/wasteland/cubemap-2.png',
+	              '/images/wasteland/cubemap-1.png',
+	              '/images/wasteland/cubemap-0.png',
+	              '/images/wasteland/cubemap-4.png'
 	            ];
 
 		        var cubemap = THREE.ImageUtils.loadTextureCube(urls);
@@ -48,7 +66,7 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 		          side: THREE.DoubleSide
 		        });
 
-		        var skybox = new THREE.Mesh( new THREE.CubeGeometry( 1000, 1000, 1000 ), material );
+		        var skybox = new THREE.Mesh( new THREE.CubeGeometry( 10000, 10000, 10000 ), material );
 		        scene.add(skybox);
 
 				$scope.liveSources = {};
