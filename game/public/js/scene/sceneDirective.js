@@ -12,19 +12,18 @@ module.exports = [function SceneDirective() {
 				height = window.innerHeight,
 				scene = new THREE.Scene(),
 				cssScene = new THREE.Scene(),
-				webGLRenderer = new THREE.WebGLRenderer({antialias: false}),
+				webGLRenderer = new THREE.WebGLRenderer({antialias: false, alpha: true}),
 				cssRenderer = new THREE.CSS3DRenderer({}),
 				camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000),
-				cssFactor = 100,
-				cssCamera = new THREE.PerspectiveCamera(75, width / height, 0.1 * cssFactor, 1000 * cssFactor),
+				cssFactor = 1,
+				cssCamera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000),
 				// camera = new THREE.OrthographicCamera( width / - 2, width / 2, height / 2, height / - 2, 1, 1000 ), // play around with this some more
 				stats = new Stats(),
 				controls = new THREE.TrackballControls(camera);
 
 			element.prepend(stats.domElement);
 			element.prepend(cssRenderer.domElement);
-			element.prepend(webGLRenderer.domElement);
-
+			cssRenderer.domElement.appendChild(webGLRenderer.domElement);
 
 			camera.up.set(0, 1, 0);
 			camera.position.z = 2;

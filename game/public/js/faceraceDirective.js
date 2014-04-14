@@ -17,6 +17,31 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 					camera = s.camera,
 					swirl = window.location.hash.indexOf('-swirl') > -1 ? '-swirl' : '';
 
+				var urls = [
+	              '/images/rooftopCubemap-tile-0.png',
+	              '/images/rooftopCubemap-tile-2.png',
+	              '/images/rooftopCubemap-tile-5.png',
+	              '/images/rooftopCubemap-tile-1.png',
+	              '/images/rooftopCubemap-tile-4.png',
+	              '/images/rooftopCubemap-tile-3.png'
+	            ];
+
+		        var cubemap = THREE.ImageUtils.loadTextureCube(urls);
+
+		        var shader = THREE.ShaderLib[ "cube" ];
+		        shader.uniforms[ "tCube" ].value = cubemap;
+
+		        var material = new THREE.ShaderMaterial( {
+		          fragmentShader: shader.fragmentShader,
+		          vertexShader: shader.vertexShader,
+		          uniforms: shader.uniforms,
+		          depthWrite: false,
+		          side: THREE.DoubleSide
+		        });
+
+		        var skybox = new THREE.Mesh( new THREE.CubeGeometry( 1000, 1000, 1000 ), material );
+		        scene.add(skybox);
+
 				$scope.liveSources = {};
 				$scope.$watchCollection('sources', function(newValue, ALSONEWVALUEಠ_ಠ, $scope) {
 					var liveSources = $scope.liveSources,
@@ -113,10 +138,10 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 				var sliderObj = new THREE.CSS3DObject(slider);
 				cssScene.add(sliderObj);
 
-				var material = new THREE.MeshBasicMaterial({ wireframe: true });
+				var material = new THREE.MeshBasicMaterial();
 
-				material.color.set('#fdd');
-				material.opacity = 50;
+				material.color.set('black');
+				material.opacity = 0;
 				material.blending = THREE.NoBlending;
 
 				var geometry = new THREE.PlaneGeometry(1, 1, 1, 1);
@@ -129,9 +154,10 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 				//sliderObj.position = planeMesh.position;
 				sliderObj.position.x = -2;
 				sliderObj.position.y = -2;
+				sliderObj.position.z = 0.1;
 				sliderObj.quaternion = planeMesh.quaternion;
 
-				scene.add(planeMesh);
+				//scene.add(planeMesh);
 
 				var eventHandlers = {
 					mode: function(event) {
