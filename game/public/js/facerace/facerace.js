@@ -67,6 +67,14 @@ module.exports = function(isServer, rtc, io, onEvent) {
 				state.mode = mode;
 				return true;
 			}
+		},
+		loadMaps: {
+			pre: function(eventQ, player, maps) {
+				var state = getState();
+				
+				state.maps = maps;
+				return true;
+			}
 		}
 	};
 
@@ -135,7 +143,9 @@ module.exports = function(isServer, rtc, io, onEvent) {
 
 	var serverExtensions = (function() {
 			return {
-
+				loadMaps: function(maps) {
+					eventQ.push({type: 'loadMaps', _player: 'server', _event: maps});
+				}
 			};
 		})(),
 		clientExtensions = _.mapValues(events, function(handlers, key) {

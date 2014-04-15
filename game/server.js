@@ -4,6 +4,8 @@ var startServer = function(config, callback) {
 		socketIO = require('socket.io'),
 		webRTC = require('webrtc.io'),
 		socketIOdb = require('./public/js/db/socketIOdb'),
+		fs = require('fs'),
+		_ = require('lodash'),
 		app = express();
 
 	app.use(express.static(path.join(__dirname, '/public')));
@@ -19,6 +21,18 @@ var startServer = function(config, callback) {
 	var transport = {},
 		facerace = require('./public/js/facerace/facerace'),
 		facerace = facerace(true, rtc, io);
+
+	fs.readdir('./public/images', function(err, files) {
+		if (err) throw err;
+
+		var maps = [];
+		_.each(files, function(file) {
+			var stat = fs.statSync(path.join(__dirname, 'public/images', file));
+			if (stat.isDirectory()) maps.push(file);
+		});
+		facerace.loadMaps(maps);
+
+	});
 
 	setInterval(facerace, 100);
 	
