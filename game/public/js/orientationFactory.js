@@ -41,7 +41,7 @@ module.exports = function() {
 		// 	controlsMetrics.gamma.append(now, event.gamma);
 		// }
 	};
-	window.addEventListener('deviceorientation', orientationListener);
+	window.addEventListener('deviceorientation', orientationListener); // we probably want a way to remove this if/when angular kills our object
 
 	var orientation = {
 		quaternion: quaternion,
