@@ -60,6 +60,25 @@ module.exports = function(isServer, rtc, io, onEvent) {
 				return true;
 			}
 		},
+		orientation: {
+			pre: function(eventQ, player, orientation) {
+				var po = player.orientation
+					o = orientation
+					pq = po.quaternion,
+					nq = o.quaternion;
+
+				pq[0] = nq[0];
+				pq[1] = nq[1];
+				pq[2] = nq[2];
+				pq[3] = nq[3];
+
+				po.alpha = o.alpha;
+				po.beta = o.beta;
+				po.gamma = o.gamma;
+
+				return true;
+			}
+		},
 		mode: {
 			pre: function(eventQ, player, mode) {
 				var state = getState();
@@ -103,7 +122,13 @@ module.exports = function(isServer, rtc, io, onEvent) {
 		if (isServer) {
 			var player = {
 				id: socket.id,
-				position: [0,0,0]
+				position: [0,0,0],
+				orientation: {
+					quaternion: [0, 0, 0, 1],
+					alpha: 0,
+					beta: 0,
+					gamma: 0
+				}
 			};
 
 			socket.player = player;

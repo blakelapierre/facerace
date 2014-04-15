@@ -1,6 +1,3 @@
-<div class="maps" ng-show="showMaps">
-	<div ng-repeat="map in maps" ng-click="setMap(map)">{{map}}</div>
-</div>
 <span class="room-name">{{room}}</span>
 <div class="state"><pre>{{state}}<pre></div>
 <div class="last-event"><pre>{{lastEvent}}</pre></div>
@@ -9,4 +6,8 @@
 	<input type="button" ng-click="hide_webGLRenderer = !hide_webGLRenderer" value="Hide WebGL" />
 	<input type="button" ng-click="hide_cssRenderer = !hide_cssRenderer" value="Hide CSS3D" />
 	<input type="button" ng-click="showMaps = true" value="Show Maps" />
+</div>
+
+<div class="maps" ng-show="showMaps">
+	<div ng-repeat="map in maps" ng-click="setMap(map)">{{map}}</div>
 </div>

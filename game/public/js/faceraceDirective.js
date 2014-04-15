@@ -8,7 +8,7 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 		restrict: 'E',
 		template: require('./faceraceTemplate.html'),
 		link: function($scope, element, attributes) { },
-		controller:  ['$scope', function($scope) {
+		controller:  ['$scope', 'orientation', function($scope, orientation) {
 			$scope.$on('sceneReady', function(e, s) {
 				console.log('scene', s);
 
@@ -23,7 +23,7 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 				var loadMap = function(map) {
 					if ($scope.map == map) return;
 					$scope.map = map;
-					
+
 					var urls = _.map(['px', 'nx', 'py', 'ny', 'pz', 'nz'], function(face) {
 						return '/images/' + map + '/cubemap-' + face + '.png';
 		            });
@@ -225,6 +225,16 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 
 					var result = facerace();
 
+					updateFn(result, now, dt);
+
+					lastFrame = now;
+				};
+
+				var waitingForState = function(result, now, dt) {
+					if (result.state._yourID != null) updateFn = haveState;
+				};
+
+				var haveState = function(result, now, dt) {
 					var source = $scope.liveSources['local'];
 					if (source && source.mesh) camera.lookAt(source.mesh.position);
 
@@ -242,14 +252,16 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 					$scope.lastEvent = result.events.processedEvents.length > 0 ? JSON.stringify(result.events.processedEvents, null, jsonSeperator) : $scope.lastEvent;
 					$scope.state = JSON.stringify(result.state, null, jsonSeperator);
 					$scope.maps = result.state.maps;
+					$scope.orientation = orientation();
+					facerace.orientation($scope.orientation);
 
 					loadMap(result.state.map); // get rid of this!
 					$scope.$apply();
 
 					_.each(result.events.processedEvents, dispatch);
+				};
 
-					lastFrame = now;
-				}
+				var updateFn = waitingForState;
 			});
 		}]
 	};
