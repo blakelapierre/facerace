@@ -21,6 +21,9 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 				var skybox;
 
 				var loadMap = function(map) {
+					if ($scope.map == map) return;
+					$scope.map = map;
+					
 					var urls = _.map(['px', 'nx', 'py', 'ny', 'pz', 'nz'], function(face) {
 						return '/images/' + map + '/cubemap-' + face + '.png';
 		            });
@@ -162,6 +165,10 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 				//scene.add(planeMesh);
 
 				var eventHandlers = {
+					state: function(event) {
+						console.log('state', event);
+						loadMap(event._event.map);
+					},
 					mode: function(event) {
 						_.each($scope.liveSources, function(source) {
 							source.mode = event._event;
@@ -235,6 +242,8 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 					$scope.lastEvent = result.events.processedEvents.length > 0 ? JSON.stringify(result.events.processedEvents, null, jsonSeperator) : $scope.lastEvent;
 					$scope.state = JSON.stringify(result.state, null, jsonSeperator);
 					$scope.maps = result.state.maps;
+
+					loadMap(result.state.map); // get rid of this!
 					$scope.$apply();
 
 					_.each(result.events.processedEvents, dispatch);
