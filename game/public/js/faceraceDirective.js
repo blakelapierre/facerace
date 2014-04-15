@@ -15,32 +15,34 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 				var scene = s.scene,
 					cssScene = s.cssScene,
 					camera = s.camera,
+					controls = s.controls,
 					swirl = window.location.hash.indexOf('-swirl') > -1 ? '-swirl' : '';
 
-	            var urls = [
-	              '/images/double_arch/cubemap-px.png',
-	              '/images/double_arch/cubemap-nx.png',
-	              '/images/double_arch/cubemap-py.png',
-	              '/images/double_arch/cubemap-ny.png',
-	              '/images/double_arch/cubemap-pz.png',
-	              '/images/double_arch/cubemap-nz.png'
-	            ];
+				var skybox;
 
-		        var cubemap = THREE.ImageUtils.loadTextureCube(urls);
+				var loadMap = function(map) {
+					var urls = _.map(['px', 'nx', 'py', 'ny', 'pz', 'nz'], function(face) {
+						return '/images/' + map + '/cubemap-' + face + '.png';
+		            });
 
-		        var shader = THREE.ShaderLib[ "cube" ];
-		        shader.uniforms[ "tCube" ].value = cubemap;
+		            var cubemap = THREE.ImageUtils.loadTextureCube(urls);
 
-		        var material = new THREE.ShaderMaterial( {
-		          fragmentShader: shader.fragmentShader,
-		          vertexShader: shader.vertexShader,
-		          uniforms: shader.uniforms,
-		          depthWrite: false,
-		          side: THREE.DoubleSide
-		        });
+			        var shader = THREE.ShaderLib[ "cube" ];
+			        shader.uniforms[ "tCube" ].value = cubemap;
 
-		        var skybox = new THREE.Mesh( new THREE.CubeGeometry( 10000, 10000, 10000 ), material );
-		        scene.add(skybox);
+			        var material = new THREE.ShaderMaterial( {
+			          fragmentShader: shader.fragmentShader,
+			          vertexShader: shader.vertexShader,
+			          uniforms: shader.uniforms,
+			          depthWrite: false,
+			          side: THREE.DoubleSide
+			        });
+
+			        if (skybox) scene.remove(skybox);
+			        skybox = new THREE.Mesh( new THREE.CubeGeometry( 10000, 10000, 10000 ), material );
+			        scene.add(skybox);
+				};
+	            
 
 				$scope.liveSources = {};
 				$scope.$watchCollection('sources', function(newValue, ALSONEWVALUEಠ_ಠ, $scope) {
@@ -189,12 +191,24 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 					},
 					player: function(event) {
 						console.log('player', event);
+					},
+					setMap: function(event) {
+						loadMap(event._event);
 					}
 				};
 
 				var dispatch = function(event) {
 					(eventHandlers[event.type] || function() { })(event);
 				};
+
+				$scope.setMap = function(map) {
+					facerace.setMap(map);
+					$scope.showMaps = false;
+				};
+
+				$scope.$watch('showMaps', function(newValue) {
+					controls.enabled = !newValue;
+				})
 
 				var maxfps = 24,
 					lastFrame = new Date().getTime();
@@ -217,11 +231,10 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 						source.material.uniforms.time.value += 1;
 					});
 
-					camera.rotateZ(Math.PI * (1 / (60 * 4)));
-
 					
 					$scope.lastEvent = result.events.processedEvents.length > 0 ? JSON.stringify(result.events.processedEvents, null, jsonSeperator) : $scope.lastEvent;
 					$scope.state = JSON.stringify(result.state, null, jsonSeperator);
+					$scope.maps = result.state.maps;
 					$scope.$apply();
 
 					_.each(result.events.processedEvents, dispatch);

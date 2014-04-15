@@ -71,8 +71,16 @@ module.exports = function(isServer, rtc, io, onEvent) {
 		loadMaps: {
 			pre: function(eventQ, player, maps) {
 				var state = getState();
-				
+
 				state.maps = maps;
+				return true;
+			}
+		},
+		setMap: {
+			pre: function(eventQ, player, map) {
+				var state = getState();
+
+				state.map = map;
 				return true;
 			}
 		}

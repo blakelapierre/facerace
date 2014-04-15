@@ -21,6 +21,8 @@ module.exports = [function SceneDirective() {
 				stats = new Stats(),
 				controls = new THREE.TrackballControls(camera);
 
+			controls.enabled = false;
+
 			element.prepend(stats.domElement);
 			element.prepend(cssRenderer.domElement);
 			cssRenderer.domElement.appendChild(webGLRenderer.domElement);
@@ -76,7 +78,8 @@ module.exports = [function SceneDirective() {
 				scene: scene,
 				cssScene: cssScene,
 				camera: camera,
-				cssCamera: cssCamera
+				cssCamera: cssCamera,
+				controls: controls
 			});
 
 			var render = function() {
