@@ -37,13 +37,19 @@ module.exports = [function SceneDirective() {
 			webGLRenderer._rendererName = 'webGLRenderer';
 			cssRenderer._rendererName = 'cssRenderer';
 
+			webGLRenderer._element = angular.element(webGLRenderer.domElement);
+			cssRenderer._element = angular.element(cssRenderer.domElement.children[0]);
+
+			webGLRenderer._element.addClass('renderer').addClass(name);
+
+			angular.element(cssRenderer.domElement).addClass('renderer');
+
 			_.each([webGLRenderer, cssRenderer], function(renderer) {
-				var element = angular.element(renderer.domElement)
+				console.log(renderer._rendererName, renderer);
+				var element = renderer._element,
 					name = renderer._rendererName;
 				
 				renderer.setSize(width, height);
-
-				element.addClass('renderer').addClass(name);
 
 				$scope.$watch('hide_' + name, function(newValue) {
 					element.css('display', newValue ? 'none' : 'block');

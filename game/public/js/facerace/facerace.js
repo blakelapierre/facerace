@@ -133,7 +133,11 @@ module.exports = function(isServer, rtc, io, onEvent) {
 	if (isServer) io.sockets.on('connection', hookSocket);
 	else hookSocket(io);
 
-	var serverExtensions = {},
+	var serverExtensions = (function() {
+			return {
+
+			};
+		})(),
 		clientExtensions = _.mapValues(events, function(handlers, key) {
 			return function(data) {
 				var state = getState();
