@@ -34,6 +34,7 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 						$scope.map = map;
 
 						if (skybox) scene.remove(skybox);
+						if (course) scene.remove(course);
 
 						var cubemap = loadCubeMap(map);
 
@@ -50,6 +51,11 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 
 				        skybox = new THREE.Mesh( new THREE.CubeGeometry( 10000, 10000, 10000 ), material );
 				        scene.add(skybox);
+
+				        course = new THREE.Mesh(new THREE.PlaneGeometry(1000, 1000, 1000), new THREE.MeshBasicMaterial({color: 0x66aaaa}));
+				        course.rotateX(-Math.PI / 2);
+				        course.position.y = -0.5;
+				        scene.add(course);
 					};
 				})();
 	            
