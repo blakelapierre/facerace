@@ -62,8 +62,8 @@ module.exports = function(isServer, rtc, io, onEvent) {
 		},
 		orientation: {
 			pre: function(eventQ, player, orientation) {
-				var po = player.orientation
-					o = orientation
+				var po = player.orientation,
+					o = orientation,
 					pq = po.quaternion,
 					nq = o.quaternion;
 

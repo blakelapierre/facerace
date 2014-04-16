@@ -19,7 +19,7 @@ module.exports = function() {
 		// https://developer.mozilla.org/en-US/docs/Web/Guide/Events/Using_device_orientation_with_3D_transforms
 		var ah = ((alpha - 180) / 2) / 180 * Math.PI, // z
 			bh = (beta / 2) / 180 * Math.PI,  // x
-			gh = (/*-*/gamma / 2) / 180 * Math.PI, // y
+			gh = (gamma / 2) / 180 * Math.PI, // y
 			c1 = Math.cos(gh),
 			c2 = Math.cos(ah),
 			c3 = Math.cos(bh),

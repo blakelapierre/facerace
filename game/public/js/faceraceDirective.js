@@ -47,89 +47,6 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 				};
 	            
 
-				$scope.liveSources = {};
-				$scope.$watchCollection('sources', function(newValue, ALSONEWVALUEಠ_ಠ, $scope) {
-					var liveSources = $scope.liveSources,
-						currentKeys = _.keys(newValue),
-						oldKeys = _.keys(liveSources),
-						newKeys = _.difference(currentKeys, oldKeys),
-						removableKeys = _.difference(oldKeys, currentKeys);
-
-
-					_.each(newKeys, function(newKey) {
-						var videoSource = newValue[newKey],
-							video = videoSource.element,
-							width = 1,
-							height = 1,
-							texture = new THREE.Texture(video), 
-							material = new THREE.ShaderMaterial({
-								fragmentShader: document.getElementById('plane-fragment-shader' + swirl).textContent,
-								vertexShader: document.getElementById('plane-vertex-shader' + swirl).textContent,
-								uniforms: {
-									texture: {type: 't', value: texture},
-									width: {type: 'f', value: width},
-									height: {type: 'f', value: height},
-									radius: {type: 'f', value: 2},
-									angle: {type: 'f', value: 0.8},
-									center: {type: 'v2', value: new THREE.Vector2(width / 2, height / 2)},
-									time: {type: 'f', value: 1.0}
-								},
-								side: THREE.DoubleSide
-							}),
-							mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, height, 1, 1), material);
-							
-						// texture.anisotropy = webGLRenderer.getMaxAnisotropy();
-						// texture.format = THREE.RGBFormat;
-						// texture.generateMipmaps = false;
-
-						texture.lastUpdate = 0;
-
-						scene.add(mesh);
-
-						videoSource.mesh = mesh;
-						videoSource.texture = texture;
-						videoSource.material = material;
-						liveSources[newKey] = videoSource;
-
-						if (videoSource.socketID == rtc._me) {
-							facerace.video(videoSource.socketID);
-							videoSource.mesh.add(camera);
-						}
-					});
-
-					_.each(removableKeys, function(removableKey) {
-						var videoSource = liveSources[removableKey];
-						scene.remove(videoSource.mesh);
-						delete liveSources[removableKey];
-					});
-
-
-
-					// http://danpearcymaths.wordpress.com/2012/09/30/infinity-programming-in-geogebra-and-failing-miserably/
-					// p = floor(sqrt(4 * a + 1))
-					// q = a - floor(p^(2) / 4)
-					// q * ί^(p) + (floor((p + 2) / 4) - floor((p + 1) / 4) * ί) * ί^(p - 1)
-					var p = function(a) { math.floor(math.sqrt(math.add(math.multiply(4, a), 1))); };
-					var q = function(p, a) { math.subtract(a, math.floor(math.divide(math.square(p), 4))); };
-					var i = 0,
-						parser = math.parser();
-
-					_.each(liveSources, function(videoSource) {
-						parser.eval('a = ' + i);
-						parser.eval('p = floor(sqrt(4 * a + 1))');
-						parser.eval('q = a - floor(p^2 / 4)');
-						
-						var point = parser.eval('q * i^p + (floor((p + 2) / 4) - floor((p + 1) / 4) * i) * i^(p - 1)');
-
-						var mesh = videoSource.mesh;
-						mesh.position.y = point.re;
-						mesh.position.x = point.im;
-						i++;
-					});
-				}, true);
-
-				var jsonSeperator = '|\u00b7\u00b7';
-
 				facerace = facerace(false, rtc, socket);
 
 				$scope.toggleMode = function() {
@@ -165,10 +82,6 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 				//scene.add(planeMesh);
 
 				var eventHandlers = {
-					state: function(event) {
-						console.log('state', event);
-						loadMap(event._event.map);
-					},
 					mode: function(event) {
 						_.each($scope.liveSources, function(source) {
 							source.mode = event._event;
@@ -215,53 +128,199 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 
 				$scope.$watch('showMaps', function(newValue) {
 					controls.enabled = !newValue;
-				})
+				});
 
-				var maxfps = 24,
-					lastFrame = new Date().getTime();
-				$scope.updateScene = function () {
-					var now = new Date().getTime(),
-						dt = now - lastFrame;
+				var createWatchCollectionFunction = function(obj, config) {
+					var newAction = config.newAction,
+						removeAction = config.removeAction,
+						updateAction = config.updateAction;
 
-					var result = facerace();
+					return function(newValue) {
+						console.log('players', newValue);
+						var currentKeys = _.keys(newValue),
+							oldKeys = _.keys(obj),
+							newKeys = _.difference(currentKeys, oldKeys),
+							removableKeys = _.difference(oldKeys, currentKeys);
 
-					updateFn(result, now, dt);
+						_.each(newKeys, newAction);
+						_.each(removableKeys, removeAction);
 
-					lastFrame = now;
+						var index = 0;
+						_.each(obj, function(o) {
+							updateAction(o, index++);
+						});
+					};
 				};
 
-				var waitingForState = function(result, now, dt) {
-					if (result.state._yourID != null) updateFn = haveState;
-				};
+				$scope.$watchCollection('players', (function() {
+					// http://danpearcymaths.wordpress.com/2012/09/30/infinity-programming-in-geogebra-and-failing-miserably/
+					var p = function(a) { math.floor(math.sqrt(math.add(math.multiply(4, a), 1))); };
+					var q = function(p, a) { math.subtract(a, math.floor(math.divide(math.square(p), 4))); };
+					var parser = math.parser();
 
-				var haveState = function(result, now, dt) {
-					var source = $scope.liveSources['local'];
-					if (source && source.mesh) camera.lookAt(source.mesh.position);
+					var livePlayers = {};
 
-					_.each($scope.liveSources, function(source, id) {
-						var element = source.element;
-						if (element.readyState == element.HAVE_ENOUGH_DATA &&
-							now - source.texture.lastUpdate > (1000 / maxfps) ) {
-							source.texture.needsUpdate = true;
-							source.texture.lastUpdate = now;
+					return createWatchCollectionFunction(livePlayers, {
+						newAction: function(key) {
+							var width = 1,
+								height = 1,
+								material = new THREE.MeshBasicMaterial({side: THREE.DoubleSide}),
+								mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, height, 1, 1), material),
+								player = {
+									data: $scope.players[key],
+									targetQuaternion: new THREE.Quaternion(),
+									mesh: mesh,
+									material: material
+								};
+
+							scene.add(mesh);
+
+							livePlayers[key] = player;
+						},
+						removeAction: function(key) {
+							var player = livePlayers[key];
+							scene.remove(player.mesh);
+							delete livePlayers[key];
+						},
+						updateAction = function(player, index) {
+							parser.eval('a = ' + index);
+							parser.eval('p = floor(sqrt(4 * a + 1))');
+							parser.eval('q = a - floor(p^2 / 4)');
+							
+							var point = parser.eval('q * i^p + (floor((p + 2) / 4) - floor((p + 1) / 4) * i) * i^(p - 1)');
+
+							var mesh = player.mesh;
+							mesh.position.y = point.re;
+							mesh.position.x = point.im;
 						}
-						source.material.uniforms.time.value += 1;
 					});
+				})());
 
-					
-					$scope.lastEvent = result.events.processedEvents.length > 0 ? JSON.stringify(result.events.processedEvents, null, jsonSeperator) : $scope.lastEvent;
-					$scope.state = JSON.stringify(result.state, null, jsonSeperator);
-					$scope.maps = result.state.maps;
-					$scope.orientation = orientation();
-					facerace.orientation($scope.orientation);
+				$scope.$watchCollection('sources', (function() {
+					// http://danpearcymaths.wordpress.com/2012/09/30/infinity-programming-in-geogebra-and-failing-miserably/
+					var p = function(a) { math.floor(math.sqrt(math.add(math.multiply(4, a), 1))); };
+					var q = function(p, a) { math.subtract(a, math.floor(math.divide(math.square(p), 4))); };
+					var parser = math.parser();
 
-					loadMap(result.state.map); // get rid of this!
-					$scope.$apply();
+					var liveSources = {};
 
-					_.each(result.events.processedEvents, dispatch);
-				};
+					$scope.liveSources = liveSources;
 
-				var updateFn = waitingForState;
+					return createWatchCollectionFunction(liveSources, {
+						newAction: function(key) {
+							var videoSource = $scope.liveSources[key],
+								video = videoSource.element,
+								width = 1,
+								height = 1,
+								texture = new THREE.Texture(video), 
+								material = new THREE.ShaderMaterial({
+									fragmentShader: document.getElementById('plane-fragment-shader' + swirl).textContent,
+									vertexShader: document.getElementById('plane-vertex-shader' + swirl).textContent,
+									uniforms: {
+										texture: {type: 't', value: texture},
+										width: {type: 'f', value: width},
+										height: {type: 'f', value: height},
+										radius: {type: 'f', value: 2},
+										angle: {type: 'f', value: 0.8},
+										center: {type: 'v2', value: new THREE.Vector2(width / 2, height / 2)},
+										time: {type: 'f', value: 1.0}
+									},
+									side: THREE.DoubleSide
+								}),
+								mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, height, 1, 1), material);
+
+							texture.lastUpdate = 0;
+
+							scene.add(mesh);
+
+							videoSource.mesh = mesh;
+							videoSource.texture = texture;
+							videoSource.material = material;
+							liveSources[key] = videoSource;
+
+							if (videoSource.socketID == rtc._me) {
+								facerace.video(videoSource.socketID);
+								videoSource.mesh.add(camera);
+							}
+						},
+						removeAction: function(key) {
+							var videoSource = liveSources[key];
+							scene.remove(videoSource.mesh);
+							delete liveSources[key];
+						},
+						updateAction: function(source, index) {
+							parser.eval('a = ' + index);
+							parser.eval('p = floor(sqrt(4 * a + 1))');
+							parser.eval('q = a - floor(p^2 / 4)');
+							
+							var point = parser.eval('q * i^p + (floor((p + 2) / 4) - floor((p + 1) / 4) * i) * i^(p - 1)');
+
+							var mesh = videoSource.mesh;
+							mesh.position.y = point.re;
+							mesh.position.x = point.im;
+						}
+					})
+				})());
+
+				$scope.updateScene = (function() {
+					var maxfps = 5,
+						lastFrame = new Date().getTime();
+
+					var waitingForState = function(transport, now, dt) {
+						if (transport.state._yourID != null) updateFn = haveState;
+					};
+
+					var haveState = function(transport, now, dt) {
+						$scope.$broadcast('newState', transport);
+
+						var source = $scope.liveSources['local'];
+						if (source && source.mesh) camera.lookAt(source.mesh.position);
+
+						_.each($scope.liveSources, function(source, id) {
+							var element = source.element;
+							if (element.readyState == element.HAVE_ENOUGH_DATA &&
+								now - source.texture.lastUpdate > (1000 / maxfps) ) {
+								source.texture.needsUpdate = true;
+								source.texture.lastUpdate = now;
+							}
+							source.material.uniforms.time.value += 1;
+						});
+
+						$scope.players = transport.state.players;
+
+						$scope.orientation = orientation();
+						facerace.orientation($scope.orientation);
+
+						loadMap(transport.state.map); // get rid of this!
+						$scope.$apply();
+
+						_.each(transport.events.processedEvents, dispatch);
+
+						_.each(livePlayers, function(player) {
+							var data = player.data,
+								q = data.orientation.quaternion,
+								tq = player.targetQuaternion,
+								mesh = player.mesh,
+								mq = mesh.quaternion;
+
+							tq.set(q[0], q[1], q[2], q[3]);
+							mq.slerp(tq, 0.33);
+						});
+					};
+
+					var updateFn = waitingForState;	
+
+					return function () {
+						var now = new Date().getTime(),
+							dt = now - lastFrame;
+
+						var transport = facerace();
+
+						updateFn(transport, now, dt);
+
+						lastFrame = now;
+					};
+				})();
 			});
 		}]
 	};
