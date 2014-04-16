@@ -2,11 +2,10 @@ var angular = require('angular');
 
 module.exports = function HudDirective() {
 	var jsonSeperator = '|\u00b7\u00b7';
-	
+
 	return {
 		template: require('./hudTemplate.html'),
 		restrict: 'E',
-		scope: true,
 		link: function($scope, element, attributes) {
 		
 		},

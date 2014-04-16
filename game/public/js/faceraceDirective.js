@@ -18,33 +18,40 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 					controls = s.controls,
 					swirl = window.location.hash.indexOf('-swirl') > -1 ? '-swirl' : '';
 
-				var skybox;
+				var loadMap = (function() {
+					var skybox, course;
 
-				var loadMap = function(map) {
-					if ($scope.map == map) return;
-					$scope.map = map;
+					var loadCubeMap = function(map) {
+						var urls = _.map(['px', 'nx', 'py', 'ny', 'pz', 'nz'], function(face) {
+							return '/images/' + map + '/cubemap-' + face + '.png';
+			            });
 
-					var urls = _.map(['px', 'nx', 'py', 'ny', 'pz', 'nz'], function(face) {
-						return '/images/' + map + '/cubemap-' + face + '.png';
-		            });
+			            return THREE.ImageUtils.loadTextureCube(urls);
+					};
 
-		            var cubemap = THREE.ImageUtils.loadTextureCube(urls);
+					return function(map) {
+						if ($scope.map == map) return;
+						$scope.map = map;
 
-			        var shader = THREE.ShaderLib[ "cube" ];
-			        shader.uniforms[ "tCube" ].value = cubemap;
+						if (skybox) scene.remove(skybox);
 
-			        var material = new THREE.ShaderMaterial( {
-			          fragmentShader: shader.fragmentShader,
-			          vertexShader: shader.vertexShader,
-			          uniforms: shader.uniforms,
-			          depthWrite: false,
-			          side: THREE.DoubleSide
-			        });
+						var cubemap = loadCubeMap(map);
 
-			        if (skybox) scene.remove(skybox);
-			        skybox = new THREE.Mesh( new THREE.CubeGeometry( 10000, 10000, 10000 ), material );
-			        scene.add(skybox);
-				};
+				        var shader = THREE.ShaderLib[ "cube" ];
+				        shader.uniforms[ "tCube" ].value = cubemap;
+
+				        var material = new THREE.ShaderMaterial( {
+				          fragmentShader: shader.fragmentShader,
+				          vertexShader: shader.vertexShader,
+				          uniforms: shader.uniforms,
+				          depthWrite: false,
+				          side: THREE.DoubleSide
+				        });
+
+				        skybox = new THREE.Mesh( new THREE.CubeGeometry( 10000, 10000, 10000 ), material );
+				        scene.add(skybox);
+					};
+				})();
 	            
 
 				facerace = facerace(false, rtc, socket);
@@ -237,7 +244,6 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 
 							if (videoSource.socketID == rtc._me) {
 								facerace.video(videoSource.socketID);
-								videoSource.mesh.add(camera);
 							}
 						},
 						removeAction: function(key) {
@@ -270,8 +276,10 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 					var haveState = function(transport, now, dt) {
 						$scope.$broadcast('newState', transport);
 
-						var source = liveSources['local'];
-						if (source && source.mesh) camera.lookAt(source.mesh.position);
+						$scope.stateObj = transport.state;
+
+						var player = livePlayers[transport.state._yourID];
+						if (player) camera.lookAt(player.mesh.position);
 
 						_.each(liveSources, function(source, id) {
 							var element = source.element;

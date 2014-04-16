@@ -6,12 +6,12 @@ module.exports = function() {
 		alpha = 0,
 		beta = 0,
 		gamma = 0,
-		windowOrientation = window.orientation || 0,
+		windowOrientation = THREE.Math.degToRad(window.orientation || 0),
 		metrics = {};
 
 
 	var orientationListener = (function() {
-		var screenQuaternion = new THREE.Quaternion(0, 0, 0, 1),
+		var screenQuaternion = new THREE.Quaternion(),
 			worldHalfAngle = Math.PI / 2,
 			worldQuaternion = new THREE.Quaternion(Math.sin(-worldHalfAngle), 0, 0, Math.cos(-worldHalfAngle)),
 			deviceEuler = new THREE.Euler(),
@@ -25,16 +25,16 @@ module.exports = function() {
 			beta = THREE.Math.degToRad(event.beta);
 			gamma = THREE.Math.degToRad(event.gamma);
 
-			deviceEuler.set(alpha, beta, -gamma);
+			deviceEuler.set(alpha, beta, -gamma, 'ZXY');
 
 			finalQuaternion.setFromEuler(deviceEuler);
 
-			var orientationHalfAngle = THREE.Math.degToRad(windowOrientation / 2);
+			var orientationHalfAngle = windowOrientation / 2;
 
 			screenQuaternion.set(0, Math.sin(-orientationHalfAngle), 0, Math.cos(-orientationHalfAngle));
 
-			finalQuaternion.multiply(screenQuaternion);
-			finalQuaternion.multiply(worldQuaternion);
+			//finalQuaternion.multiply(screenQuaternion);
+			// finalQuaternion.multiply(worldQuaternion);
 
 			quaternion[0] = finalQuaternion.x;
 			quaternion[1] = finalQuaternion.y;
@@ -80,7 +80,7 @@ module.exports = function() {
 	window.addEventListener('deviceorientation', orientationListener); // we probably want a way to remove this if/when angular kills our object
 
 	var orientationChange = function(event) {
-		windowOrientation = window.orientation;
+		windowOrientation = THREE.Math.degToRad(window.orientation);
 	};
 	window.addEventListener('orientationchange', orientationChange);
 
