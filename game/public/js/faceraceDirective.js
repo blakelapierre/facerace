@@ -136,7 +136,7 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 						updateAction = config.updateAction;
 
 					return function(newValue) {
-						console.log('players', newValue);
+						console.log(arguments);	
 						var currentKeys = _.keys(newValue),
 							oldKeys = _.keys(obj),
 							newKeys = _.difference(currentKeys, oldKeys),
@@ -152,13 +152,12 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 					};
 				};
 
+				var livePlayers = {};
 				$scope.$watchCollection('players', (function() {
 					// http://danpearcymaths.wordpress.com/2012/09/30/infinity-programming-in-geogebra-and-failing-miserably/
 					var p = function(a) { math.floor(math.sqrt(math.add(math.multiply(4, a), 1))); };
 					var q = function(p, a) { math.subtract(a, math.floor(math.divide(math.square(p), 4))); };
 					var parser = math.parser();
-
-					var livePlayers = {};
 
 					return createWatchCollectionFunction(livePlayers, {
 						newAction: function(key) {
@@ -182,7 +181,7 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 							scene.remove(player.mesh);
 							delete livePlayers[key];
 						},
-						updateAction = function(player, index) {
+						updateAction: function(player, index) {
 							parser.eval('a = ' + index);
 							parser.eval('p = floor(sqrt(4 * a + 1))');
 							parser.eval('q = a - floor(p^2 / 4)');
@@ -196,19 +195,17 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 					});
 				})());
 
+				var liveSources = {};
 				$scope.$watchCollection('sources', (function() {
 					// http://danpearcymaths.wordpress.com/2012/09/30/infinity-programming-in-geogebra-and-failing-miserably/
 					var p = function(a) { math.floor(math.sqrt(math.add(math.multiply(4, a), 1))); };
 					var q = function(p, a) { math.subtract(a, math.floor(math.divide(math.square(p), 4))); };
 					var parser = math.parser();
 
-					var liveSources = {};
-
-					$scope.liveSources = liveSources;
-
 					return createWatchCollectionFunction(liveSources, {
 						newAction: function(key) {
-							var videoSource = $scope.liveSources[key],
+							console.log('source', key)
+							var videoSource = $scope.sources[key],
 								video = videoSource.element,
 								width = 1,
 								height = 1,
@@ -255,11 +252,11 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 							
 							var point = parser.eval('q * i^p + (floor((p + 2) / 4) - floor((p + 1) / 4) * i) * i^(p - 1)');
 
-							var mesh = videoSource.mesh;
+							var mesh = source.mesh;
 							mesh.position.y = point.re;
 							mesh.position.x = point.im;
 						}
-					})
+					});
 				})());
 
 				$scope.updateScene = (function() {
@@ -273,10 +270,10 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 					var haveState = function(transport, now, dt) {
 						$scope.$broadcast('newState', transport);
 
-						var source = $scope.liveSources['local'];
+						var source = liveSources['local'];
 						if (source && source.mesh) camera.lookAt(source.mesh.position);
 
-						_.each($scope.liveSources, function(source, id) {
+						_.each(liveSources, function(source, id) {
 							var element = source.element;
 							if (element.readyState == element.HAVE_ENOUGH_DATA &&
 								now - source.texture.lastUpdate > (1000 / maxfps) ) {

@@ -76,6 +76,8 @@ module.exports = function(isServer, rtc, io, onEvent) {
 				po.beta = o.beta;
 				po.gamma = o.gamma;
 
+				po.windowOrientation = o.windowOrientation;
+
 				return true;
 			}
 		},
@@ -191,15 +193,21 @@ module.exports = function(isServer, rtc, io, onEvent) {
 		});
 
 	var broadcast = isServer ? (function(transport) {
-		_.each(transport.processedEvents.concat(transport.outgoingEvents), function(event) {
-			var state = getState(),
-				player = event._player,
-				clientEvent = {_fromID: player.id, _event: event._event};
-			console.log('<-- outgoing', event.type, clientEvent);
-			_.forOwn(state.players, function(p, playerID) {
-				if (player.id != playerID) sockets[playerID].emit(event.type, clientEvent);
+		console.log(transport);
+		var events = transport.processedEvents.concat(transport.outgoingEvents),
+			state = getState(),
+			clientEvent = {};
+
+		_.each(state.players, function(destinationPlayer, playerID) {
+			clientEvent._fromID = playerID;
+
+			_.each(events, function(event) {
+				clientEvent._fromID = event._player.id;
+				clientEvent._event = event._event;
+
+				if (playerID != clientEvent._fromID) sockets[playerID].emit(event.type, clientEvent);
 			});
-		})
+		});
 	}) : (function(transport) {
 		_.each(transport.outgoingEvents, function(event) {
 			console.log('<-- outgoing', event.type, event._event);

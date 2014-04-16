@@ -26,6 +26,7 @@ module.exports = ['$sce', function CameraDirective($sce) {
 			rtc.createStream({video: true, audio: true}, function(stream) {
 				var video = createVideo(stream, rtc._me);
 				$scope.sources[video.socketID] = video;
+				console.log('scope.sources', $scope.sources);
 				$scope.$apply();
 			});
 
