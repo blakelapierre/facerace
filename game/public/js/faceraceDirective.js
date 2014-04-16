@@ -19,7 +19,7 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 					swirl = window.location.hash.indexOf('-swirl') > -1 ? '-swirl' : '';
 
 				var loadMap = (function() {
-					var skybox, course;
+					var skybox, course, pointLight;
 
 					var loadCubeMap = function(map) {
 						var urls = _.map(['px', 'nx', 'py', 'ny', 'pz', 'nz'], function(face) {
@@ -35,6 +35,7 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 
 						if (skybox) scene.remove(skybox);
 						if (course) scene.remove(course);
+						if (pointLight) scene.remove(pointLight);
 
 						var cubemap = loadCubeMap(map);
 
@@ -49,10 +50,13 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 				          side: THREE.DoubleSide
 				        });
 
+				        pointLight = new THREE.PointLight(0xffffff, 2);
+						scene.add(pointLight);
+
 				        skybox = new THREE.Mesh( new THREE.CubeGeometry( 10000, 10000, 10000 ), material );
 				        scene.add(skybox);
 
-				        course = new THREE.Mesh(new THREE.PlaneGeometry(1000, 1000, 1000), new THREE.MeshBasicMaterial({color: 0x66aaaa}));
+				        course = new THREE.Mesh(new THREE.PlaneGeometry(1000, 1000, 1000), new THREE.MeshBasicMaterial({color: 0x222222}));
 				        course.rotateX(-Math.PI / 2);
 				        course.position.y = -0.5;
 				        scene.add(course);
@@ -273,7 +277,9 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 
 				$scope.updateScene = (function() {
 					var maxfps = 5,
-						lastFrame = new Date().getTime();
+						lastFrame = new Date().getTime(),
+						lastControlUpdate = lastFrame,
+						controlUpdatesPerSecond = 4;
 
 					var waitingForState = function(transport, now, dt) {
 						if (transport.state._yourID != null) updateFn = haveState;
@@ -299,8 +305,11 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 
 						$scope.players = transport.state.players;
 
-						$scope.orientation = orientation();
-						facerace.orientation($scope.orientation);
+						if (now - lastControlUpdate > (1000 / controlUpdatesPerSecond)) {
+							$scope.orientation = orientation();
+							facerace.orientation($scope.orientation);
+							lastControlUpdate = now;
+						}
 
 						loadMap(transport.state.map); // get rid of this!
 						$scope.$apply();
@@ -315,7 +324,7 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 								mq = mesh.quaternion;
 
 							tq.set(q[0], q[1], q[2], q[3]);
-							mq.slerp(tq, 0.33);
+							mq.slerp(tq, 0.05);
 						});
 					};
 
