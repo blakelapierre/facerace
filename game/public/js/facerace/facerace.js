@@ -21,6 +21,12 @@ module.exports = function(isServer, rtc, io, onEvent) {
 		state.state = newState;
 	};
 
+	var swapQ = function(newQ) {
+		var events = newQ || eventQ;
+		eventQ = [];
+		return events;
+	};
+
 	var events = {
 		state: {
 			pre: function(eventQ, player, newState) {
