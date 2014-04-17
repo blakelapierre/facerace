@@ -1,7 +1,7 @@
 var _ = require('lodash'),
 	core = require('./core');
 
-module.exports = function(isServer, rtc, io, onEvent) {
+module.exports = function(isServer, rtc, io) {
 	var eventQ = [],
 		sockets = {},
 		state = {
@@ -111,66 +111,62 @@ module.exports = function(isServer, rtc, io, onEvent) {
 		});
 	});
 
-	onEvent = onEvent || function () {};
+	(function() {
+		var hookSocket = function(socket) {
+			sockets[socket.id || 'local'] = socket;
 
-	var hookSocket = function(socket) {
-		sockets[socket.id || 'local'] = socket;
-
-		if (isServer) {
-			var player = {
-				id: socket.id,
-				position: [0,0,0],
-				orientation: {
-					quaternion: [0, 0, 0, 1],
-					alpha: 0,
-					beta: 0,
-					gamma: 0
-				}
-			};
-
-			socket.player = player;
-			
-			var event = {type: 'player', _player: player, _event: player};
-			eventQ.push(event);
-			stateEvents.push(function() {
-				var state = getState();
-				socket.emit('state', {_event: _.extend({_yourID: player.id}, state)});
-				console.log('<-- sent state', state);
-			});
-			onEvent(state, event);
-
-			socket.on('disconnect', function(data) {
-				var state = getState(),
-					event = {type: 'playerLeave', _player: player, _event: player.id};
-				eventQ.push(event);
-				onEvent(state, event);
-			});
-		}
-
-		_.each(_.keys(events), function(key) {
 			if (isServer) {
-				var player = socket.player;
-				socket.on(key, function(event) {
-					var state = getState();
+				var player = {
+					id: socket.id,
+					position: [0,0,0],
+					orientation: {
+						quaternion: [0, 0, 0, 1],
+						alpha: 0,
+						beta: 0,
+						gamma: 0
+					}
+				};
 
-					eventQ.push({type: key, _player: player, _event: event});
-					onEvent(state, event);
+				socket.player = player;
+				
+				var event = {type: 'player', _player: player, _event: player};
+				eventQ.push(event);
+				stateEvents.push(function() {
+					var state = getState();
+					socket.emit('state', {_event: _.extend({_yourID: player.id}, state)});
+					console.log('<-- sent state', state);
+				});
+
+				socket.on('disconnect', function(data) {
+					var state = getState(),
+						event = {type: 'playerLeave', _player: player, _event: player.id};
+					eventQ.push(event);
 				});
 			}
-			else {
-				socket.on(key, function(event) {
-					var state = getState(),
-						player = state.players[event._fromID];
 
-					eventQ.push({type: key, _player: player, _event: event._event});
-					onEvent(state, event);
-				});
-			}	
-		});
-	};
+			_.each(_.keys(events), function(key) {
+				if (isServer) {
+					var player = socket.player;
+					socket.on(key, function(event) {
+						var state = getState();
 
-	if (isServer) io.sockets.on('connection', hookSocket);
-	else hookSocket(io);
+						eventQ.push({type: key, _player: player, _event: event});
+					});
+				}
+				else {
+					socket.on(key, function(event) {
+						var state = getState(),
+							player = state.players[event._fromID];
+
+						eventQ.push({type: key, _player: player, _event: event._event});
+					});
+				}	
+			});
+		};
+
+		if (isServer) io.sockets.on('connection', hookSocket);
+		else hookSocket(io);
+	})();
 
 	return (function(tick) {
 
@@ -192,21 +188,24 @@ module.exports = function(isServer, rtc, io, onEvent) {
 		});
 
 		var serverBroadcast = (function(transport) {
-			if (transport.processedEvents.length > 0) console.log(transport);
 			var events = transport.processedEvents.concat(transport.outgoingEvents),
 				state = getState(),
 				clientEvent = {};
 
-			_.each(state.players, function(destinationPlayer, playerID) {
-				clientEvent._fromID = playerID;
+			if (events.length > 0) {
+				console.log(transport);
 
-				_.each(events, function(event) {
-					clientEvent._fromID = event._player.id;
-					clientEvent._event = event._event;
+				_.each(state.players, function(destinationPlayer, playerID) {
+					clientEvent._fromID = playerID;
 
-					if (playerID != clientEvent._fromID) sockets[playerID].emit(event.type, clientEvent);
+					_.each(events, function(event) {
+						clientEvent._fromID = event._player.id;
+						clientEvent._event = event._event;
+
+						if (playerID != clientEvent._fromID) sockets[playerID].emit(event.type, clientEvent);
+					});
 				});
-			});
+			}
 		});
 
 		var clientBroadcast = function(transport) {
@@ -219,7 +218,7 @@ module.exports = function(isServer, rtc, io, onEvent) {
 		var broadcast = isServer ? serverBroadcast : clientBroadcast;
 
 		var transport = {};
-		return _.extend(function() {
+		return _.extend(function(outerTransport) {
 			transport = tick(transport);
 
 			var state = getState();
@@ -234,10 +233,10 @@ module.exports = function(isServer, rtc, io, onEvent) {
 	
 			stateEvents = [];
 
-			return {
-				state: state,
-				events: transport
-			};
+			outerTransport.state = state;
+			outerTransport.events = transport;
+
+			return outerTransport;
 		}, isServer ? serverExtensions : clientExtensions);	
 	})(core(eventHandlers.pre, function() {
 		return swapQ();
