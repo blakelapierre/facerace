@@ -3,9 +3,6 @@
   "version": "0.0.1",
   "description": "3D multiplayer racing in your browser",
   "author": "Blake La Pierre",
-  "scripts": {
-    "postinstall": "grunt serve"
-  },
   "dependencies": {
     "express": "~3.5.1",
     "socket.io": "~0.9.16",
