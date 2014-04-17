@@ -156,16 +156,17 @@ module.exports = function(isServer, rtc, io, onEvent) {
 			if (isServer) {
 				var player = socket.player;
 				socket.on(key, function(event) {
-					console.log('incoming -->', key, event);
+					var state = getState();
+
 					eventQ.push({type: key, _player: player, _event: event});
-					onEvent(getState(), event);
+					onEvent(state, event);
 				});
 			}
 			else {
 				socket.on(key, function(event) {
-					console.log('incoming -->', key, event);
 					var state = getState(),
 						player = state.players[event._fromID];
+
 					eventQ.push({type: key, _player: player, _event: event._event});
 					onEvent(state, event);
 				});
@@ -177,23 +178,24 @@ module.exports = function(isServer, rtc, io, onEvent) {
 	else hookSocket(io);
 
 	var serverExtensions = (function() {
-			return {
-				loadMaps: function(maps) {
-					eventQ.push({type: 'loadMaps', _player: 'server', _event: maps});
-				}
-			};
-		})(),
-		clientExtensions = _.mapValues(events, function(handlers, key) {
-			return function(data) {
-				var state = getState();
-
-				io.emit(key, data);
-				eventQ.push({type: key, _player: state.players[state._yourID], _event: data});
+		return {
+			loadMaps: function(maps) {
+				eventQ.push({type: 'loadMaps', _player: 'server', _event: maps});
 			}
-		});
+		};
+	})();
+		
+	var clientExtensions = _.mapValues(events, function(handlers, key) {
+		return function(data) {
+			var state = getState();
 
-	var broadcast = isServer ? (function(transport) {
-		console.log(transport);
+			io.emit(key, data);
+			eventQ.push({type: key, _player: state.players[state._yourID], _event: data});
+		}
+	});
+
+	var serverBroadcast = (function(transport) {
+		if (transport.processedEvents.length > 0) console.log(transport);
 		var events = transport.processedEvents.concat(transport.outgoingEvents),
 			state = getState(),
 			clientEvent = {};
@@ -208,12 +210,16 @@ module.exports = function(isServer, rtc, io, onEvent) {
 				if (playerID != clientEvent._fromID) sockets[playerID].emit(event.type, clientEvent);
 			});
 		});
-	}) : (function(transport) {
+	});
+
+	var clientBroadcast = function(transport) {
 		_.each(transport.outgoingEvents, function(event) {
 			console.log('<-- outgoing', event.type, event._event);
 			io.emit(event.type, event._event);
 		});
-	});
+	};
+
+	var broadcast = isServer ? serverBroadcast : clientBroadcast;
 
 	var transport = {};
 
