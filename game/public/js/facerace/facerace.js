@@ -65,6 +65,8 @@ module.exports = function(isServer, rtc, io) {
 					pq = po.quaternion,
 					nq = o.quaternion;
 
+				if (po.alpha == o.alpha && po.beta == o.beta && po.gamma == o.gamma) return false;
+
 				pq[0] = nq[0];
 				pq[1] = nq[1];
 				pq[2] = nq[2];
@@ -111,7 +113,7 @@ module.exports = function(isServer, rtc, io) {
 		});
 	});
 
-	(function() {
+	(function(events) {
 		var hookSocket = function(socket) {
 			sockets[socket.id || 'local'] = socket;
 
@@ -146,8 +148,6 @@ module.exports = function(isServer, rtc, io) {
 				if (isServer) {
 					var player = socket.player;
 					socket.on(key, function(event) {
-						var state = getState();
-
 						eventQ.push({type: key, _player: player, _event: event});
 					});
 				}
@@ -164,7 +164,7 @@ module.exports = function(isServer, rtc, io) {
 
 		if (isServer) io.sockets.on('connection', hookSocket);
 		else hookSocket(io);
-	})();
+	})(events);
 
 	return (function(tick) {
 
@@ -197,7 +197,7 @@ module.exports = function(isServer, rtc, io) {
 					clientEvent._fromID = playerID;
 
 					_.each(events, function(event) {
-						clientEvent._fromID = event._player.id;
+						clientEvent._fromID = event._player;
 						clientEvent._event = event._event;
 
 						if (playerID != clientEvent._fromID) sockets[playerID].emit(event.type, clientEvent);
@@ -223,6 +223,7 @@ module.exports = function(isServer, rtc, io) {
 
 			_.each(transport.processedEvents, function(event) {
 				(eventHandlers.post[event.type] || function() { })(eventQ, event);
+				event._player = event._player.id;
 			});
 
 			_.each(stateEvents, function(event) { event(); });
