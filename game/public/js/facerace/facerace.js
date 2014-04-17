@@ -29,39 +29,37 @@ module.exports = function(isServer, rtc, io, onEvent) {
 
 	var events = {
 		state: {
-			pre: function(eventQ, player, newState) {
+			pre: function(state, eventQ, player, newState) {
 				setState(newState);
 				return false;
 			}
 		},	
 		player: {
-			pre: function(eventQ, player, newPlayer) {
-				var state = getState();
+			pre: function(state, eventQ, player, newPlayer) {
 				state.players[newPlayer.id] = newPlayer;
 				return true;
 			}
 		},
 		playerLeave: {
-			post: function(eventQ, player, id) {
-				var state = getState();
+			post: function(state, eventQ, player, id) {
 				delete state.players[id];
 			}
 		},
 		video: {
-			pre: function(eventQ, player, socketID) {
+			pre: function(state, eventQ, player, socketID) {
 				console.log('***video')
 				player.videoSocketID = socketID;
 				return true;
 			}
 		},
 		position: {
-			pre: function(eventQ, player, position) {
+			pre: function(state, eventQ, player, position) {
 				player.position = position;
 				return true;
 			}
 		},
 		orientation: {
-			pre: function(eventQ, player, orientation) {
+			pre: function(state, eventQ, player, orientation) {
 				var po = player.orientation,
 					o = orientation,
 					pq = po.quaternion,
@@ -82,41 +80,38 @@ module.exports = function(isServer, rtc, io, onEvent) {
 			}
 		},
 		mode: {
-			pre: function(eventQ, player, mode) {
-				var state = getState();
-
+			pre: function(state, eventQ, player, mode) {
 				state.mode = mode;
 				return true;
 			}
 		},
 		loadMaps: {
-			pre: function(eventQ, player, maps) {
-				var state = getState();
-
+			pre: function(state, eventQ, player, maps) {
 				state.maps = maps;
 				return true;
 			}
 		},
 		setMap: {
-			pre: function(eventQ, player, map) {
-				var state = getState();
-
+			pre: function(state, eventQ, player, map) {
 				state.map = map;
 				return true;
 			}
 		}
 	};
 
-	onEvent = onEvent || function () {};
-
 	var eventHandlers = {};
 	_.each(['pre', 'post'], function(hookPoint) {
 		eventHandlers[hookPoint] = _.mapValues(events, function(handlers, key) {
 			return (function(fn) {
-				return function(eventQ, event) { return fn(eventQ, event._player, event._event); };
+				return function(eventQ, event) { 
+					var state = getState();
+					return fn(state, eventQ, event._player, event._event); 
+				};
 			})(handlers[hookPoint] || function() { return true; });
 		});
 	});
+
+	onEvent = onEvent || function () {};
 
 	var hookSocket = function(socket) {
 		sockets[socket.id || 'local'] = socket;
@@ -177,55 +172,57 @@ module.exports = function(isServer, rtc, io, onEvent) {
 	if (isServer) io.sockets.on('connection', hookSocket);
 	else hookSocket(io);
 
-	var serverExtensions = (function() {
-		return {
-			loadMaps: function(maps) {
-				eventQ.push({type: 'loadMaps', _player: 'server', _event: maps});
+	return (function(tick) {
+
+		var serverExtensions = (function() {
+			return {
+				loadMaps: function(maps) {
+					eventQ.push({type: 'loadMaps', _player: 'server', _event: maps});
+				}
+			};
+		})();
+			
+		var clientExtensions = _.mapValues(events, function(handlers, key) {
+			return function(data) {
+				var state = getState();
+
+				io.emit(key, data);
+				eventQ.push({type: key, _player: state.players[state._yourID], _event: data});
 			}
-		};
-	})();
-		
-	var clientExtensions = _.mapValues(events, function(handlers, key) {
-		return function(data) {
-			var state = getState();
+		});
 
-			io.emit(key, data);
-			eventQ.push({type: key, _player: state.players[state._yourID], _event: data});
-		}
-	});
+		var serverBroadcast = (function(transport) {
+			if (transport.processedEvents.length > 0) console.log(transport);
+			var events = transport.processedEvents.concat(transport.outgoingEvents),
+				state = getState(),
+				clientEvent = {};
 
-	var serverBroadcast = (function(transport) {
-		if (transport.processedEvents.length > 0) console.log(transport);
-		var events = transport.processedEvents.concat(transport.outgoingEvents),
-			state = getState(),
-			clientEvent = {};
+			_.each(state.players, function(destinationPlayer, playerID) {
+				clientEvent._fromID = playerID;
 
-		_.each(state.players, function(destinationPlayer, playerID) {
-			clientEvent._fromID = playerID;
+				_.each(events, function(event) {
+					clientEvent._fromID = event._player.id;
+					clientEvent._event = event._event;
 
-			_.each(events, function(event) {
-				clientEvent._fromID = event._player.id;
-				clientEvent._event = event._event;
-
-				if (playerID != clientEvent._fromID) sockets[playerID].emit(event.type, clientEvent);
+					if (playerID != clientEvent._fromID) sockets[playerID].emit(event.type, clientEvent);
+				});
 			});
 		});
-	});
 
-	var clientBroadcast = function(transport) {
-		_.each(transport.outgoingEvents, function(event) {
-			console.log('<-- outgoing', event.type, event._event);
-			io.emit(event.type, event._event);
-		});
-	};
+		var clientBroadcast = function(transport) {
+			_.each(transport.outgoingEvents, function(event) {
+				console.log('<-- outgoing', event.type, event._event);
+				io.emit(event.type, event._event);
+			});
+		};
 
-	var broadcast = isServer ? serverBroadcast : clientBroadcast;
+		var broadcast = isServer ? serverBroadcast : clientBroadcast;
 
-	var transport = {};
-
-	return (function(tick) {
+		var transport = {};
 		return _.extend(function() {
 			transport = tick(transport);
+
+			var state = getState();
 
 			_.each(transport.processedEvents, function(event) {
 				(eventHandlers.post[event.type] || function() { })(eventQ, event);
@@ -238,7 +235,7 @@ module.exports = function(isServer, rtc, io, onEvent) {
 			stateEvents = [];
 
 			return {
-				state: getState(),
+				state: state,
 				events: transport
 			};
 		}, isServer ? serverExtensions : clientExtensions);	
