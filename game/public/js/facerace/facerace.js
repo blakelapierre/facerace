@@ -138,8 +138,7 @@ module.exports = function(isServer, rtc, io) {
 				});
 
 				socket.on('disconnect', function(data) {
-					var event = {type: 'playerLeave', _player: player, _event: player.id};
-					eventQ.push(event);
+					eventQ.push({type: 'playerLeave', _player: player, _event: player.id});
 				});
 			}
 
