@@ -71,32 +71,32 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 					facerace.mode($scope.mode);
 				};
 
-				var slider = document.createElement('input');
-				slider.type = 'range';
+				// var slider = document.createElement('input');
+				// slider.type = 'range';
 
-				var sliderObj = new THREE.CSS3DObject(slider);
-				cssScene.add(sliderObj);
+				// var sliderObj = new THREE.CSS3DObject(slider);
+				// cssScene.add(sliderObj);
 
-				var material = new THREE.MeshBasicMaterial();
+				// var material = new THREE.MeshBasicMaterial();
 
-				material.color.set('black');
-				material.opacity = 0;
-				material.blending = THREE.NoBlending;
+				// material.color.set('black');
+				// material.opacity = 0;
+				// material.blending = THREE.NoBlending;
 
-				var geometry = new THREE.PlaneGeometry(1, 1, 1, 1);
-				var planeMesh= new THREE.Mesh( geometry, material );
+				// var geometry = new THREE.PlaneGeometry(1, 1, 1, 1);
+				// var planeMesh= new THREE.Mesh( geometry, material );
 
-				planeMesh.position.x = 0;
-				planeMesh.position.y = 0;
-				sliderObj.scale.multiplyScalar(1 / 200);
+				// planeMesh.position.x = 0;
+				// planeMesh.position.y = 0;
+				// sliderObj.scale.multiplyScalar(1 / 200);
 
-				//sliderObj.position = planeMesh.position;
-				sliderObj.position.x = -2;
-				sliderObj.position.y = -2;
-				sliderObj.position.z = 0.1;
-				sliderObj.quaternion = planeMesh.quaternion;
+				// //sliderObj.position = planeMesh.position;
+				// sliderObj.position.x = -2;
+				// sliderObj.position.y = -2;
+				// sliderObj.position.z = 0.1;
+				// sliderObj.quaternion = planeMesh.quaternion;
 
-				//scene.add(planeMesh);
+				// scene.add(planeMesh);
 
 				var eventHandlers = {
 					mode: function(event) {
@@ -190,6 +190,7 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 								};
 
 							scene.add(mesh);
+							mesh.visible = false;
 
 							livePlayers[key] = player;
 						},
