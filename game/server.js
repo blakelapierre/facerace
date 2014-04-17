@@ -34,11 +34,21 @@ var startServer = function(config, callback) {
 
 	});
 
-	setInterval(facerace, 100);
+	var transport = {},
+		log = [];
+	setInterval(function () {
+		transport = facerace(transport);
+		if (log.length == 0) log.push(transport.state);
+		if (transport.events.processedEvents.length > 0) log.push(transport.events.processedEvents);
+	}, 100);
 	
 
 	app.get('/channels', function(req, res) {
 		res.json(rtc.rtc.rooms);
+	});
+
+	app.get('/log', function(req, res) {
+		res.json(log);
 	});
 
 	// var core = {

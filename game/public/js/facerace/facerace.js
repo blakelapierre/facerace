@@ -65,8 +65,6 @@ module.exports = function(isServer, rtc, io) {
 					pq = po.quaternion,
 					nq = o.quaternion;
 
-				if (po.alpha == o.alpha && po.beta == o.beta && po.gamma == o.gamma) return false;
-
 				pq[0] = nq[0];
 				pq[1] = nq[1];
 				pq[2] = nq[2];
@@ -223,7 +221,7 @@ module.exports = function(isServer, rtc, io) {
 
 			_.each(transport.processedEvents, function(event) {
 				(eventHandlers.post[event.type] || function() { })(eventQ, event);
-				event._player = event._player.id;
+				event._player = event._player ? event._player.id : null;
 			});
 
 			_.each(stateEvents, function(event) { event(); });
