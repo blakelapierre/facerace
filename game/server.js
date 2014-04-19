@@ -1,8 +1,37 @@
 var startServer = function(config, callback) {
+	getPublicAddress(function(address) {
+		config.publicAddress = address;
+		startServices(config, callback);
+	});
+};
+
+var getPublicAddress = function(deliver) {
+	var http = require('http');
+
+	console.log('determining public ip address...');
+	http.get('http://fugal.net/ip.cgi', function(res) {
+	    if(res.statusCode != 200) {
+	        throw new Error('non-OK status: ' + res.statusCode);
+	    }
+	    res.setEncoding('utf-8');
+	    var ipAddress = '';
+	    res.on('data', function(chunk) { ipAddress += chunk; });
+	    res.on('end', function() {
+	    	ipAddress = ipAddress.trim();
+	    	console.log('Public Address: ' + ipAddress);
+	        deliver(ipAddress);
+	    });
+	}).on('error', function(err) {
+	    throw err;
+	});
+};
+
+var startServices = function(config, callback) {
 	var path = require('path'),
 		express = require('express'),
 		socketIO = require('socket.io'),
 		webRTC = require('webrtc.io'),
+		nodemailer = require('nodemailer'),
 		socketIOdb = require('./public/js/db/socketIOdb'),
 		fs = require('fs'),
 		_ = require('lodash'),
@@ -34,36 +63,88 @@ var startServer = function(config, callback) {
 
 	});
 
-	var transport = {},
-		log = [];
-	setInterval(function () {
-		transport = facerace(transport);
-		if (log.length == 0) log.push(transport.state);
-		if (transport.events.processedEvents.length > 0) log.push(transport.events.processedEvents);
-	}, 100);
+	(function() {
+		var transport = {},
+			log = [];
+		setInterval(function () {
+			transport = facerace(transport);
+			if (log.length == 0) log.push(transport.state);
+			if (transport.events.processedEvents.length > 0) log.push(transport.events.processedEvents);
+		}, 100);
+	})();
+
+	var router = express.Router();
+
+	(function(router, manager) {
+		var mailer = nodemailer.createTransport('SMTP', {
+			service: 'Gmail',
+			auth: {
+				user: 'hello.world.video.chat@gmail.com',
+				pass: 'palebluedot'
+			}
+		});
+
+		var roomSubscriptions = {};
+
+		var notifyRoomSubscriptions = function(room) {
+			var subscriptions = roomSubscriptions[room] || [];
+
+			for (var i = 0; i < subscriptions.length; i++) {
+				mailer.sendMail({
+					from: 'hello.world.video.chat@gmail.com',
+					to: subscriptions[i],
+					subject: 'Someone just joined ' + room,
+					text: 'Join them: http://' + config.publicAddress + ':' + config.port + room
+				}, function(error, responseStatus) {
+					console.log(arguments);
+				});
+			}
+		};
+
+		var invite = function(address, room) {
+			mailer.sendMail({
+				from: 'hello.world.video.chat@gmail.com',
+				to: address,
+				subject: 'Someone just invited you to video chat',
+				text: 'Join them: http://' + config.publicAddress + ':' + config.port + room
+			}, function(error, responseStatus) {
+				console.log(arguments);
+			});
+		};
+
+		manager.rtc.on('join_room', function(data, socket) {
+			notifyRoomSubscriptions(data.room);
+		});
+
+		router.post('/invite/:address', function(req, res) {
+			var address = req.params.address,
+				room = req.body;
+
+			var data = ''
+			req.on('data', function(chunk) {
+				data += chunk.toString();
+			});
+			req.on('end', function() {
+				var message = JSON.parse(data),
+					room = message.room;
+
+				invite(address, room);
+
+				res.json({sent:true});
+			});
+		});
+	})(router, rtc);
 	
 
-	app.get('/channels', function(req, res) {
+	router.get('/channels', function(req, res) {
 		res.json(rtc.rtc.rooms);
 	});
 
-	app.get('/log', function(req, res) {
+	router.get('/log', function(req, res) {
 		res.json(log);
 	});
 
-	// var core = {
-	// 	update: function() {console.log('update')},
-	// 	test: 'test'
-	// };
-
-	// with (core) {
-	// 	(function() {
-	// 		update();
-	// 		console.log(test);
-	// 		var test = 'no';
-	// 		console.log(test);
-	// 	})();
-	// }	
+	app.use('/', router);
 
 	return callback(webserver, io, rtc);
 };
