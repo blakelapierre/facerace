@@ -281,10 +281,6 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 					};
 
 					var haveState = (function () {
-						var maxfps = 5,
-							lastControlUpdate = new Date().getTime(),
-							controlUpdatesPerSecond = 4;
-
 						var hasOrientationChanged = (function() {
 							var lastOrientation = {
 								quaternion: [0, 0, 0, 1]
@@ -304,6 +300,10 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 								return true;
 							};
 						})();
+
+						var maxfps = 60,
+							lastControlUpdate = new Date().getTime(),
+							controlUpdatesPerSecond = 4;
 
 						return function(transport, now, dt) {
 							$scope.$broadcast('newState', transport);
