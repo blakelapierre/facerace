@@ -1,17 +1,71 @@
-@-webkit-keyframes greenPulse {
+@-webkit-keyframes greenTextPulse {
   from { color: #749a02; text-shadow: 0 0 9px #333; }
   50% { color: #91bd09; text-shadow: 0 0 18px #91bd09; }
   to { color: #749a02; text-shadow: 0 0 9px #333; }
 }
 
-.room-name {
+@-webkit-keyframes greenBoxPulse {
+  from { color: #749a02; -webkit-box-shadow: 0 0 9px #333; }
+  50% { color: #91bd09; -webkit-box-shadow: 0 0 18px #91bd09; }
+  to { color: #749a02; -webkit-box-shadow: 0 0 9px #333; }
+}
+
+@-webkit-keyframes expandBadge {
+	from {
+		-webkit-transform: scale(1);
+	}
+	50% {
+		-webkit-transform: scale(1.1);
+	}
+	to {
+		-webkit-transform: scale(1);
+	}
+}
+
+badge {
 	position: absolute;
 	bottom: 0%;
 	right: 0%;
-	font-size: x-large;
-	font-weight: bold;
 	color: #749a02;
-	-webkit-animation-name: greenPulse;
+
+	cursor: pointer;
+
+	-webkit-animation-name: greenTextPulse;
 	-webkit-animation-duration: 5s;
 	-webkit-animation-iteration-count: infinite;
+
+
+	text-align: right;
+
+	.room-name {
+		font-size: x-large;
+		font-weight: bold;
+	}
+
+	.menu {
+		font-size: xx-large;
+		font-weight: boldest;
+		text-align: center;
+
+		.plus {
+			-webkit-animation-name: expandBadge;
+			-webkit-animation-duration: 2s;
+			-webkit-animation-iteration-count: infinite;
+		}
+
+		.address {
+			background: transparent;
+			border: none;
+			color: #749a02;
+
+			-webkit-animation-name: greenBoxPulse;
+			-webkit-animation-duration: 5s;
+			-webkit-animation-iteration-count: infinite;
+		}
+
+		.address::-webkit-input-placeholder {
+			color: #749a02;
+			text-align: center;
+		}
+	}
 }

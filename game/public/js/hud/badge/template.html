@@ -1,3 +1,5 @@
-<div class="badge">
-	<span class="room-name" ng-click="">{{room}}</span>
+<div ng-show="showMenu" class="menu">
+	<span ng-show="showPlus" class="plus" ng-click="showPlus = false; showAddress = true">+</span>
+	<input ng-show="showAddress" class="address" type="text" placeholder="email or text">
 </div>
+<span class="room-name" ng-click="showMenu = !showMenu; showPlus = true; controlsEnabled = !showMenu">{{room}}</span>

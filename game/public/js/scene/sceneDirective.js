@@ -58,6 +58,10 @@ module.exports = [function SceneDirective() {
 				});
 			});
 
+			$scope.$watch('controlsEnabled', function(newValue) {
+				controls.enabled = newValue;
+			});
+
 			stats.domElement.style.position = 'absolute';
 			stats.domElement.style.top = '0px';
 
