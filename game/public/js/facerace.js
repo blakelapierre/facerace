@@ -6,6 +6,6 @@ module.exports = angular.module('facerace', [])
 	.factory('orientation', require('./orientationFactory'))
 	.directive('facerace', require('./faceraceDirective'))
 	.directive('scene', require('./scene/sceneDirective'))
-	.directive('hud', require('./hud/hudDirective'))
+	.directive('hud', require('./hud/directive'))
 	.directive('debug', require('./hud/debug/directive'))
 	.directive('inputs', require('./inputsDirective'));

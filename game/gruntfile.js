@@ -16,7 +16,7 @@ module.exports = function(grunt) {
 		watch: {
 			game: {
 				files: ['server.js', 'public/**/*.*', '!public/js/bundle.js'],
-				tasks: ['browserify:bundle', 'express:dev'],
+				tasks: ['less:bundle', 'browserify:bundle', 'express:dev'],
 				options: {
 					livereload: true
 				}
@@ -35,6 +35,13 @@ module.exports = function(grunt) {
 					script: 'server.js'
 				}
 			}
+		},
+		less: {
+			bundle: {
+				files: {
+					'public/style.css': ['public/**/*.less']
+				}
+			}
 		}
 	});
 
@@ -48,6 +55,6 @@ module.exports = function(grunt) {
 	});
 
 	grunt.registerTask('serve', 'test', function() {
-		grunt.task.run('browserify:bundle', 'express:dev', 'watch:game');
+		grunt.task.run('less:bundle', 'browserify:bundle', 'express:dev', 'watch:game');
 	});
 };
