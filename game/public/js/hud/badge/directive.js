@@ -4,7 +4,7 @@ module.exports = function() {
 	return {
 		template: require('./template.html'),
 		restrict: 'E',
-		controller: ['$scope', function($scope) {
+		controller: ['$scope', '$http', function($scope, $http) {
 			$scope.toggleMenu = function() {
 				$scope.showMenu = !$scope.showMenu;
 			};
@@ -15,7 +15,15 @@ module.exports = function() {
 					$scope.showAddress = false;
 				}
 				$scope.controlsEnabled = !newValue;
-			})
+			});
+
+			$scope.sendInvite = function() {
+				$http.post('/invite/' + $scope.address, {room: window.location.hash || '#facerace'})
+					.success(function() {
+						$scope.showMenu = false;
+						$scope.address = '';
+					});
+			};
 		}]
 	}
 };

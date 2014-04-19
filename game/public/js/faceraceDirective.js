@@ -153,7 +153,6 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 						updateAction = config.updateAction;
 
 					return function(newValue) {
-						console.log(arguments);	
 						var currentKeys = _.keys(newValue),
 							oldKeys = _.keys(obj),
 							newKeys = _.difference(currentKeys, oldKeys),

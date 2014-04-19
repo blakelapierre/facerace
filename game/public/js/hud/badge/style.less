@@ -1,13 +1,17 @@
 @-webkit-keyframes greenTextPulse {
-  from { color: #749a02; text-shadow: 0 0 9px #333; }
-  50% { color: #91bd09; text-shadow: 0 0 18px #91bd09; }
-  to { color: #749a02; text-shadow: 0 0 9px #333; }
+  from { color: #749a02; text-shadow: 0 0 5px #333; }
+  15% { color: #91bd09; text-shadow: 0 0 9px #91bd09; }
+  50% { color: #91bd09; text-shadow: 0 0 10px #91bd09; }
+  85% { color: #91bd09; text-shadow: 0 0 9px #91bd09; }
+  to { color: #749a02; text-shadow: 0 0 5px #333; }
 }
 
 @-webkit-keyframes greenBoxPulse {
-  from { color: #749a02; -webkit-box-shadow: 0 0 9px #333; }
-  50% { color: #91bd09; -webkit-box-shadow: 0 0 18px #91bd09; }
-  to { color: #749a02; -webkit-box-shadow: 0 0 9px #333; }
+  from { color: #749a02; -webkit-box-shadow: 0 0 5px #333; }
+  15% { color: #91bd09; -webkit-box-shadow: 0 0 9px #91bd09; }
+  50% { color: #91bd09; -webkit-box-shadow: 0 0 10px #91bd09; }
+  85% { color: #91bd09; -webkit-box-shadow: 0 0 9px #91bd09; }
+  to { color: #749a02; -webkit-box-shadow: 0 0 5px #333; }
 }
 
 @-webkit-keyframes expandBadge {
@@ -40,9 +44,15 @@ badge {
 	.room-name {
 		font-size: x-large;
 		font-weight: bold;
+
+		-webkit-animation-name: expandBadge;
+		-webkit-animation-duration: 5s;
+		-webkit-animation-iteration-count: infinite;
 	}
 
 	.menu {
+		margin-bottom: 10px;
+
 		font-size: xx-large;
 		font-weight: boldest;
 		text-align: center;
@@ -54,10 +64,13 @@ badge {
 		}
 
 		.address {
+			width: auto;
+
 			background: transparent;
 			border: none;
 			color: #749a02;
-			width: inherit;
+
+			text-align: right;
 
 			-webkit-animation-name: greenBoxPulse, greenTextPulse;
 			-webkit-animation-duration: 5s;
@@ -66,7 +79,6 @@ badge {
 
 		.address::-webkit-input-placeholder {
 			color: #749a02;
-			text-align: right;
 		}
 	}
 }

@@ -1,5 +1,7 @@
 <div ng-show="showMenu" class="menu">
 	<span ng-show="showPlus" class="plus" ng-click="showPlus = false; showAddress = true">+</span>
-	<input ng-show="showAddress" ng-focus="showAddress" class="address" type="text" placeholder="email or text">
+	<input ng-show="showAddress" focus-on="showAddress"
+	ng-enter="sendInvite()"
+	ng-model="address" class="address" type="text" placeholder="email or text">
 </div>
 <span class="room-name" ng-click="toggleMenu()">{{room}}</span>
