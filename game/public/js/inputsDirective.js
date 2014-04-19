@@ -10,6 +10,8 @@ module.exports = ['$sce', function CameraDirective($sce) {
 				video.src = $sce.trustAsResourceUrl(URL.createObjectURL(stream));
 				video.autoplay = true;
 				video.style.display = 'none';
+
+				if (socketID == rtc._me) video.muted = 'muted';
 				
 				element.append(video);
 
@@ -17,7 +19,7 @@ module.exports = ['$sce', function CameraDirective($sce) {
 					element: video,
 					src: video.src,
 					stream: stream,
-					socketID: socketID || 'local'
+					socketID: socketID
 				};
 			};
 
