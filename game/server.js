@@ -84,7 +84,9 @@ var startServices = function(config, callback) {
 			}
 		});
 
-		var roomSubscriptions = {};
+		var roomSubscriptions = {
+			'#facerace': ['blakelapierre@gmail.com']
+		};
 
 		var notifyRoomSubscriptions = function(room) {
 			var subscriptions = roomSubscriptions[room] || [];
