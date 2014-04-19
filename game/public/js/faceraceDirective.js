@@ -190,7 +190,7 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 								};
 
 							scene.add(mesh);
-							mesh.visible = false;
+							mesh.visible = false; 
 
 							livePlayers[key] = player;
 						},
