@@ -7,5 +7,6 @@ module.exports = angular.module('facerace', [])
 	.directive('facerace', require('./faceraceDirective'))
 	.directive('scene', require('./scene/sceneDirective'))
 	.directive('hud', require('./hud/directive'))
+	.directive('badge', require('./hud/badge/directive'))
 	.directive('debug', require('./hud/debug/directive'))
 	.directive('inputs', require('./inputsDirective'));
