@@ -97,6 +97,10 @@ var startServices = function(config, callback) {
 			
 		};
 
+		var host = config.publicAddress;
+
+		if (host == '107.170.237.209') host = 'facerace.in';
+
 		var notifyRoomSubscriptions = function(room) {
 			var subscriptions = roomSubscriptions[room] || [];
 
@@ -105,7 +109,7 @@ var startServices = function(config, callback) {
 					from: 'you.are.invited@facerace.in',
 					to: subscriptions[i],
 					subject: 'Someone just joined ' + room,
-					text: 'Join them: http://' + config.publicAddress + ':' + config.port + room
+					text: 'Join them: http://' + host + ':' + config.port + room
 				}, function(error, responseStatus) {
 					console.log(arguments);
 				});
@@ -118,7 +122,7 @@ var startServices = function(config, callback) {
 				from: 'you.are.invited@facerace.in',
 				to: address,
 				subject: 'Someone just invited you to video chat',
-				text: 'Join them: http://' + config.publicAddress + ':' + config.port + room
+				text: 'Join them: http://' + host + ':' + config.port + room
 			}, function(error, responseStatus) {
 				console.log(arguments);
 			});
