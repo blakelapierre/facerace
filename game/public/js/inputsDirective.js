@@ -12,6 +12,8 @@ module.exports = ['$sce', function CameraDirective($sce) {
 				video.style.display = 'none';
 
 				if (socketID == rtc._me) video.muted = 'muted';
+
+				console.dir(video);
 				
 				element.append(video);
 
@@ -28,7 +30,6 @@ module.exports = ['$sce', function CameraDirective($sce) {
 			rtc.createStream({video: true, audio: true}, function(stream) {
 				var video = createVideo(stream, rtc._me);
 				$scope.sources[video.socketID] = video;
-				console.log('scope.sources', $scope.sources);
 				$scope.$apply();
 			});
 
