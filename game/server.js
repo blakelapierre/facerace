@@ -76,16 +76,25 @@ var startServices = function(config, callback) {
 	var router = express.Router();
 
 	(function(router, manager) {
+		// var mailer = nodemailer.createTransport('SMTP', {
+		// 	service: 'Gmail',
+		// 	auth: {
+		// 		user: 'hello.world.video.chat@gmail.com',
+		// 		pass: 'palebluedot'
+		// 	}
+		// });
+
 		var mailer = nodemailer.createTransport('SMTP', {
-			service: 'Gmail',
+			host: 'mail.facerace.in',
+			port: 587,
 			auth: {
-				user: 'hello.world.video.chat@gmail.com',
+				user: 'you.are.invited@facerace.in',
 				pass: 'palebluedot'
 			}
 		});
 
 		var roomSubscriptions = {
-			'#facerace': ['blakelapierre@gmail.com']
+			
 		};
 
 		var notifyRoomSubscriptions = function(room) {
@@ -93,7 +102,7 @@ var startServices = function(config, callback) {
 
 			for (var i = 0; i < subscriptions.length; i++) {
 				mailer.sendMail({
-					from: 'hello.world.video.chat@gmail.com',
+					from: 'you.are.invited@facerace.in',
 					to: subscriptions[i],
 					subject: 'Someone just joined ' + room,
 					text: 'Join them: http://' + config.publicAddress + ':' + config.port + room
@@ -104,8 +113,9 @@ var startServices = function(config, callback) {
 		};
 
 		var invite = function(address, room) {
+			console.log('sending to', address, room);
 			mailer.sendMail({
-				from: 'hello.world.video.chat@gmail.com',
+				from: 'you.are.invited@facerace.in',
 				to: address,
 				subject: 'Someone just invited you to video chat',
 				text: 'Join them: http://' + config.publicAddress + ':' + config.port + room
