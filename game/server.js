@@ -134,7 +134,7 @@ var startServices = function(config, callback) {
 
 			var text = function(number, room) {
 				console.log('posting', number, room);
-				http.post('http://localhost:9090/text', {form: {number: number, message: 'Someone invited you to video chat. Join them: http://' + host + ':' + config.port + room}})
+				http.post('http://localhost:9090/text', {form: {number: number, message: 'Someone invited you to video chat. Join them: http://' + host + ':' + config.port + '/' + room}})
 			};
 
 			return function(address, room) {
