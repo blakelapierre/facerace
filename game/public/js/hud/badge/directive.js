@@ -21,8 +21,10 @@ module.exports = function() {
 				$http.post('/invite/' + $scope.address, {room: window.location.hash || '#facerace'})
 					.success(function() {
 						$scope.showMenu = false;
-						$scope.address = '';
+						$scope.address = null;
 					});
+
+				return true;
 			};
 		}]
 	};

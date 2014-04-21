@@ -1,26 +1,31 @@
+var http = require('request'),
+	fs = require('fs');
+
 var startServer = function(config, callback) {
 	getPublicAddress(function(address) {
+		console.log('Got address...', address);
+
+		fs.writeFileSync('public_address', address);
+
 		config.publicAddress = address;
 		startServices(config, callback);
 	});
 };
 
 var getPublicAddress = function(deliver) {
-	var http = require('http');
-
 	console.log('determining public ip address...');
-	http.get('http://fugal.net/ip.cgi', function(res) {
+
+	if (fs.existsSync('public_address')) {
+		deliver(fs.readFileSync('public_address').toString());
+		return;
+	}
+
+	http.get('http://fugal.net/ip.cgi', function(error, res, body) {
+		console.log(arguments);
 	    if(res.statusCode != 200) {
 	        throw new Error('non-OK status: ' + res.statusCode);
 	    }
-	    res.setEncoding('utf-8');
-	    var ipAddress = '';
-	    res.on('data', function(chunk) { ipAddress += chunk; });
-	    res.on('end', function() {
-	    	ipAddress = ipAddress.trim();
-	    	console.log('Public Address: ' + ipAddress);
-	        deliver(ipAddress);
-	    });
+	    deliver(body.trim());
 	}).on('error', function(err) {
 	    throw err;
 	});
@@ -33,7 +38,6 @@ var startServices = function(config, callback) {
 		webRTC = require('webrtc.io'),
 		nodemailer = require('nodemailer'),
 		socketIOdb = require('./public/js/db/socketIOdb'),
-		fs = require('fs'),
 		_ = require('lodash'),
 		app = express();
 
@@ -116,17 +120,29 @@ var startServices = function(config, callback) {
 			}
 		};
 
-		var invite = function(address, room) {
-			console.log('sending to', address, room);
-			mailer.sendMail({
-				from: 'you.are.invited@facerace.in',
-				to: address,
-				subject: 'Someone just invited you to video chat',
-				text: 'Join them: http://' + host + ':' + config.port + room
-			}, function(error, responseStatus) {
-				console.log(arguments);
-			});
-		};
+		var invite = (function() {
+			var email = function(address, room) {
+				mailer.sendMail({
+					from: 'you.are.invited@facerace.in',
+					to: address,
+					subject: 'Someone just invited you to video chat',
+					text: 'Join them: http://' + host + ':' + config.port + room
+				}, function(error, responseStatus) {
+					console.log(arguments);
+				});
+			};
+
+			var text = function(number, room) {
+				console.log('posting', number, room);
+				http.post('http://localhost:9090/text', {form: {number: number, message: 'Someone invited you to video chat. Join them: http://' + host + ':' + config.port + room}})
+			};
+
+			return function(address, room) {
+				console.log('sending to', address, room);
+				if (/.*\@\.*/.test(address)) email(address, room);
+				else text(address, room);
+			};
+		})();
 
 		manager.rtc.on('join_room', function(data, socket) {
 			notifyRoomSubscriptions(data.room);
@@ -135,6 +151,7 @@ var startServices = function(config, callback) {
 		router.post('/invite/:address', function(req, res) {
 			var address = req.params.address,
 				room = req.body;
+			console.log(arguments);
 
 			var data = ''
 			req.on('data', function(chunk) {

@@ -1,7 +1,7 @@
 <div ng-show="showMenu" class="menu">
 	<div ng-show="showPlus" class="plus" ng-click="showPlus = false; showAddress = true">+ Person</div>
-	<input ng-show="showAddress" focus-on="showAddress"
-	ng-enter="sendInvite()"
-	ng-model="address" class="address" type="text" placeholder="email or text">
+	<form ng-show="showAddress" ng-submit="sendInvite()">
+		<input focus-on="showAddress" ng-model="address" class="address" type="text" name="who" placeholder="email or text">
+	</form>
 </div>
 <span class="room-name" ng-click="toggleMenu()">{{room}}</span>
