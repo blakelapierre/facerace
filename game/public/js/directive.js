@@ -6,7 +6,7 @@ var angular = require('angular'),
 module.exports = ['socket', function FaceraceDirective (socket) {
 	return {
 		restrict: 'E',
-		template: require('./faceraceTemplate.html'),
+		template: require('./template.html'),
 		link: function($scope, element, attributes) { },
 		controller:  ['$scope', 'orientation', function($scope, orientation) {
 			$scope.$on('sceneReady', function(e, s) {

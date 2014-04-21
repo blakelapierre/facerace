@@ -25,7 +25,7 @@ module.exports = function(grunt) {
 		browserify: {
 			bundle: {
 				files: {
-					'public/js/bundle.js': ['public/js/facerace.js']
+					'public/bundle.js': ['public/js/facerace.js']
 				}
 			}
 		},

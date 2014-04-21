@@ -6,10 +6,17 @@ var angular = require('angular'),
 module.exports = [function SceneDirective() {
 	return {
 		restrict: 'E',
-		template: require('./sceneTemplate.html'),
+		template: require('./template.html'),
 		link: function($scope, element, attributes) {
 			var width = window.innerWidth,
 				height = window.innerHeight,
+
+				scenes = {
+					main: {
+
+					}
+				}
+
 				scene = new THREE.Scene(),
 				cssScene = new THREE.Scene(),
 				webGLRenderer = new THREE.WebGLRenderer({antialias: false, alpha: true}),
@@ -71,8 +78,10 @@ module.exports = [function SceneDirective() {
 					
 				webGLRenderer.setSize(width, height);
 				cssRenderer.setSize(width, height);
+
 				camera.aspect = width / height;
 				camera.updateProjectionMatrix();
+
 				cssCamera.aspect = width / height;
 				cssCamera.updateProjectionMatrix();
 			};
