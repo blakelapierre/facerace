@@ -1,5 +1,5 @@
 module.exports = ['$rootScope', function($scope) {
-	var w = angular.element(window)
+	var w = angular.element(window),
 		keymap = {};
 
 	w.bind('keydown', function(event) {
