@@ -3,12 +3,14 @@ var angular = require('angular'),
 	math = require('mathjs')(),
 	facerace = require('../sim/facerace');
 
-module.exports = ['socket', function FaceraceDirective (socket) {
+module.exports = ['socket', 'keys', function FaceraceDirective (socket, keys) {
 	return {
 		restrict: 'E',
 		template: require('./template.html'),
 		link: function($scope, element, attributes) { },
 		controller:  ['$scope', 'orientation', function($scope, orientation) {
+			$scope.keymap = keys;
+
 			$scope.$on('sceneReady', function(e, s) {
 				console.log('scene', s);
 

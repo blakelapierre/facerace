@@ -7,7 +7,6 @@ module.exports = angular.module('facerace', [])
 	.directive('badge', 	require('./hud/badge/directive'))
 	.directive('debug', 	require('./hud/debug/directive'))
 
-	.directive('keys',		require('./inputs/keys/directive'))
 	.directive('video', 	require('./inputs/video/directive'))
 	
 	.directive('scene', 	require('./scene/directive'))
@@ -15,5 +14,6 @@ module.exports = angular.module('facerace', [])
 	.directive('focusOn', 	require('./util/focusOn/directive'))
 	.directive('ngEnter', 	require('./util/ngEnter/directive'))
 
+	.factory('keys',		require('./inputs/keys/factory'))
 	.factory('socket', 		require('./inputs/socket/factory'))
 	.factory('orientation', require('./inputs/orientation/factory'));
