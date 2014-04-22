@@ -7,7 +7,8 @@ module.exports = angular.module('facerace', [])
 	.directive('badge', 	require('./hud/badge/directive'))
 	.directive('debug', 	require('./hud/debug/directive'))
 
-	.directive('inputs', 	require('./inputs/video/directive'))
+	.directive('keys',		require('./inputs/keys/directive'))
+	.directive('video', 	require('./inputs/video/directive'))
 	
 	.directive('scene', 	require('./scene/directive'))
 	
