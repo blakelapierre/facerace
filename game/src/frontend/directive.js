@@ -9,8 +9,6 @@ module.exports = ['socket', 'keys', function FaceraceDirective (socket, keys) {
 		template: require('./template.html'),
 		link: function($scope, element, attributes) { },
 		controller:  ['$scope', 'orientation', function($scope, orientation) {
-			$scope.keymap = keys;
-
 			$scope.$on('sceneReady', function(e, s) {
 				console.log('scene', s);
 
@@ -336,7 +334,6 @@ module.exports = ['socket', 'keys', function FaceraceDirective (socket, keys) {
 							}
 
 							loadMap(transport.state.map); // get rid of this!
-							$scope.$apply();
 
 							_.each(transport.events.processedEvents, dispatch);
 
@@ -350,6 +347,8 @@ module.exports = ['socket', 'keys', function FaceraceDirective (socket, keys) {
 								tq.set(q[0], q[1], q[2], q[3]);
 								mq.slerp(tq, 0.05);
 							});
+
+							$scope.$apply();
 						};
 					})();
 

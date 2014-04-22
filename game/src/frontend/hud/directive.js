@@ -8,7 +8,7 @@ module.exports = function HudDirective() {
 		
 		},
 		controller: ['$scope', function($scope) {
-			$scope.showDebug = true;
+			$scope.showDebug = false;
 
 			$scope.$on('newState', function(event, transport) {
 				$scope.maps = transport.state.maps;
