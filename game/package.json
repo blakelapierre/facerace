@@ -12,7 +12,8 @@
     "grunt-contrib-less": "~0.11.0",
     "nodemailer": "~0.6.3",
     "express": "~4.0.0",
-    "request": "~2.34.0"
+    "request": "~2.34.0",
+    "git": "~0.1.5"
   },
   "devDependencies": {
     "grunt": "~0.4.4",

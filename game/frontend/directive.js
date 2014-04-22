@@ -1,7 +1,7 @@
 var angular = require('angular'),
 	_ = require('lodash'),
 	math = require('mathjs')(),
-	facerace = require('./facerace/facerace');
+	facerace = require('../sim/facerace');
 
 module.exports = ['socket', function FaceraceDirective (socket) {
 	return {
@@ -301,7 +301,7 @@ module.exports = ['socket', function FaceraceDirective (socket) {
 							};
 						})();
 
-						var maxfps = 60,
+						var maxfps = 5,
 							lastControlUpdate = new Date().getTime(),
 							controlUpdatesPerSecond = 4;
 

@@ -15,7 +15,7 @@ module.exports = [function SceneDirective() {
 					main: {
 
 					}
-				}
+				},
 
 				scene = new THREE.Scene(),
 				cssScene = new THREE.Scene(),

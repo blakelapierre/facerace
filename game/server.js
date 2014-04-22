@@ -37,7 +37,6 @@ var startServices = function(config, callback) {
 		socketIO = require('socket.io'),
 		webRTC = require('webrtc.io'),
 		nodemailer = require('nodemailer'),
-		socketIOdb = require('./public/js/db/socketIOdb'),
 		_ = require('lodash'),
 		app = express();
 
@@ -46,13 +45,12 @@ var startServices = function(config, callback) {
 
 	var webserver = app.listen(config.port),
 		rtc = webRTC.listen(config.rtcport),
-		io = socketIO.listen(webserver),
-		db = socketIOdb.host(io);
+		io = socketIO.listen(webserver);
 
 	io.set('log level', 0);
 
 	var transport = {},
-		facerace = require('./public/js/facerace/facerace'),
+		facerace = require('./sim/facerace'),
 		facerace = facerace(true, rtc, io);
 
 	fs.readdir('./public/images', function(err, files) {

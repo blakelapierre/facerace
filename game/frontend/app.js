@@ -2,7 +2,6 @@ var angular = require('angular');
 
 module.exports = angular.module('facerace', [])
 	.factory('socket', require('./inputs/socket/factory'))
-	.factory('socketIOdbProxy', require('./socketIOdbProxyFactory'))
 	.factory('orientation', require('./inputs/orientation/factory'))
 	.directive('focusOn', require('./util/focusOn/directive'))
 	.directive('ngEnter', require('./util/ngEnter/directive'))
