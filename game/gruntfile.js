@@ -15,7 +15,7 @@ module.exports = function(grunt) {
 		},
 		watch: {
 			game: {
-				files: ['server.js', 'public/**/*.*', 'frontend/**/*.*', '!public/style.css', '!public/bundle.js'],
+				files: ['src/app.js', 'src/**/*.*', 'dist/index.html'],
 				tasks: ['less:bundle', 'browserify:bundle', 'express:dev'],
 				options: {
 					livereload: true
@@ -25,21 +25,21 @@ module.exports = function(grunt) {
 		browserify: {
 			bundle: {
 				files: {
-					'public/bundle.js': ['frontend/app.js']
+					'dist/bundle.js': ['src/frontend/app.js']
 				}
 			}
 		},
 		express: {
 			dev: {
 				options: {
-					script: 'server.js'
+					script: 'src/app.js'
 				}
 			}
 		},
 		less: {
 			bundle: {
 				files: {
-					'public/style.css': ['frontend/**/*.less']
+					'dist/style.css': ['src/frontend/**/*.less']
 				}
 			}
 		}

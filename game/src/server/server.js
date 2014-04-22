@@ -1,46 +1,17 @@
-var http = require('request'),
-	fs = require('fs');
+var path = require('path'),
+	fs = require('fs'),
+	express = require('express'),
+	socketIO = require('socket.io'),
+	webRTC = require('webrtc.io'),
+	nodemailer = require('nodemailer'),
+	_ = require('lodash'),
+	app = express();
 
-var startServer = function(config, callback) {
-	getPublicAddress(function(address) {
-		console.log('Got address...', address);
+module.exports = function(config, callback) {
+	var serverRoot = config.serverRoot;
 
-		fs.writeFileSync('public_address', address);
-
-		config.publicAddress = address;
-		startServices(config, callback);
-	});
-};
-
-var getPublicAddress = function(deliver) {
-	console.log('determining public ip address...');
-
-	if (fs.existsSync('public_address')) {
-		deliver(fs.readFileSync('public_address').toString());
-		return;
-	}
-
-	http.get('http://fugal.net/ip.cgi', function(error, res, body) {
-		console.log(arguments);
-	    if(res.statusCode != 200) {
-	        throw new Error('non-OK status: ' + res.statusCode);
-	    }
-	    deliver(body.trim());
-	}).on('error', function(err) {
-	    throw err;
-	});
-};
-
-var startServices = function(config, callback) {
-	var path = require('path'),
-		express = require('express'),
-		socketIO = require('socket.io'),
-		webRTC = require('webrtc.io'),
-		nodemailer = require('nodemailer'),
-		_ = require('lodash'),
-		app = express();
-
-	app.use(express.static(path.join(__dirname, '/public')));
+	app.use(express.static(path.join(serverRoot, '..', 'dist')));
+	app.use('/images', express.static(path.join(serverRoot, 'images')));
 
 
 	var webserver = app.listen(config.port),
@@ -50,15 +21,16 @@ var startServices = function(config, callback) {
 	io.set('log level', 0);
 
 	var transport = {},
-		facerace = require('./sim/facerace'),
+		facerace = require('../sim/facerace'),
 		facerace = facerace(true, rtc, io);
 
-	fs.readdir('./public/images', function(err, files) {
+	var imagesRoot = path.join(serverRoot, 'images');
+	fs.readdir(imagesRoot, function(err, files) {
 		if (err) throw err;
 
 		var maps = [];
 		_.each(files, function(file) {
-			var stat = fs.statSync(path.join(__dirname, 'public/images', file));
+			var stat = fs.statSync(path.join(imagesRoot, file));
 			if (stat.isDirectory()) maps.push(file);
 		});
 		facerace.loadMaps(maps);
@@ -179,9 +151,3 @@ var startServices = function(config, callback) {
 
 	return callback(webserver, io, rtc);
 };
-
-exports.startServer = startServer;
-exports.startServer({
-	port: 2888,
-	rtcport: 2887
-}, function(webserver, io, rtc) { });
