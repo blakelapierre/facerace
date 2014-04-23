@@ -301,7 +301,7 @@ module.exports = ['socket', 'keys', function FaceraceDirective (socket, keys) {
 							};
 						})();
 
-						var maxfps = 5,
+						var maxfps = 30,
 							lastControlUpdate = new Date().getTime(),
 							controlUpdatesPerSecond = 4;
 
