@@ -29,6 +29,26 @@ module.exports = function(grunt) {
 				}
 			}
 		},
+		preprocess: {
+			options: {
+				context: {
+					DEBUG: false
+				}			
+			},
+			index: {
+				src: 'src/frontend/index.html',
+				dest: 'dist/index.html'
+			},
+			livereload: {
+				src: 'src/frontend/index.html',
+				dest: 'dist/index.html',
+				options: {
+					context: {
+						DEBUG: true
+					}
+				}
+			}
+		},
 		express: {
 			dev: {
 				options: {
@@ -55,6 +75,10 @@ module.exports = function(grunt) {
 	});
 
 	grunt.registerTask('serve', 'test', function() {
-		grunt.task.run('less:bundle', 'browserify:bundle', 'express:dev', 'watch:game');
+		grunt.task.run('preprocess:index', 'less:bundle', 'browserify:bundle', 'express:dev', 'watch:game');
+	});
+
+	grunt.registerTask('debug', 'test', function() {
+		grunt.task.run('preprocess:livereload', 'less:bundle', 'browserify:bundle', 'express:dev', 'watch:game');
 	});
 };

@@ -12,8 +12,9 @@ module.exports = angular.module('facerace', [])
 	
 	.directive('scene', 	require('./scene/directive'))
 	
-	.directive('focusOn', 	require('./util/focusOn/directive'))
-	.directive('ngEnter', 	require('./util/ngEnter/directive'))
+	.directive('animationCycler', 	require('./util/animationCycler/directive'))
+	.directive('focusOn', 			require('./util/focusOn/directive'))
+	.directive('ngEnter', 			require('./util/ngEnter/directive'))
 
 	.factory('keys',		require('./inputs/keys/factory'))
 	.factory('socket', 		require('./inputs/socket/factory'))
