@@ -1,5 +1,6 @@
 var http = require('request'),
 	fs = require('fs'),
+	path = require('path'),
 	faceraceServer = require('./server/server');
 
 var startServer = function(config, callback) {
@@ -36,5 +37,6 @@ exports.startServer = startServer;
 exports.startServer({
 	port: 2888,
 	rtcport: 2887,
-	serverRoot: __dirname
+	serverRoot: __dirname,
+	repoLocation: path.join(__dirname, './../../')
 }, function(webserver, io, rtc) { });
