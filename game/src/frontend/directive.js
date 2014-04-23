@@ -275,7 +275,7 @@ module.exports = ['socket', 'keys', function FaceraceDirective (socket, keys) {
 					});
 				})());
 
-				$scope.updateScene = (function() {
+				$scope.$on('updateScene', (function() {
 					var waitingForState = function(transport, now, dt) {
 						if (transport.state._yourID != null) updateFn = haveState;
 					};
@@ -366,7 +366,7 @@ module.exports = ['socket', 'keys', function FaceraceDirective (socket, keys) {
 
 						lastFrame = now;
 					};
-				})();
+				})());
 			});
 		}]
 	};

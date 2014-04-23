@@ -26,6 +26,8 @@ module.exports = function() {
 
 				return true;
 			};
+
+			$scope.badgeAnimations = ['greenTextPulse'];
 		}]
 	};
 };

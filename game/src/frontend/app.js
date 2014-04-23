@@ -18,4 +18,6 @@ module.exports = angular.module('facerace', [])
 
 	.factory('keys',		require('./inputs/keys/factory'))
 	.factory('socket', 		require('./inputs/socket/factory'))
-	.factory('orientation', require('./inputs/orientation/factory'));
+	.factory('orientation', require('./inputs/orientation/factory'))
+
+	.factory('renderService',	require('./util/renderService/factory'))

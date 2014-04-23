@@ -3,7 +3,7 @@ var angular = require('angular'),
 	Stats = require('stats'),
 	_ = require('lodash');
 
-module.exports = [function SceneDirective() {
+module.exports = ['renderService', function SceneDirective(renderService) {
 	return {
 		restrict: 'E',
 		template: require('./template.html'),
@@ -95,17 +95,14 @@ module.exports = [function SceneDirective() {
 				controls: controls
 			});
 
-			var render = function() {
-				window.requestAnimationFrame(render);
-
-				$scope.updateScene();
-
+			$scope.$on('renderFrame', function() {
 				controls.update();
 				webGLRenderer.render(scene, camera);
 				cssRenderer.render(cssScene, camera);
 				stats.update();
-			};
-			window.requestAnimationFrame(render);
+			});
+
+			renderService.start();
 		}
 	};
 }];
