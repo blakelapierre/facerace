@@ -26,11 +26,37 @@
 	}
 }
 
+.expand-badge {
+	-webkit-animation-name: expandBadge;
+	-webkit-animation-duration: 5s;
+	-webkit-animation-iteration-count: infinite;
+}
+
+@-webkit-keyframes flip {
+	from {
+		-webkit-transform: rotateX(0);
+	}
+	50% {
+		-webkit-transform: rotateX(180deg);
+	}
+	to {
+		-webkit-transform: rotateX(360deg);
+	}
+}
+
+.flip-badge {
+	-webkit-animation-name: flip;
+	-webkit-animation-duration: 2.5s;
+	-webkit-animation-iteration-count: infinite;
+}
+
 badge {
 	position: absolute;
 	bottom: 0%;
 	right: 0%;
 	color: #749a02;
+
+	margin-right: 1%;
 
 	cursor: pointer;
 
@@ -44,10 +70,6 @@ badge {
 	.badge {
 		font-size: x-large;
 		font-weight: bold;
-
-		-webkit-animation-name: expandBadge;
-		-webkit-animation-duration: 5s;
-		-webkit-animation-iteration-count: infinite;
 	}
 
 	.menu {
