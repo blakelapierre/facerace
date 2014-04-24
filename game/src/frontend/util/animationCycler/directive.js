@@ -30,7 +30,6 @@ module.exports = function($rootScope) {
 					currentAnimation.className = nextClassName();
 
 					_.each(currentAnimation.className.split(' '), function(className) {
-						console.log(className);
 						element.addClass(className);
 					});
 				}
