@@ -1,4 +1,5 @@
-var nodemailer = require('nodemailer');
+var http = require('request'),
+	nodemailer = require('nodemailer');
 
 module.exports = function(router, manager, config) {
 
