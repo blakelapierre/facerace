@@ -9,7 +9,11 @@ module.exports = function($rootScope) {
 			var nextClassName = function() {
 				var animations = $scope.animationCycler;
 
-				return animations[(animationIndex++) % animations.length];
+				var animation = animations[(animationIndex++) % animations.length];
+
+				animationIndex %= animations.length;
+				
+				return animation;
 			};
 
 			var currentAnimation = {
@@ -24,7 +28,6 @@ module.exports = function($rootScope) {
 					currentAnimation.className = nextClassName();
 
 					element.addClass(currentAnimation.className);
-					console.log(currentAnimation);
 				}
 			});
 		}
