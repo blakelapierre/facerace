@@ -1,8 +1,7 @@
 var angular = require('angular'),
-	_ = require('lodash'),
-	rtc = require('webrtc.io');
+	_ = require('lodash');
 
-module.exports = ['$sce', function CameraDirective($sce) {
+module.exports = ['$sce', 'rtc', function CameraDirective($sce, rtc) {
 	return {
 		restrict: 'E',
 		link: function($scope, element, attributes) {
@@ -38,9 +37,8 @@ module.exports = ['$sce', function CameraDirective($sce) {
 				window.location.reload(true);
 			});
 
-			var room = window.location.hash || '#facerace';
-			rtc.connect('ws://' + window.location.hostname + ':2887', room.split('-')[0]);
-			$scope.room = room;
+			
+			$scope.room = rtc.room;
 
 			rtc.on('add remote stream', function(stream, socketID) {
 				var video = createVideo(stream, socketID);

@@ -34,10 +34,8 @@
 
 @keyframes flip-x {
 	from { transform: rotateX(0deg); }
-	40% { transform: rotateX(180deg); }
-	50% { transform: rotateX(360deg); }
-	60% { transform: rorateX(180deg); }
-	to { transform: rotateX(0deg); }
+	50% { transform: rotateX(180deg); }
+	to { transform: rotateX(360deg); }
 }
 
 @keyframes flip-y {
@@ -53,7 +51,7 @@
 }
 
 .flip-badge-x {
-	animation: flip-x 2.5s infinite linear;
+	animation: flip-x 2.5s infinite cubic-bezier(0.45, -0.67, 0.53, 1.63);
 }
 
 .flip-badge-y {

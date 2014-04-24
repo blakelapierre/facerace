@@ -102,6 +102,9 @@ module.exports = ['socket', 'keys', function FaceraceDirective (socket, keys) {
 					player: function(event) {
 						console.log('player', event);
 					},
+					video: function(event) {
+						console.log('video', event);
+					},
 					setMap: function(event) {
 						loadMap(event._event);
 					}

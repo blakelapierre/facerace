@@ -21,3 +21,4 @@ module.exports = angular.module('facerace', [])
 	.factory('orientation', require('./inputs/orientation/factory'))
 
 	.factory('renderService',	require('./util/renderService/factory'))
+	.factory('rtc',				require('./util/rtc/factory'))
