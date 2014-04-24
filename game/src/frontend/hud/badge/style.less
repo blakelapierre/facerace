@@ -1,4 +1,4 @@
-@-webkit-keyframes greenTextPulse {
+@keyframes greenTextPulse {
   from { color: #749a02; text-shadow: 0 0 5px #333; }
   15% { color: #91bd09; text-shadow: 0 0 9px #91bd09; }
   50% { color: #91bd09; text-shadow: 0 0 10px #91bd09; }
@@ -6,48 +6,67 @@
   to { color: #749a02; text-shadow: 0 0 5px #333; }
 }
 
-@-webkit-keyframes greenBoxPulse {
-  from { color: #749a02; -webkit-box-shadow: 0 0 5px #333; }
-  15% { color: #91bd09; -webkit-box-shadow: 0 0 9px #91bd09; }
-  50% { color: #91bd09; -webkit-box-shadow: 0 0 10px #91bd09; }
-  85% { color: #91bd09; -webkit-box-shadow: 0 0 9px #91bd09; }
-  to { color: #749a02; -webkit-box-shadow: 0 0 5px #333; }
+@keyframes greenBoxPulse {
+  from { color: #749a02; box-shadow: 0 0 5px #333; }
+  15% { color: #91bd09; box-shadow: 0 0 9px #91bd09; }
+  50% { color: #91bd09; box-shadow: 0 0 10px #91bd09; }
+  85% { color: #91bd09; box-shadow: 0 0 9px #91bd09; }
+  to { color: #749a02; box-shadow: 0 0 5px #333; }
 }
 
-@-webkit-keyframes expandBadge {
+@keyframes expandBadge {
 	from {
-		-webkit-transform: scale(1);
+		transform: scale(1);
 	}
 	50% {
-		-webkit-transform: scale(1.1);
+		transform: scale(1.1);
 	}
 	to {
-		-webkit-transform: scale(1);
+		transform: scale(1);
 	}
 }
 
 .expand-badge {
-	-webkit-animation-name: expandBadge;
-	-webkit-animation-duration: 5s;
-	-webkit-animation-iteration-count: infinite;
+	animation-name: expandBadge;
+	animation-duration: 5s;
+	animation-iteration-count: infinite;
 }
 
-@-webkit-keyframes flip {
+@keyframes flip-x {
 	from {
-		-webkit-transform: rotateX(0);
+		transform: rotateX(0);
 	}
 	50% {
-		-webkit-transform: rotateX(180deg);
+		transform: rotateX(180deg);
 	}
 	to {
-		-webkit-transform: rotateX(360deg);
+		transform: rotateX(360deg);
 	}
 }
 
-.flip-badge {
-	-webkit-animation-name: flip;
-	-webkit-animation-duration: 2.5s;
-	-webkit-animation-iteration-count: infinite;
+
+@keyframes flip-y {
+	from { transform: rotateY(0); }
+	50% { transform: rotateY(180deg); }
+	to { transform: rotateY(360deg); }
+}
+
+@keyframes flip-z {
+	from { transform: rotateZ(0); }
+	50% { transform: rotateZ(180deg); }
+	to { transform: rotateZ(360deg); }
+}
+
+.flip-badge-x {
+	animation: flip-x 2.5s infinite linear;
+}
+
+.flip-badge-y {
+	animation: flip-y 2.5s infinite linear;
+}
+
+.flip-badge-z {
+	animation: flip-z 2.5s infinite linear;
 }
 
 badge {
@@ -60,9 +79,7 @@ badge {
 
 	cursor: pointer;
 
-	-webkit-animation-name: greenTextPulse;
-	-webkit-animation-duration: 5s;
-	-webkit-animation-iteration-count: infinite;
+	animation: greenTextPulse 5s infinite linear;
 
 
 	text-align: right;
@@ -80,9 +97,7 @@ badge {
 		text-align: center;
 
 		.plus {
-			-webkit-animation-name: expandBadge;
-			-webkit-animation-duration: 2s;
-			-webkit-animation-iteration-count: infinite;
+			animation: expandBadge 2s infinite linear;
 		}
 
 		.address {
@@ -94,9 +109,9 @@ badge {
 
 			text-align: right;
 
-			-webkit-animation-name: greenBoxPulse, greenTextPulse;
-			-webkit-animation-duration: 5s;
-			-webkit-animation-iteration-count: infinite;
+			animation-name: greenBoxPulse, greenTextPulse;
+			animation-duration: 5s;
+			animation-iteration-count: infinite;
 		}
 
 		.address::-webkit-input-placeholder {

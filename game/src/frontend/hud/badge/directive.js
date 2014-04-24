@@ -27,7 +27,7 @@ module.exports = function() {
 				return true;
 			};
 
-			$scope.badgeAnimations = ['expand-badge', 'flip-badge'];
+			$scope.badgeAnimations = ['expand-badge', 'flip-badge-x', 'flip-badge-y', 'flip-badge-z'];
 		}]
 	};
 };

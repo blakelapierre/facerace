@@ -16,7 +16,7 @@ module.exports = function(grunt) {
 		watch: {
 			game: {
 				files: ['src/app.js', 'src/**/*.*', 'dist/index.html'],
-				tasks: ['less:bundle', 'browserify:bundle', 'express:dev'],
+				tasks: ['less:bundle', 'autoprefixer:dist', 'browserify:bundle', 'express:dev'],
 				options: {
 					livereload: true
 				}
@@ -59,7 +59,14 @@ module.exports = function(grunt) {
 		less: {
 			bundle: {
 				files: {
-					'dist/style.css': ['src/frontend/**/*.less']
+					'temp/style.css': ['src/frontend/**/*.less']
+				}
+			}
+		},
+		autoprefixer: {
+			dist: {
+				files: {
+					'dist/style.css': 'temp/style.css'
 				}
 			}
 		}
@@ -75,10 +82,10 @@ module.exports = function(grunt) {
 	});
 
 	grunt.registerTask('serve', 'test', function() {
-		grunt.task.run('preprocess:index', 'less:bundle', 'browserify:bundle', 'express:dev', 'watch:game');
+		grunt.task.run('preprocess:index', 'less:bundle', 'autoprefixer:dist', 'browserify:bundle', 'express:dev', 'watch:game');
 	});
 
 	grunt.registerTask('debug', 'test', function() {
-		grunt.task.run('preprocess:livereload', 'less:bundle', 'browserify:bundle', 'express:dev', 'watch:game');
+		grunt.task.run('preprocess:livereload', 'less:bundle', 'autoprefixer:dist', 'browserify:bundle', 'express:dev', 'watch:game');
 	});
 };
