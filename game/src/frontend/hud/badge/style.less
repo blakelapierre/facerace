@@ -33,17 +33,12 @@
 }
 
 @keyframes flip-x {
-	from {
-		transform: rotateX(0);
-	}
-	50% {
-		transform: rotateX(180deg);
-	}
-	to {
-		transform: rotateX(360deg);
-	}
+	from { transform: rotateX(0deg); }
+	40% { transform: rotateX(180deg); }
+	50% { transform: rotateX(360deg); }
+	60% { transform: rorateX(180deg); }
+	to { transform: rotateX(0deg); }
 }
-
 
 @keyframes flip-y {
 	from { transform: rotateY(0); }
@@ -85,6 +80,8 @@ badge {
 	text-align: right;
 
 	.badge {
+		display: inline-block;
+		
 		font-size: x-large;
 		font-weight: bold;
 	}

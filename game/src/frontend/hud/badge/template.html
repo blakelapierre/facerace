@@ -4,4 +4,6 @@
 		<input focus-on="showAddress" ng-model="address" class="address" type="text" name="who" placeholder="email or text">
 	</form>
 </div>
-<div animation-cycler="badgeAnimations" class="badge" ng-click="toggleMenu()">{{room}}</div>
+<div ng-click="toggleMenu()">
+	<span animation-cycler="badgeAnimations" class="badge">{{room}}</span>
+</div>

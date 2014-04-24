@@ -71,33 +71,6 @@ module.exports = ['socket', 'keys', function FaceraceDirective (socket, keys) {
 					facerace.mode($scope.mode);
 				};
 
-				// var slider = document.createElement('input');
-				// slider.type = 'range';
-
-				// var sliderObj = new THREE.CSS3DObject(slider);
-				// cssScene.add(sliderObj);
-
-				// var material = new THREE.MeshBasicMaterial();
-
-				// material.color.set('black');
-				// material.opacity = 0;
-				// material.blending = THREE.NoBlending;
-
-				// var geometry = new THREE.PlaneGeometry(1, 1, 1, 1);
-				// var planeMesh= new THREE.Mesh( geometry, material );
-
-				// planeMesh.position.x = 0;
-				// planeMesh.position.y = 0;
-				// sliderObj.scale.multiplyScalar(1 / 200);
-
-				// //sliderObj.position = planeMesh.position;
-				// sliderObj.position.x = -2;
-				// sliderObj.position.y = -2;
-				// sliderObj.position.z = 0.1;
-				// sliderObj.quaternion = planeMesh.quaternion;
-
-				// scene.add(planeMesh);
-
 				var eventHandlers = {
 					mode: function(event) {
 						_.each($scope.liveSources, function(source) {
@@ -189,7 +162,37 @@ module.exports = ['socket', 'keys', function FaceraceDirective (socket, keys) {
 								};
 
 							scene.add(mesh);
-							mesh.visible = false; 
+							mesh.visible = false;
+
+							var teaser = document.createElement('div');
+							var teaser = document.createElement('slider');
+							teaser.type = 'range'
+							// teaser.className = 'teaser';
+							// teaser.innerText = 'turn your camera on!';
+
+							var teaserObj = new THREE.CSS3DObject(teaser);
+							cssScene.add(teaserObj);
+
+							var material = new THREE.MeshBasicMaterial();
+
+							material.color.set('black');
+							material.opacity = 0;
+							material.blending = THREE.NoBlending;
+
+							var geometry = new THREE.PlaneGeometry(1, 1, 1, 1);
+							var planeMesh= new THREE.Mesh( geometry, material );
+
+							planeMesh.position.x = 0;
+							planeMesh.position.y = 0;
+							teaserObj.scale.multiplyScalar(1 / 200);
+
+							//sliderObj.position = planeMesh.position;
+							teaserObj.position.x = -2;
+							teaserObj.position.y = -2;
+							teaserObj.position.z = 0.1;
+							teaserObj.quaternion = planeMesh.quaternion;
+
+							//scene.add(planeMesh);
 
 							livePlayers[key] = player;
 						},

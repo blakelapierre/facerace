@@ -22,12 +22,17 @@ module.exports = function($rootScope) {
 			};
 			$rootScope.$on('updateScene', function(dt, time) {
 				if (currentAnimation.endTime < time) {
-					element.removeClass(currentAnimation.className);
+					_.each(currentAnimation.className.split(' '), function(className) {
+						element.removeClass(className);
+					});
 
 					currentAnimation.endTime = time + 5 * 1000;
 					currentAnimation.className = nextClassName();
 
-					element.addClass(currentAnimation.className);
+					_.each(currentAnimation.className.split(' '), function(className) {
+						console.log(className);
+						element.addClass(className);
+					});
 				}
 			});
 		}
