@@ -5,6 +5,7 @@ module.exports = ['$rootScope', '$analytics', function($rootScope, $analytics) {
 	rtc.connect('ws://' + window.location.hostname + ':2887', room.split('-')[0]);
 
 	$analytics.eventTrack('rtc_connect', {room: room, host: window.location.hostname});
+	$analytics.pageTrack('/' + room);
 
 	rtc.room = room;
 
