@@ -4,7 +4,7 @@ module.exports = ['$rootScope', '$analytics', function($rootScope, $analytics) {
 	var room = window.location.hash || '#facerace';
 	rtc.connect('ws://' + window.location.hostname + ':2887', room.split('-')[0]);
 
-	$analytics.eventTrack('rtc_connect', {room: room, host: window.location.hostname});
+	$analytics.eventTrack('rtc_connect', {category: window.location.hostname, action: 'connect', label: room});
 	$analytics.pageTrack('/' + room);
 
 	rtc.room = room;
