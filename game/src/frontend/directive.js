@@ -71,22 +71,6 @@ module.exports = ['socket', 'keys', function FaceraceDirective (socket, keys) {
 					facerace.mode($scope.mode);
 				};
 
-
-				var arrangeRigs = function() {
-					_.each(livePlayers, function(player, index) {
-						parser.eval('a = ' + index);
-						parser.eval('p = floor(sqrt(4 * a + 1))');
-						parser.eval('q = a - floor(p^2 / 4)');
-						
-						var point = parser.eval('q * i^p + (floor((p + 2) / 4) - floor((p + 1) / 4) * i) * i^(p - 1)');
-
-						var rig = player.rig;
-						rig.position.y = point.re;
-						rig.position.x = point.im;
-					});
-				};
-
-
 				var eventHandlers = {
 					mode: function(event) {
 						_.each($scope.liveSources, function(source) {
@@ -120,52 +104,6 @@ module.exports = ['socket', 'keys', function FaceraceDirective (socket, keys) {
 					},
 					video: function(event) {
 						console.log('video', event);
-						var playerID = event._player,
-							videoSocketID = event._event,
-							player = livePlayers[playerID],
-							source = $scope.sources[videoSocketID];
-
-						if (videoSocketID && videoSocketID.length > 0) {
-							if (source) {
-								var video = source.element,
-									width = 1,
-									height = 1,
-									texture = new THREE.Texture(video), 
-									material = new THREE.ShaderMaterial({
-										fragmentShader: document.getElementById('plane-fragment-shader').textContent,
-										vertexShader: document.getElementById('plane-vertex-shader').textContent,
-										uniforms: {
-											texture: {type: 't', value: texture},
-											width: {type: 'f', value: width},
-											height: {type: 'f', value: height},
-											radius: {type: 'f', value: 2},
-											angle: {type: 'f', value: 0.8},
-											center: {type: 'v2', value: new THREE.Vector2(width / 2, height / 2)},
-											time: {type: 'f', value: 1.0}
-										},
-										side: THREE.DoubleSide
-									}),
-									mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, height, 1, 1), material),
-									rig = player.rig;
-
-								texture.lastUpdate = 0;
-
-								rig.remove(rig.planeMesh);
-								cssScene.remove(rig.teaserObj);
-
-								rig.add(mesh);
-								rig.mesh = mesh;
-
-								source.mesh = mesh;
-								source.texture = texture;
-								source.material = material;
-
-
-								liveSources[videoSocketID] = source;
-
-								arrangeRigs();
-							}
-						}
 					},
 					setMap: function(event) {
 						loadMap(event._event);
@@ -215,25 +153,30 @@ module.exports = ['socket', 'keys', function FaceraceDirective (socket, keys) {
 
 					return createWatchCollectionFunction(livePlayers, {
 						newAction: function(key) {
-							var rig = new THREE.Object3D(),
+							var width = 1,
+								height = 1,
+								material = new THREE.MeshBasicMaterial({side: THREE.DoubleSide}),
+								mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, height, 1, 1), material),
 								player = {
 									data: $scope.players[key],
 									targetQuaternion: new THREE.Quaternion(),
-									rig: rig
+									mesh: mesh,
+									material: material
 								};
 
-							var teaser = document.createElement('div'),
-								text = document.createElement('span');
+							scene.add(mesh);
+							mesh.visible = false;
 
-							teaser.appendChild(text);
-							teaser.className = 'teaser';
-							text.innerText = 'turn your camera on!';
+							var teaser = document.createElement('div');
+							var teaser = document.createElement('slider');
+							teaser.type = 'range'
+							// teaser.className = 'teaser';
+							// teaser.innerText = 'turn your camera on!';
 
 							var teaserObj = new THREE.CSS3DObject(teaser);
+							cssScene.add(teaserObj);
 
-							var material = new THREE.MeshBasicMaterial({
-								side: THREE.DoubleSide
-							});
+							var material = new THREE.MeshBasicMaterial();
 
 							material.color.set('black');
 							material.opacity = 0;
@@ -246,15 +189,13 @@ module.exports = ['socket', 'keys', function FaceraceDirective (socket, keys) {
 							planeMesh.position.y = 0;
 							teaserObj.scale.multiplyScalar(1 / 200);
 
-							teaserObj.position = planeMesh.position;
+							//sliderObj.position = planeMesh.position;
+							teaserObj.position.x = -2;
+							teaserObj.position.y = -2;
+							teaserObj.position.z = 0.1;
 							teaserObj.quaternion = planeMesh.quaternion;
 
-							rig.add(planeMesh);
-							rig.planeMesh = planeMesh;
-							rig.teaserObj = teaserObj;
-							
-							scene.add(rig);
-							cssScene.add(teaserObj);
+							//scene.add(planeMesh);
 
 							livePlayers[key] = player;
 						},
@@ -270,9 +211,9 @@ module.exports = ['socket', 'keys', function FaceraceDirective (socket, keys) {
 							
 							var point = parser.eval('q * i^p + (floor((p + 2) / 4) - floor((p + 1) / 4) * i) * i^(p - 1)');
 
-							var rig = player.rig;
-							rig.position.y = point.re;
-							rig.position.x = point.im;
+							var mesh = player.mesh;
+							mesh.position.y = point.re;
+							mesh.position.x = point.im;
 						}
 					});
 				})());
@@ -287,20 +228,39 @@ module.exports = ['socket', 'keys', function FaceraceDirective (socket, keys) {
 					return createWatchCollectionFunction(liveSources, {
 						newAction: function(key) {
 							console.log('source', key)
-							var videoSource = $scope.sources[key];
+							var videoSource = $scope.sources[key],
+								video = videoSource.element,
+								width = 1,
+								height = 1,
+								texture = new THREE.Texture(video), 
+								material = new THREE.ShaderMaterial({
+									fragmentShader: document.getElementById('plane-fragment-shader' + swirl).textContent,
+									vertexShader: document.getElementById('plane-vertex-shader' + swirl).textContent,
+									uniforms: {
+										texture: {type: 't', value: texture},
+										width: {type: 'f', value: width},
+										height: {type: 'f', value: height},
+										radius: {type: 'f', value: 2},
+										angle: {type: 'f', value: 0.8},
+										center: {type: 'v2', value: new THREE.Vector2(width / 2, height / 2)},
+										time: {type: 'f', value: 1.0}
+									},
+									side: THREE.DoubleSide
+								}),
+								mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, height, 1, 1), material);
 
-							//liveSources[key] = videoSource;
+							texture.lastUpdate = 0;
+
+							scene.add(mesh);
+
+							videoSource.mesh = mesh;
+							videoSource.texture = texture;
+							videoSource.material = material;
+							liveSources[key] = videoSource;
 
 							if (videoSource.socketID == rtc._me) {
 								facerace.video(videoSource.socketID);
 							}
-
-							var player = _.find(livePlayers, function(player) {
-								console.log(player)
-								return player.data.videoSocketID == videoSource.socketID;
-							});
-
-							if (player) player.rig.visible = false;
 						},
 						removeAction: function(key) {
 							var videoSource = liveSources[key];
@@ -320,33 +280,6 @@ module.exports = ['socket', 'keys', function FaceraceDirective (socket, keys) {
 						}
 					});
 				})());
-
-				// var slider = document.createElement('input');
- 			// 	slider.type = 'range';
- 
- 			// 	var sliderObj = new THREE.CSS3DObject(slider);
- 			// 	cssScene.add(sliderObj);
- 
- 			// 	var material = new THREE.MeshBasicMaterial();
- 
- 			// 	material.color.set('black');
- 			// 	material.opacity = 0;
- 			// 	material.blending = THREE.NoBlending;
- 
- 			// 	var geometry = new THREE.PlaneGeometry(1, 1, 1, 1);
- 			// 	var planeMesh= new THREE.Mesh( geometry, material );
- 
- 			// 	planeMesh.position.x = 0;
- 			// 	planeMesh.position.y = 0;
- 			// 	sliderObj.scale.multiplyScalar(1 / 200);
- 
- 			// 	//sliderObj.position = planeMesh.position;
- 			// 	sliderObj.position.x = -2;
- 			// 	sliderObj.position.y = -2;
- 			// 	sliderObj.position.z = 0.1;
- 			// 	sliderObj.quaternion = planeMesh.quaternion;
- 
- 			// 	// scene.add(planeMesh);
 
 				$scope.$on('updateScene', (function() {
 					var waitingForState = function(transport, now, dt) {
@@ -384,7 +317,7 @@ module.exports = ['socket', 'keys', function FaceraceDirective (socket, keys) {
 							$scope.stateObj = transport.state;
 
 							var player = livePlayers[transport.state._yourID];
-							if (player) camera.lookAt(player.rig.position);
+							if (player) camera.lookAt(player.mesh.position);
 
 							_.each(liveSources, function(source, id) {
 								var element = source.element;
@@ -414,8 +347,8 @@ module.exports = ['socket', 'keys', function FaceraceDirective (socket, keys) {
 								var data = player.data,
 									q = data.orientation.quaternion,
 									tq = player.targetQuaternion,
-									rig = player.rig,
-									mq = rig.quaternion;
+									mesh = player.mesh,
+									mq = mesh.quaternion;
 
 								tq.set(q[0], q[1], q[2], q[3]);
 								mq.slerp(tq, 0.05);
