@@ -1,6 +1,7 @@
 var angular = require('angular');
 
-module.exports = angular.module('facerace', [])
+module.exports = angular.module('facerace', ['angulartics', 'angulartics.google.analytics'])
+
 	.directive('facerace', 	require('./directive'))
 
 	.directive('hud', 		require('./hud/directive'))
