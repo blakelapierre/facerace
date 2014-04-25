@@ -1,10 +1,11 @@
 var rtc = require('webrtc.io');
 
 module.exports = ['$rootScope', '$analytics', function($rootScope, $analytics) {
-	var room = window.location.hash || '#facerace';
-	rtc.connect('ws://' + window.location.hostname + ':2887', room.split('-')[0]);
+	var room = window.location.hash || '#facerace',
+		url = 'ws://' + window.location.hostname + ':2887';
+	rtc.connect(url, room);
 
-	$analytics.eventTrack('rtc_connect', {category: window.location.hostname, action: 'connect', label: room});
+	$analytics.eventTrack('rtc_connect', {category: url, action: 'connect', label: room});
 	$analytics.pageTrack('/' + room);
 
 	rtc.room = room;
