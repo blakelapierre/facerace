@@ -2,7 +2,8 @@ var rtc = require('webrtc.io');
 
 module.exports = ['$rootScope', '$analytics', function($rootScope, $analytics) {
 	var room = window.location.hash || '#facerace',
-		url = 'ws://' + window.location.hostname + ':2887', room.split('-')[0];
+		url = 'ws://' + window.location.hostname + ':2887' + room.split('-')[0];
+		
 	rtc.connect(url);
 	$analytics.trackEvent('rtc_connect', {url: url});
 
