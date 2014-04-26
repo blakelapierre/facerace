@@ -13,8 +13,8 @@ module.exports = angular.module('facerace', ['angulartics', 'angulartics.google.
 	
 	.directive('scene', 	require('./scene/directive'))
 	
-	.directive('animationCycler', 		require('./util/animationCycler/directive'))
-	.directive('geneticallyAnimated', 	require('./util/geneticallyAnimated/directive'))
+	.directive('animationCycler', 		require('./util/animation/animationCycler/directive'))
+	.directive('geneticallyAnimated', 	require('./util/animation/geneticallyAnimated/directive'))
 	.directive('focusOn', 				require('./util/focusOn/directive'))
 	.directive('ngEnter', 				require('./util/ngEnter/directive'))
 
@@ -22,6 +22,6 @@ module.exports = angular.module('facerace', ['angulartics', 'angulartics.google.
 	.factory('socket', 		require('./inputs/socket/factory'))
 	.factory('orientation', require('./inputs/orientation/factory'))
 
-	.factory('dynamicAnimation',	require('./util/dynamicAnimation/factory'))
+	.factory('dynamicAnimation',	require('./util/animation/dynamicAnimation/factory'))
 	.factory('renderService',		require('./util/renderService/factory'))
 	.factory('rtc',					require('./util/rtc/factory'))

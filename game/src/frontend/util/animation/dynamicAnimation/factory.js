@@ -147,15 +147,15 @@ module.exports = function() {
 		if (index >= 0) sheet.deleteRule(index);
 	};
 
-	var setAnimationRule = function(name, duration, iterationCount, timing) {
+	var setAnimationRule = function(name, animationName, duration, iterationCount, timingFunction) {
 		deleteRule('.' + name);
-		sheet.insertRule('.' + name + ' { -webkit-animation: ' + name + ' ' + duration + ' ' + iterationCount + ' ' + timing + '; }', 0);
+		sheet.insertRule('.' + name + ' { -webkit-animation: ' + animationName + ' ' + duration + ' ' + iterationCount + ' ' + timingFunction + '; }', 0);
 	}
 
 	var addAnimation = function(name) {
 		var duration = '5s',
 			iterationCount = 'infinite',
-			timing = 'linear';
+			timingFunction = 'linear';
 
 		setAnimationRule(name, '5s', 'infinite', 'linear');
 
@@ -163,18 +163,13 @@ module.exports = function() {
 			try { sheet.insertRule(prefix + ' ' + name + ' {}'); } catch (e) {} // ignore bad prefixes
 		});
 
+		var keyframe = new KeyframeAnimation(getKeyframeAnimationRule(name));
 		return {
 			name: name,
-			keyframeAnimation: new KeyframeAnimation(getKeyframeAnimationRule(name)),
-			setDuration: function(d) { 
-				//duration = d; setAnimationRule(name, duration, iterationCount, timing);
-				duration = d;
-				var rule = getAnimationRule(name);
-				console.log('r', rule);
-				rule.style.webkitAnimationDuration = duration;
-			},
-			setIterationCount: function(ic) { iterationCount = ic; setAnimationRule(name, duration, iterationCount, timing); },
-			setTiming: function(t) { timing = t; setAnimationRule(name, duration, iterationCount, timing); }
+			keyframeAnimation: keyframe,
+			setDuration: function(d) { duration = d; setAnimationRule(name, keyframe.original.name, duration, iterationCount, timingFunction); },
+			setIterationCount: function(ic) { iterationCount = ic; setAnimationRule(name, keyframe.original.name, duration, iterationCount, timingFunction); },
+			setTimingFunction: function(t) { timingFunction = t; setAnimationRule(name, keyframe.original.name, duration, iterationCount, timingFunction); }
 		};
 	};
 
