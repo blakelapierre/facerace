@@ -71,9 +71,6 @@ module.exports = function() {
 		this.setKeyframe = function(text, css) {
 			var cssRule = text + toCss(css);
 
-			var index = _.findIndex(_this.original.cssRules, function(rule) { return rule.keyText == text; });
-			if (index >= 0) _this.original.deleteRule(text);
-
 			_this.original.insertRule(cssRule);
 			init();
 		};
@@ -86,6 +83,11 @@ module.exports = function() {
 
 		this.setKeyframes = function(keyframes) {
 			Array.prototype.splice.call(_this.original.cssRules, 0, _this.original.cssRules.length);
+			var rules = _this.original.cssRules;
+
+			for (var i = 0; i < rules.length; i++) {
+				var rule = rules[i];
+			}
 
 			_.each(keyframes, function(value, key) { _this.setKeyframe(key, value); });
 		}
@@ -143,7 +145,7 @@ module.exports = function() {
 	};
 
 	var deleteRule = function(name) {
-		var index = _.findIndex(sheet.cssRules, function(rule) {console.log('rule', rule); return rule.selectorText == name; });
+		var index = _.findIndex(sheet.cssRules, function(rule) { return rule.selectorText == name; });
 		if (index >= 0) sheet.deleteRule(index);
 	};
 
@@ -152,12 +154,13 @@ module.exports = function() {
 		sheet.insertRule('.' + name + ' { -webkit-animation: ' + animationName + ' ' + duration + ' ' + iterationCount + ' ' + timingFunction + '; }', 0);
 	}
 
-	var addAnimation = function(name) {
-		var duration = '5s',
-			iterationCount = 'infinite',
-			timingFunction = 'linear';
+	var addAnimation = function(config) {
+		var name = config.name,
+			duration = config.duration || '1s',
+			iterationCount = config.iterationCount || 'infinite',
+			timingFunction = config.timingFunction || 'linear';
 
-		setAnimationRule(name, '5s', 'infinite', 'linear');
+		setAnimationRule(name, duration, iterationCount, timingFunction);
 
 		eachPrefix(function(prefix) {
 			try { sheet.insertRule(prefix + ' ' + name + ' {}'); } catch (e) {} // ignore bad prefixes
@@ -180,8 +183,6 @@ module.exports = function() {
 			try { sheet.deleteRule(prefix + ' ' + name); } catch (e) {} // ignore bad prefixes
 		});
 	};
-
-	console.log('sheet', sheet);
 
 	return {
 		addAnimation: addAnimation,
