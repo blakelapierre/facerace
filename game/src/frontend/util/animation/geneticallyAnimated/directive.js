@@ -62,12 +62,18 @@ module.exports = ['dynamicAnimation', function(dynamicAnimation) {
 			applyAnimation(element, animation);
 
 			var yRotations = [0, 180, 360, 180, 0],
+				xRotations = [0, 180, 360, 180, 0],
+				zRotations = [0, 180, 360, 180, 0],
 				percentStep = 100 / (yRotations.length - 1),
 				keyframes = {},
 				transforms = new Array(yRotations.length);
 
 			for (var i = 0; i < yRotations.length; i++) {
-				var transform = {rotateY: yRotations[i] + 'deg'};
+				var transform = {
+					rotateY: yRotations[i] + 'deg',
+					rotateX: xRotations[i] + 'deg',
+					rotateZ: zRotations[i] + 'deg'
+				};
 				keyframes[(i * percentStep) + '%'] = {
 					'-webkit-transform': transform
 				};
@@ -78,11 +84,25 @@ module.exports = ['dynamicAnimation', function(dynamicAnimation) {
 				sigma = [0.01, 0.01, 0.01, 0.01],
 				timing = [0, 0, 0, 0];
 			setInterval(function() {
-				for (var i = 0; i < yRotations.length; i++) {
-					var rotation = random.normal(yRotations[i], 10);
+				var t0 = transforms[0],
+					tl = transforms[transforms.length - 1];
 
-					transforms[i].rotateY = rotation + 'deg';
-					yRotations[i] = rotation;
+				t0.rotateY = tl.rotateY;
+				t0.rotateX = tl.rotateX;
+				t0.rotateZ = tl.rotateZ;
+
+				for (var i = 1; i < yRotations.length; i++) {
+					var yRotation = random.normal(yRotations[i], 10),
+						xRotation = random.normal(xRotations[i], 10),
+						zRotation = random.normal(zRotations[i], 10);
+
+					transforms[i].rotateY = yRotation + 'deg';
+					transforms[i].rotateX = xRotation + 'deg';
+					transforms[i].rotateZ = zRotation + 'deg';
+
+					yRotations[i] = yRotation;
+					xRotations[i] = xRotation;
+					zRotations[i] = zRotation;
 				}
 
 				keyframe.setKeyframes(collapseTransforms(keyframes));
