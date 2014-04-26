@@ -55,10 +55,11 @@ module.exports = ['dynamicAnimation', function(dynamicAnimation) {
 			element.addClass(animationClass);
 
 			keyframe.setKeyframes({
-				'0%': {'background-color': '#f00'},
-				'50%': {'background-color': '#0f0'},
-				'100%': {'background-color': '#00f'}
+				'0%': {'color': '#f00'},
+				'50%': {'color': '#0f0'},
+				'100%': {'color': '#00f'}
 			});
+			applyAnimation(element, animation);
 
 			var yRotations = [0, 180, 360, 180, 0],
 				percentStep = 100 / (yRotations.length - 1),
