@@ -1,0 +1,6 @@
+dist/bundle.js
+dist/index.html
+dist/style.css
+node_modules/
+public_address
+temp/
