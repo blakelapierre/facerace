@@ -30,7 +30,7 @@ module.exports = ['socket', 'keys', function FaceraceDirective (socket, keys) {
 
 				var eventHandlers = {
 					mode: function(event) {
-						_.each($scope.liveSources, function(source) {
+						_.each(liveSources, function(source) {
 							source.mode = event._event;
 
 							var swirl = (source.mode == 'testMode' ? '-swirl' : '');
