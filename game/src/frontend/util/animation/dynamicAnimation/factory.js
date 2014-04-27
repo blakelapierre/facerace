@@ -36,10 +36,10 @@ module.exports = function() {
 		 */
 		
 		indexRule = function(r) {
-			var rule = new KeyframeRule(r);
-			_this.keyframes.push(rule);
-			keytexts.push(rule.keyText);
-			keyframeHash[rule.keyText] = rule;
+			// var rule = new KeyframeRule(r);
+			// _this.keyframes.push(rule);
+			// keytexts.push(rule.keyText);
+			// keyframeHash[rule.keyText] = rule;
 		},
 		
 		
@@ -72,7 +72,6 @@ module.exports = function() {
 			var cssRule = text + toCss(css);
 
 			_this.original.insertRule(cssRule);
-			init();
 		};
 
 		var toCss = function(config) {
@@ -82,6 +81,28 @@ module.exports = function() {
 		}
 
 		this.setKeyframes = function(keyframes) {
+			// var frameIndex = 0,
+			// 	totalFrames = keyframes.length,
+			// 	rules = _this.original.cssRules;
+
+			// _.each(keyframes, function(css, key) {
+			// 	var rule = rules[frameIndex];
+
+			// 	if (rule) {
+			// 		rule.keyText = key;
+			// 		rule.cssText = css;
+			// 	}
+			// 	else {
+			// 		_this.original.insertRule(key + toCss(css));
+			// 	}
+
+			// 	frameIndex++;
+			// });
+
+			// for (var i = rules.length - 1; i > frameIndex; i--){
+			// 	_this.original.deleteRule(i);
+			// }
+
 			Array.prototype.splice.call(_this.original.cssRules, 0, _this.original.cssRules.length);
 			var rules = _this.original.cssRules;
 
@@ -90,7 +111,7 @@ module.exports = function() {
 			}
 
 			_.each(keyframes, function(value, key) { _this.setKeyframe(key, value); });
-		}
+		};
 
 		this.updateName = function() {
 			var name = _this.name + '-' + _this.revision++;
