@@ -4,6 +4,9 @@ module.exports = function() {
 	return {
 		template: require('./template.html'),
 		restrict: 'E',
+		link: function($scope, element, attributes) {
+			element.addClass('badge-intro'); // I don't like it here, but I don't know how to do it better
+		},
 		controller: ['$scope', '$http', function($scope, $http) {
 			$scope.toggleMenu = function() {
 				$scope.showMenu = !$scope.showMenu;

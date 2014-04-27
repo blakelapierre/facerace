@@ -54,11 +54,12 @@ module.exports = ['dynamicAnimation', function(dynamicAnimation) {
 
 			element.addClass(animationClass);
 
-			keyframe.setKeyframes({
-				'0%': {'color': '#f00'},
-				'50%': {'color': '#0f0'},
-				'100%': {'color': '#00f'}
-			});
+			keyframe.setKeyframes(collapseTransforms({
+				'0%': {'color': '#f00', '-webkit-transform': { scale: 10, translate: '-100%, -200%' }},
+				'50%': {'color': '#0f0', '-webkit-transform': { scale: 1.5, translate: '-50%, -50%' }},
+				'60%': {'color': '#088', '-webkit-transform': { scale: 1.1, translate: '-10%, -10%' }},
+				'100%': {'color': '#00f', '-webkit-transform': { scale: 1, translate: '0%, 0%' }}
+			}));
 			applyAnimation(element, animation);
 
 			var yRotations = [0, 180, 360, 180, 0],

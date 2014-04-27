@@ -38,7 +38,6 @@ module.exports = function() {
 		indexRule = function(r) {
 			var rule = new KeyframeRule(r);
 			_this.keyframes.push(rule);
-			keytexts.push(rule.keyText);
 			keyframeHash[rule.keyText] = rule;
 		},
 		
@@ -60,9 +59,6 @@ module.exports = function() {
 		
 		init();
 		
-		this.getKeyframeTexts = function() {
-			return keytexts;
-		};
 		
 		this.getKeyframe = function(text) {
 			return keyframeHash[text];
@@ -72,7 +68,7 @@ module.exports = function() {
 			var cssRule = text + toCss(css);
 
 			_this.original.insertRule(cssRule);
-			init();
+			// init();
 		};
 
 		var toCss = function(config) {

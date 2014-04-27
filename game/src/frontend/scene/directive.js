@@ -31,8 +31,11 @@ module.exports = ['renderService', function SceneDirective(renderService) {
 			controls.enabled = false;
 
 			element.prepend(stats.domElement);
+			// element.prepend(cssRenderer.domElement);
+			// cssRenderer.domElement.appendChild(webGLRenderer.domElement);
+			
 			element.prepend(cssRenderer.domElement);
-			cssRenderer.domElement.appendChild(webGLRenderer.domElement);
+			element.prepend(webGLRenderer.domElement);
 
 			camera.up.set(0, 1, 0);
 			camera.position.z = 2;
