@@ -16,6 +16,7 @@ module.exports = angular.module('facerace', ['angulartics', 'angulartics.google.
 	.directive('animationCycler', 		require('./util/animation/animationCycler/directive'))
 	.directive('geneticallyAnimated', 	require('./util/animation/geneticallyAnimated/directive'))
 	.directive('focusOn', 				require('./util/focusOn/directive'))
+	.directive('jsonRenderer',			require('./util/jsonRenderer/directive'))
 	.directive('ngEnter', 				require('./util/ngEnter/directive'))
 
 	.factory('keys',		require('./inputs/keys/factory'))
@@ -23,5 +24,8 @@ module.exports = angular.module('facerace', ['angulartics', 'angulartics.google.
 	.factory('orientation', require('./inputs/orientation/factory'))
 
 	.factory('dynamicAnimation',	require('./util/animation/dynamicAnimation/factory'))
+	.factory('recursiveDirective',	require('./util/recursiveDirective/factory'))
 	.factory('renderService',		require('./util/renderService/factory'))
 	.factory('rtc',					require('./util/rtc/factory'))
+
+	.filter('json',		require('./util/filters/json/filter'))

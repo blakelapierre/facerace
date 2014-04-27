@@ -10,9 +10,13 @@ module.exports = ['$rootScope', '$analytics', function($rootScope, $analytics) {
 
 	rtc.room = room;
 
-	$rootScope.peerConnections = rtc.connections;
+	$rootScope.webrtc = {
+		peerConnections: rtc.connections,
+		streams: rtc.streams
+	};
+
 	rtc.on('connections', function(connections) {
-		$rootScope.peerConnections = connections;
+		$rootScope.webrtc.peerConnections = connections;
 	});
 
 	rtc.on('data stream open', function(socketID) {
