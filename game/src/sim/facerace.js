@@ -206,6 +206,8 @@ module.exports = function(isServer, rtc, io) {
 
 		var clientBroadcast = function(transport) {
 			_.each(transport.outgoingEvents, function(event) {
+				if (event.type == 'state') return;
+
 				console.log('<-- outgoing', event.type, event._event);
 				io.emit(event.type, event._event);
 			});

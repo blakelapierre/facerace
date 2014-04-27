@@ -8,7 +8,7 @@ module.exports = ['socket', 'keys', function FaceraceDirective (socket, keys) {
 		restrict: 'E',
 		template: require('./template.html'),
 		link: function($scope, element, attributes) { },
-		controller:  ['$scope', 'orientation', function($scope, orientation) {
+		controller:  ['$scope', 'orientation', 'mapLoader', function($scope, orientation, mapLoader) {
 			$scope.$on('sceneReady', function(e, s) {
 				console.log('scene', s);
 
@@ -17,52 +17,6 @@ module.exports = ['socket', 'keys', function FaceraceDirective (socket, keys) {
 					camera = s.camera,
 					controls = s.controls,
 					swirl = window.location.hash.indexOf('-swirl') > -1 ? '-swirl' : '';
-
-				var loadMap = (function() {
-					var skybox, course, pointLight;
-
-					var loadCubeMap = function(map) {
-						var urls = _.map(['px', 'nx', 'py', 'ny', 'pz', 'nz'], function(face) {
-							return '/images/' + map + '/cubemap-' + face + '.png';
-			            });
-
-			            return THREE.ImageUtils.loadTextureCube(urls);
-					};
-
-					return function(map) {
-						if ($scope.map == map) return;
-						$scope.map = map;
-
-						if (skybox) scene.remove(skybox);
-						if (course) scene.remove(course);
-						if (pointLight) scene.remove(pointLight);
-
-						var cubemap = loadCubeMap(map);
-
-				        var shader = THREE.ShaderLib[ "cube" ];
-				        shader.uniforms[ "tCube" ].value = cubemap;
-
-				        var material = new THREE.ShaderMaterial( {
-				          fragmentShader: shader.fragmentShader,
-				          vertexShader: shader.vertexShader,
-				          uniforms: shader.uniforms,
-				          depthWrite: false,
-				          side: THREE.DoubleSide
-				        });
-
-				        pointLight = new THREE.PointLight(0xffffff, 2);
-						scene.add(pointLight);
-
-				        skybox = new THREE.Mesh( new THREE.CubeGeometry( 10000, 10000, 10000 ), material );
-				        scene.add(skybox);
-
-				        course = new THREE.Mesh(new THREE.PlaneGeometry(1000, 1000, 1000), new THREE.MeshBasicMaterial({color: 0x222222}));
-				        course.rotateX(-Math.PI / 2);
-				        course.position.y = -0.5;
-				        scene.add(course);
-					};
-				})();
-	            
 
 				facerace = facerace(false, rtc, socket);
 
@@ -106,11 +60,12 @@ module.exports = ['socket', 'keys', function FaceraceDirective (socket, keys) {
 						console.log('video', event);
 					},
 					setMap: function(event) {
-						loadMap(event._event);
+						mapLoader(scene, event._event);
 					}
 				};
 
 				var dispatch = function(event) {
+					console.log('e', event);
 					(eventHandlers[event.type] || function() { })(event);
 				};
 
@@ -283,7 +238,10 @@ module.exports = ['socket', 'keys', function FaceraceDirective (socket, keys) {
 
 				$scope.$on('updateScene', (function() {
 					var waitingForState = function(transport, now, dt) {
-						if (transport.state._yourID != null) updateFn = haveState;
+						if (transport.state._yourID != null) {
+							updateFn = haveState;
+							if (transport.state.map) mapLoader(scene, transport.state.map);
+						}
 					};
 
 					var haveState = (function () {
@@ -338,8 +296,6 @@ module.exports = ['socket', 'keys', function FaceraceDirective (socket, keys) {
 
 								lastControlUpdate = now;
 							}
-
-							loadMap(transport.state.map); // get rid of this!
 
 							_.each(transport.events.processedEvents, dispatch);
 

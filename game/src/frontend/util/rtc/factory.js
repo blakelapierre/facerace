@@ -12,6 +12,7 @@ module.exports = ['$rootScope', '$analytics', function($rootScope, $analytics) {
 
 	$rootScope.webrtc = {
 		peerConnections: rtc.connections,
+		dataChannels: rtc.dataChannels,
 		streams: rtc.streams
 	};
 

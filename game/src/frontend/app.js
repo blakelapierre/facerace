@@ -23,6 +23,8 @@ module.exports = angular.module('facerace', ['angulartics', 'angulartics.google.
 	.factory('socket', 		require('./inputs/socket/factory'))
 	.factory('orientation', require('./inputs/orientation/factory'))
 
+	.factory('mapLoader',	require('./scene/mapLoader/factory'))
+
 	.factory('dynamicAnimation',	require('./util/animation/dynamicAnimation/factory'))
 	.factory('recursiveDirective',	require('./util/recursiveDirective/factory'))
 	.factory('renderService',		require('./util/renderService/factory'))
