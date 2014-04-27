@@ -37,9 +37,9 @@ module.exports = function() {
 		
 		indexRule = function(r) {
 			var rule = new KeyframeRule(r);
-			_this.keyframes.push(rule);
-			keytexts.push(rule.keyText);
-			keyframeHash[rule.keyText] = rule;
+			// _this.keyframes.push(rule);
+			// keytexts.push(rule.keyText);
+			// keyframeHash[rule.keyText] = rule;
 		},
 		
 		
