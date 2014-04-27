@@ -3,7 +3,7 @@ var math = require('mathjs')();
 module.exports = ['$rootScope', 'scopeHelpers', function($scope, scopeHelpers) {
 	var scene, cssScene;
 	return {
-		setScene: function(s, cs) {
+		setScene: function(s, cs, facerace) {
 			if (scene) {} // detach?
 
 			scene = s;
