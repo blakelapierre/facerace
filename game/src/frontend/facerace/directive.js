@@ -11,8 +11,6 @@ module.exports = ['socket', 'keys', function(socket, keys) {
 			function($scope, renderService, eventsManager, playersManager, sourcesManager, updateManager, facerace) {
 
 			$scope.$on('sceneReady', function(e, s) {
-				console.log('scene', s);
-
 				var scene = s.scene,
 					cssScene = s.cssScene,
 					camera = s.camera,

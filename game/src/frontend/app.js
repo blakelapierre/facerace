@@ -11,7 +11,7 @@ module.exports = angular.module('facerace', ['angulartics', 'angulartics.google.
 
 	.directive('video', 	require('./inputs/video/directive'))
 	
-	.directive('scene', 	require('./scene/directive'))
+	.directive('sceneRenderer', 	require('./sceneRenderer/directive'))
 	
 	.directive('animationCycler', 		require('./util/animation/animationCycler/directive'))
 	.directive('geneticallyAnimated', 	require('./util/animation/geneticallyAnimated/directive'))
@@ -27,10 +27,11 @@ module.exports = angular.module('facerace', ['angulartics', 'angulartics.google.
 
 	.factory('eventsManager',	require('./managers/events/factory'))
 	.factory('playersManager',	require('./managers/players/factory'))
+	.factory('scenesManager',	require('./managers/scenes/factory'))
 	.factory('sourcesManager', 	require('./managers/sources/factory'))
 	.factory('updateManager', 	require('./managers/update/factory'))
 
-	.factory('mapLoader',		require('./scene/mapLoader/factory'))
+	.factory('mapLoader',		require('./sceneRenderer/mapLoader/factory'))
 
 	.factory('dynamicAnimation',	require('./util/animation/dynamicAnimation/factory'))
 	.factory('recursiveDirective',	require('./util/recursiveDirective/factory'))
