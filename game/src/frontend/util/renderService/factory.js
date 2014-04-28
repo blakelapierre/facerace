@@ -12,7 +12,7 @@ module.exports = function($rootScope) {
 		window.requestAnimationFrame(render);
 
 		$rootScope.$emit('updateScene', dt, thisRender, renderCount);
-		$rootScope.$emit('renderFrame', dt, thisRender, renderCount);
+		$rootScope.$emit('renderScene', dt, thisRender, renderCount);
 	};
 
 	var pausedRender = function() {};

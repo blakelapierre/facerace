@@ -87,19 +87,19 @@ module.exports = ['renderService', function SceneDirective(renderService) {
 			};
 			window.addEventListener('resize', resize, false);
 
+			$scope.$on('renderScene', function() {
+				controls.update();
+				webGLRenderer.render(scene, camera);
+				cssRenderer.render(cssScene, camera);
+				stats.update();
+			});
+
 			$scope.$emit('sceneReady', {
 				scene: scene,
 				cssScene: cssScene,
 				camera: camera,
 				cssCamera: cssCamera,
 				controls: controls
-			});
-
-			$scope.$on('renderFrame', function() {
-				controls.update();
-				webGLRenderer.render(scene, camera);
-				cssRenderer.render(cssScene, camera);
-				stats.update();
 			});
 
 			renderService.start();
