@@ -21,7 +21,7 @@ module.exports = ['$rootScope', 'scopeHelpers', function($scope, scopeHelpers) {
 						material: material
 					};
 
-				scene.add(mesh);
+				//scene.add(mesh);
 				mesh.visible = false;
 
 				var teaser = document.createElement('div');

@@ -7,8 +7,8 @@ module.exports = ['socket', 'keys', function FaceraceDirective (socket, keys) {
 		template: require('./template.html'),
 		link: function($scope, element, attributes) { },
 		controller:  [
-			'$scope', 'mapLoader', 'playersManager', 'sourcesManager', 'updateManager', 'facerace',
-			function($scope, mapLoader, playersManager, sourcesManager, updateManager, facerace) {
+			'$scope', 'mapLoader', 'eventsManager', 'playersManager', 'sourcesManager', 'updateManager', 'facerace',
+			function($scope, mapLoader, eventsManager, playersManager, sourcesManager, updateManager, facerace) {
 
 			$scope.$on('sceneReady', function(e, s) {
 				console.log('scene', s);
@@ -24,51 +24,6 @@ module.exports = ['socket', 'keys', function FaceraceDirective (socket, keys) {
 					facerace.mode($scope.mode);
 				};
 
-				var eventHandlers = {
-					mode: function(event) {
-						_.each(liveSources, function(source) {
-							source.mode = event._event;
-
-							var swirl = (source.mode == 'testMode' ? '-swirl' : '');
-							var video = source.element,
-								width = 1,
-								height = 1,
-								material = new THREE.ShaderMaterial({
-									fragmentShader: document.getElementById('plane-fragment-shader' + swirl).textContent,
-									vertexShader: document.getElementById('plane-vertex-shader' + swirl).textContent,
-									uniforms: {
-										texture: {type: 't', value: source.texture},
-										width: {type: 'f', value: width},
-										height: {type: 'f', value: height},
-										radius: {type: 'f', value: 2},
-										angle: {type: 'f', value: 0.8},
-										center: {type: 'v2', value: new THREE.Vector2(width / 2, height / 2)},
-										time: {type: 'f', value: 1.0}
-									},
-									side: THREE.DoubleSide,
-									blending: THREE.NormalBlending
-								});
-
-							source.material = material;
-							source.mesh.material = material;
-						});
-					},
-					player: function(event) {
-						console.log('player', event);
-					},
-					video: function(event) {
-						console.log('video', event);
-					},
-					setMap: function(event) {
-						mapLoader(scene, event._event);
-					}
-				};
-
-				var dispatch = function(event) {
-					console.log('e', event);
-					(eventHandlers[event.type] || function() { })(event);
-				};
-
 				$scope.setMap = function(map) {
 					facerace.setMap(map);
 					$scope.showMaps = false;
@@ -79,9 +34,10 @@ module.exports = ['socket', 'keys', function FaceraceDirective (socket, keys) {
 				});
 
 
-				var livePlayers = playersManager.setScene(scene, cssScene),
-					liveSources = sourcesManager.setScene(scene, cssScene, facerace),
-					livetransport = updateManager.setScene(scene, cssScene, camera, dispatch);
+				var dispatch = eventsManager.setScene(scene, cssScene),
+					livePlayers = playersManager.setScene(scene, cssScene),
+					liveSources = sourcesManager.setScene(scene, cssScene),
+					livetransport = updateManager.setScene(scene, cssScene, camera);
 			});
 		}]
 	};

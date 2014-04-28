@@ -27,7 +27,7 @@
 
 		vec4 color = texture2D(texture, position);
 
-		color[3] = position[0] / width;
+		color.a = position[0] / width;
 
 		gl_FragColor = color;
 	}
@@ -74,8 +74,9 @@
 			tc = vec2(dot(tc, vec2(c, -s)), dot(tc, vec2(s, c)));
 		}
 		tc += center;
-		vec3 color = texture2D(texture, tc / texSize).rgb;
-		return vec4(color, 1.0);
+		vec4 color = texture2D(texture, tc / texSize).rgba;
+		color.a = 0.5;
+		return color;
 	}
 
 	void main (void)
