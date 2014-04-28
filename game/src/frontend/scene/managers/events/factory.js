@@ -1,4 +1,4 @@
-module.exports = ['$rootScope', function($scope) {
+module.exports = ['$rootScope', 'mapLoader', function($scope, mapLoader) {
 	var scene, cssScene, eventHandlers;
 
 	var dispatch = function(event) {

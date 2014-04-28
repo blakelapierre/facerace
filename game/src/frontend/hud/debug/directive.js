@@ -4,8 +4,23 @@ module.exports = function() {
 	return {
 		template: require('./template.html'),
 		restrict: 'E',
-		controller: ['$scope', 'keys', function($scope, keys) {
+		controller: ['$scope', 'keys', 'facerace', function($scope, keys, facerace) {
 			$scope.keymap = keys;
+
+			$scope.setMap = function(map) {
+				facerace.setMap(map);
+				$scope.showMaps = false;
+			};
+
+			$scope.toggleMode = function() {
+				$scope.mode = $scope.mode == 'testMode' ? '' : 'testMode';
+				facerace.mode($scope.mode);
+			};
+
+			$scope.toggleMaps = function() {
+				$scope.showMaps = !$scope.showMaps;
+				$scope.controlsEnabled = !$scope.showMaps;
+			};
 
 			$scope.$on('keychange', function(event, key, down) {
 				if (down && key == 192) $scope.showDebug = !$scope.showDebug;
@@ -16,5 +31,5 @@ module.exports = function() {
 				$scope.state = transport.state;
 			});
 		}]
-	}	
+	};
 };

@@ -16,22 +16,7 @@ module.exports = ['socket', 'keys', function FaceraceDirective (socket, keys) {
 				var scene = s.scene,
 					cssScene = s.cssScene,
 					camera = s.camera,
-					controls = s.controls,
-					swirl = window.location.hash.indexOf('-swirl') > -1 ? '-swirl' : '';
-
-				$scope.toggleMode = function() {
-					$scope.mode = $scope.mode == 'testMode' ? '' : 'testMode';
-					facerace.mode($scope.mode);
-				};
-
-				$scope.setMap = function(map) {
-					facerace.setMap(map);
-					$scope.showMaps = false;
-				};
-
-				$scope.$watch('showMaps', function(newValue) {
-					controls.enabled = !newValue;
-				});
+					controls = s.controls;
 
 
 				var dispatch = eventsManager.setScene(scene, cssScene),
