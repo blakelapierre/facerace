@@ -11,18 +11,20 @@ module.exports = ['socket', 'keys', function(socket, keys) {
 			function($scope, renderService, eventsManager, playersManager, sourcesManager, updateManager, facerace) {
 
 			$scope.$on('sceneReady', function(e, s) {
-				var scene = s.scene,
-					cssScene = s.cssScene,
-					camera = s.camera,
-					controls = s.controls;
+				if (s.name == 'main') {
+					var scene = s.scene,
+						cssScene = s.cssScene,
+						camera = s.camera,
+						controls = s.controls;
 
 
-				var dispatch = eventsManager.setScene(scene, cssScene),
-					livePlayers = playersManager.setScene(scene, cssScene),
-					liveSources = sourcesManager.setScene(scene, cssScene),
-					livetransport = updateManager.setScene(scene, cssScene, camera);
+					var dispatch = eventsManager.setScene(scene, cssScene),
+						livePlayers = playersManager.setScene(scene, cssScene),
+						liveSources = sourcesManager.setScene(scene, cssScene),
+						livetransport = updateManager.setScene(scene, cssScene, camera);
 
-				renderService.start();
+					renderService.start();
+				}
 			});
 		}]
 	};
