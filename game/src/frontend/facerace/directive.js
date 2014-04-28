@@ -45,7 +45,8 @@ module.exports = ['socket', 'keys', function FaceraceDirective (socket, keys) {
 										center: {type: 'v2', value: new THREE.Vector2(width / 2, height / 2)},
 										time: {type: 'f', value: 1.0}
 									},
-									side: THREE.DoubleSide
+									side: THREE.DoubleSide,
+									blending: THREE.NormalBlending
 								});
 
 							source.material = material;
@@ -80,7 +81,7 @@ module.exports = ['socket', 'keys', function FaceraceDirective (socket, keys) {
 
 				var livePlayers = playersManager.setScene(scene, cssScene),
 					liveSources = sourcesManager.setScene(scene, cssScene, facerace),
-					transport = updateManager.setScene(scene, cssScene, camera, dispatch);
+					livetransport = updateManager.setScene(scene, cssScene, camera, dispatch);
 			});
 		}]
 	};
