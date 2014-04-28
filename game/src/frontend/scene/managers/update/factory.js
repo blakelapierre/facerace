@@ -1,7 +1,7 @@
-module.exports = ['$rootScope', function($scope) {
+module.exports = ['$rootScope', 'facerace', 'orientation', function($scope, facerace, orientation) {
 	var scene, cssScene;
 
-	var setScene = function(s, cs, facerace, livePlayers, liveSources, camera, orientation, dispatch) {
+	var setScene = function(s, cs, camera, dispatch) {
 		if (scene) {} // detach?
 
 		scene = s;
@@ -46,10 +46,11 @@ module.exports = ['$rootScope', function($scope) {
 
 					$scope.stateObj = transport.state;
 
-					var player = livePlayers[transport.state._yourID];
+					var player = $scope.livePlayers[transport.state._yourID];
 					if (player) camera.lookAt(player.mesh.position);
 
-					_.each(liveSources, function(source, id) {
+					_.each($scope.liveSources, function(source, id) {
+						console.log(source);
 						var element = source.element;
 						if (element.readyState == element.HAVE_ENOUGH_DATA &&
 							now - source.texture.lastUpdate > (1000 / maxfps) ) {
@@ -71,7 +72,7 @@ module.exports = ['$rootScope', function($scope) {
 
 					_.each(transport.events.processedEvents, dispatch);
 
-					_.each(livePlayers, function(player) {
+					_.each($scope.livePlayers, function(player) {
 						var data = player.data,
 							q = data.orientation.quaternion,
 							tq = player.targetQuaternion,

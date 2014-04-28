@@ -2,7 +2,7 @@ var angular = require('angular');
 
 module.exports = angular.module('facerace', ['angulartics', 'angulartics.google.analytics'])
 
-	.directive('facerace', 	require('./directive'))
+	.directive('facerace', 	require('./facerace/directive'))
 
 	.directive('hud', 		require('./hud/directive'))
 	.directive('badge', 	require('./hud/badge/directive'))
@@ -18,6 +18,8 @@ module.exports = angular.module('facerace', ['angulartics', 'angulartics.google.
 	.directive('focusOn', 				require('./util/focusOn/directive'))
 	.directive('jsonRenderer',			require('./util/jsonRenderer/directive'))
 	.directive('ngEnter', 				require('./util/ngEnter/directive'))
+
+	.factory('facerace',	require('./facerace/factory'))
 
 	.factory('keys',		require('./inputs/keys/factory'))
 	.factory('socket', 		require('./inputs/socket/factory'))

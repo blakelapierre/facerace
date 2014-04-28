@@ -1,7 +1,5 @@
 var angular = require('angular'),
-	_ = require('lodash'),
-	math = require('mathjs')(),
-	facerace = require('../sim/facerace');
+	_ = require('lodash');
 
 module.exports = ['socket', 'keys', function FaceraceDirective (socket, keys) {
 	return {
@@ -9,8 +7,8 @@ module.exports = ['socket', 'keys', function FaceraceDirective (socket, keys) {
 		template: require('./template.html'),
 		link: function($scope, element, attributes) { },
 		controller:  [
-			'$scope', 'orientation', 'mapLoader', 'playersManager', 'sourcesManager', 'updateManager',
-			function($scope, orientation, mapLoader, playersManager, sourcesManager, updateManager) {
+			'$scope', 'mapLoader', 'playersManager', 'sourcesManager', 'updateManager', 'facerace',
+			function($scope, mapLoader, playersManager, sourcesManager, updateManager, facerace) {
 
 			$scope.$on('sceneReady', function(e, s) {
 				console.log('scene', s);
@@ -20,8 +18,6 @@ module.exports = ['socket', 'keys', function FaceraceDirective (socket, keys) {
 					camera = s.camera,
 					controls = s.controls,
 					swirl = window.location.hash.indexOf('-swirl') > -1 ? '-swirl' : '';
-
-				facerace = facerace(false, rtc, socket);
 
 				$scope.toggleMode = function() {
 					$scope.mode = $scope.mode == 'testMode' ? '' : 'testMode';
@@ -84,7 +80,7 @@ module.exports = ['socket', 'keys', function FaceraceDirective (socket, keys) {
 
 				var livePlayers = playersManager.setScene(scene, cssScene),
 					liveSources = sourcesManager.setScene(scene, cssScene, facerace),
-					transport = updateManager.setScene(scene, cssScene, facerace, livePlayers, liveSources, camera, orientation, dispatch);
+					transport = updateManager.setScene(scene, cssScene, camera, dispatch);
 			});
 		}]
 	};

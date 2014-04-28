@@ -1,9 +1,9 @@
 var math = require('mathjs')();
 
-module.exports = ['$rootScope', 'scopeHelpers', function($scope, scopeHelpers) {
+module.exports = ['$rootScope', 'scopeHelpers', 'facerace', function($scope, scopeHelpers, facerace) {
 	var scene, cssScene;
 	return {
-		setScene: function(s, cs, facerace) {
+		setScene: function(s, cs) {
 			if (scene) {} // detach?
 
 			scene = s;
@@ -72,6 +72,8 @@ module.exports = ['$rootScope', 'scopeHelpers', function($scope, scopeHelpers) {
 				}
 			}));
 
+			$scope.liveSources = liveSources;
+			
 			return liveSources;
 		}
 	};

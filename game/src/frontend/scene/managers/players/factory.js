@@ -83,6 +83,8 @@ module.exports = ['$rootScope', 'scopeHelpers', function($scope, scopeHelpers) {
 				}
 			}));
 
+			$scope.livePlayers = livePlayers;
+
 			return livePlayers;
 		}
 	};	
