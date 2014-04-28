@@ -3,7 +3,7 @@ var angular = require('angular'),
 	Stats = require('stats'),
 	_ = require('lodash');
 
-module.exports = ['renderService', function SceneDirective(renderService) {
+module.exports = [function() {
 	return {
 		restrict: 'E',
 		template: require('./template.html'),
@@ -101,8 +101,6 @@ module.exports = ['renderService', function SceneDirective(renderService) {
 				cssCamera: cssCamera,
 				controls: controls
 			});
-
-			renderService.start();
 		}
 	};
 }];

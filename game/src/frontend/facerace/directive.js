@@ -1,14 +1,14 @@
 var angular = require('angular'),
 	_ = require('lodash');
 
-module.exports = ['socket', 'keys', function FaceraceDirective (socket, keys) {
+module.exports = ['socket', 'keys', function(socket, keys) {
 	return {
 		restrict: 'E',
 		template: require('./template.html'),
 		link: function($scope, element, attributes) { },
 		controller:  [
-			'$scope', 'mapLoader', 'eventsManager', 'playersManager', 'sourcesManager', 'updateManager', 'facerace',
-			function($scope, mapLoader, eventsManager, playersManager, sourcesManager, updateManager, facerace) {
+			'$scope', 'renderService', 'eventsManager', 'playersManager', 'sourcesManager', 'updateManager', 'facerace',
+			function($scope, renderService, eventsManager, playersManager, sourcesManager, updateManager, facerace) {
 
 			$scope.$on('sceneReady', function(e, s) {
 				console.log('scene', s);
@@ -23,6 +23,8 @@ module.exports = ['socket', 'keys', function FaceraceDirective (socket, keys) {
 					livePlayers = playersManager.setScene(scene, cssScene),
 					liveSources = sourcesManager.setScene(scene, cssScene),
 					livetransport = updateManager.setScene(scene, cssScene, camera);
+
+				renderService.start();
 			});
 		}]
 	};
