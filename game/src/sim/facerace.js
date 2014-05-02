@@ -76,7 +76,7 @@ module.exports = function(isServer, rtc, io) {
 		video: {
 			pre: function(state, eventQ, player, socketID) {
 				console.log('***video')
-				player.videoSocketID = socketID;
+				player.peerConnectionID = socketID;
 				return true;
 			}
 		},

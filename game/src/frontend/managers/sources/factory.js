@@ -13,8 +13,8 @@ module.exports = ['$rootScope', 'scopeHelpers', 'facerace', function($scope, sco
 				console.log('source', key)
 
 				var player = _.find($scope.livePlayers, function(player) {
-					console.log(player.simulationData.videoSocketID, key);
-					return player.simulationData.videoSocketID == key;
+					console.log(player.simulationData.peerConnectionID, key);
+					return player.simulationData.peerConnectionID == key;
 				});
 				console.log(player); 
 
