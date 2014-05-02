@@ -20,6 +20,7 @@ module.exports = function() {
 	};
 	
 	var KeyframeAnimation = function(kf) {
+		console.log(kf);
 		var _this = this;
 		this.original = kf;
 		this.name = kf.name;
@@ -154,13 +155,16 @@ module.exports = function() {
 	};
 
 	var getKeyframeAnimationRule = function(name) {
+		console.log(sheet, name);
 		return _.find(sheet.cssRules, function(rule) {
 			return rule.name == name;
 		});
 	};
 
 	var getAnimationRule = function(name) {
+		console.log('!!!!!!!!!!!!!!', sheet.cssRules, name);
 		return _.find(sheet.cssRules, function(rule) {
+			console.log(rule.selectorText, name);
 			return rule.selectorText == '.' + name;
 		});
 	};
@@ -176,6 +180,7 @@ module.exports = function() {
 	}
 
 	var addAnimation = function(config) {
+		console.log(config);
 		var name = config.name,
 			duration = config.duration || '1s',
 			iterationCount = config.iterationCount || 'infinite',

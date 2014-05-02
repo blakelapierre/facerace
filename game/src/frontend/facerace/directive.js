@@ -33,17 +33,53 @@ module.exports = ['socket', 'keys', function(socket, keys) {
 				}
 			});
 
+			var channelManager = {};
 			rtc.on('data stream data', function(channel, message) {
 				if ($scope.offerFile && message == $scope.offerFile.name) {
 					console.log(channel, $scope.offerFile.reader);
-					channel.send($scope.offerFile.reader.result)
+
+					var chunkSize = 32 * 1024,
+						result = $scope.offerFile.reader.result;
+
+						channel.send(result.length + ';' + message);
+
+					for (var i = 0; i < result.length; i += chunkSize) {
+						channel.send(result.slice(i, Math.min(i + chunkSize, result.length)));
+					}
 				}
 				else {
-					var a = document.createElement('a');
-					a.href = message;
-					a.download = 'test';
+					var incoming = channelManager[channel];
+					if (incoming) {					
+						for (var i = 0; i < message.length; i++) {
+							incoming.buffer[i + incoming.position] = message[i];
+						}
 
-					a.click();
+						incoming.position += message.length;
+						console.log('received', message.length, 'of', incoming.length, 'at position', incoming.position);
+
+						if (incoming.position == incoming.length) {
+							var blob = new Blob([incoming.buffer]);
+
+							var a = document.createElement('a');
+							a.href = window.URL.createObjectURL(blob);
+							a.download = incoming.name;
+							a.click();
+						}
+					}
+					else {
+						var parts = message.toString().split(';'),
+							length = parseInt(parts[0]),
+							name = parts[1];
+
+						console.log('Incoming file of length', length, '!');
+
+						channelManager[channel] = {
+							length: length,
+							name: name,
+							position: 0,
+							buffer: new ArrayBuffer(length)
+						};
+					}
 				}
 			})
 		}]

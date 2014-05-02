@@ -24,5 +24,21 @@ module.exports = ['$rootScope', '$analytics', function($rootScope, $analytics) {
 		console.log('new peer', socketID);
 	});
 
+	rtc.requestFile = function(peerConnectionID, fileName) {
+		var channel = rtc.dataChannels[peerConnectionID];
+
+		if (channel) {
+			channel.send(fileName);
+		}
+	};
+
+	rtc.sendFile = function(peerConnectionID, fileReader) {
+		var channel = rtc.dataChannels[peerConnectionID];
+
+		if (channel) {
+			console.log(fileReader);
+		}
+	};
+
 	return rtc;
 }];

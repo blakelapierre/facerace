@@ -9,7 +9,7 @@ module.exports = ['$sce', 'rtc', function CameraDirective($sce, rtc) {
 				var video = document.createElement('video');
 				video.src = $sce.trustAsResourceUrl(URL.createObjectURL(stream));
 				video.autoplay = true;
-				video.style.display = 'none';
+				video.style.display = 'block';
 
 				if (socketID == rtc._me) video.muted = 'muted';
 
