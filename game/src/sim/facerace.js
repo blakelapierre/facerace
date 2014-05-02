@@ -2,6 +2,8 @@ var _ = require('lodash'),
 	core = require('./core');
 
 module.exports = function(isServer, rtc, io) {
+	var tickRate = 500;
+
 	var eventQ = [],
 		sockets = {},
 		state = {
@@ -231,8 +233,16 @@ module.exports = function(isServer, rtc, io) {
 
 		var broadcast = isServer ? serverBroadcast : clientBroadcast;
 
-		var transport = {};
+		var transport = {},
+			lastTick = new Date().getTime();
 		return _.extend(function(outerTransport) {
+			var now = new Date().getTime(),
+				dt = now - lastTick;
+
+			if (dt < tickRate) return transport;
+
+			lastTick = now;
+
 			transport = tick(transport);
 
 			var state = getState();
