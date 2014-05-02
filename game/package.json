@@ -48,6 +48,7 @@
     "socket.io": "global:io",
     "underscore": "global:_",
     "lodash": "global:_",
-    "mathjs": "global:mathjs"
+    "mathjs": "global:mathjs",
+    "filereader": "global:FileReaderJS"
   }
 }
