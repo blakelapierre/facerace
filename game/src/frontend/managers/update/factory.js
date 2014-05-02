@@ -47,49 +47,59 @@ module.exports = [
 					lastControlUpdate = new Date().getTime(),
 					controlUpdatesPerSecond = 4;
 
-				return function(transport, now, dt) {
-					$scope.$broadcast('newState', transport);
+				return (function() {
+					function updateVideoSources(now) {
+						_.each($scope.liveSources, function(source, id) {
+							var element = source.element;
+							if (element.readyState == element.HAVE_ENOUGH_DATA &&
+								now - source.texture.lastUpdate > (1000 / maxfps) ) {
+								source.texture.needsUpdate = true;
+								source.texture.lastUpdate = now;
+							}
+							source.material.uniforms.time.value += 1;
+						});
+					};
 
-					$scope.stateObj = transport.state;
+					return function(transport, now, dt) {
+						updateVideoSources(now);
 
-					var player = $scope.livePlayers[transport.state._yourID];
-					if (player) camera.lookAt(player.mesh.position);
+						if (transport) {
+							$scope.$broadcast('newState', transport);
 
-					_.each($scope.liveSources, function(source, id) {
-						var element = source.element;
-						if (element.readyState == element.HAVE_ENOUGH_DATA &&
-							now - source.texture.lastUpdate > (1000 / maxfps) ) {
-							source.texture.needsUpdate = true;
-							source.texture.lastUpdate = now;
+							$scope.stateObj = transport.state;
+
+							var player = $scope.livePlayers[transport.state._yourID];
+							if (player) camera.lookAt(player.mesh.position);
+
+							
+
+							$scope.players = transport.state.players;
+
+							if (now - lastControlUpdate > (1000 / controlUpdatesPerSecond)) {
+								var o = orientation();
+
+								if (hasOrientationChanged(o)) facerace.orientation(o);
+
+								lastControlUpdate = now;
+							}
+
+							_.each(transport.events.processedEvents, dispatch);
+
+							_.each($scope.livePlayers, function(player) {
+								var data = player.simulationData,
+									q = data.orientation.quaternion,
+									tq = player.targetQuaternion,
+									mesh = player.mesh,
+									mq = mesh.quaternion;
+
+								tq.set(q[0], q[1], q[2], q[3]);
+								mq.slerp(tq, 0.05);
+							});
+
+							$scope.$apply();
 						}
-						source.material.uniforms.time.value += 1;
-					});
-
-					$scope.players = transport.state.players;
-
-					if (now - lastControlUpdate > (1000 / controlUpdatesPerSecond)) {
-						var o = orientation();
-
-						if (hasOrientationChanged(o)) facerace.orientation(o);
-
-						lastControlUpdate = now;
-					}
-
-					_.each(transport.events.processedEvents, dispatch);
-
-					_.each($scope.livePlayers, function(player) {
-						var data = player.simulationData,
-							q = data.orientation.quaternion,
-							tq = player.targetQuaternion,
-							mesh = player.mesh,
-							mq = mesh.quaternion;
-
-						tq.set(q[0], q[1], q[2], q[3]);
-						mq.slerp(tq, 0.05);
-					});
-
-					$scope.$apply();
-				};
+					};
+				})();
 			})();
 
 			var updateFn = waitingForState;	
@@ -102,9 +112,10 @@ module.exports = [
 
 				var result = facerace(transport);
 
+				updateFn(result, now, dt);
+
 				if (result) {
 					transport = result;
-					updateFn(transport, now, dt);
 
 					lastFrame = now;
 				}

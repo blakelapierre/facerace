@@ -8,6 +8,7 @@ module.exports = function(isServer, rtc, io) {
 		sockets = {},
 		state = {
 			state: {
+				clock: 0,
 				beacon: {
 					clock: 0,
 					start: new Date()
@@ -43,6 +44,8 @@ module.exports = function(isServer, rtc, io) {
 		player: {
 			pre: function(state, eventQ, player, newPlayer) {
 				state.players[newPlayer.id] = newPlayer;
+				console.log(newPlayer);
+				(modeHandlers[state.mode] || {join: function() {}}).join(state, newPlayer);
 				return true;
 			}
 		},
@@ -88,7 +91,7 @@ module.exports = function(isServer, rtc, io) {
 		mode: {
 			pre: function(state, eventQ, player, mode) {
 				state.mode = mode;
-				(modeHandlers[mode] || function() { console.log('**invalid modes being sent!'); })(state);
+				(modeHandlers[mode] || {set: function() { console.log('**invalid modes being sent!'); }}).set(state);
 				return true;
 			}
 		},
@@ -119,10 +122,15 @@ module.exports = function(isServer, rtc, io) {
 	});
 
 	var modeHandlers = {
-		'quake': function(state) {
-			_.each(state.players, function(player) {
+		'quake': {
+			set: function(state) {
+				_.each(state.players, function(player) {
+					player.effects.push('quake');
+				});
+			},
+			join: function(state, player) {
 				player.effects.push('quake');
-			});
+			}
 		}
 	};
 
@@ -211,8 +219,6 @@ module.exports = function(isServer, rtc, io) {
 				clientEvent = {};
 
 			if (events.length > 0) {
-				console.log(transport);
-
 				_.each(state.players, function(destinationPlayer, playerID) {
 					clientEvent._fromID = playerID;
 
