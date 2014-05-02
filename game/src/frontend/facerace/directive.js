@@ -21,7 +21,7 @@ module.exports = ['socket', 'keys', function(socket, keys) {
 					var dispatch = eventsManager.setScene(scene, cssScene),
 						livePlayers = playersManager.setScene(scene, cssScene),
 						liveSources = sourcesManager.setScene(scene, cssScene),
-						livetransport = updateManager.setScene(scene, cssScene, camera);
+						liveTransport = updateManager.setScene(scene, cssScene, camera);
 
 					renderService.start();
 				}
