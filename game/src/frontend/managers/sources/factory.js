@@ -11,6 +11,13 @@ module.exports = ['$rootScope', 'scopeHelpers', 'facerace', function($scope, sco
 
 			var addSource = function(key, source) {
 				console.log('source', key)
+
+				var player = _.find($scope.livePlayers, function(player) {
+					console.log(player.simulationData.videoSocketID, key);
+					return player.simulationData.videoSocketID == key;
+				});
+				console.log(player); 
+
 				var videoSource = $scope.sources[key],
 					video = videoSource.element,
 					width = 1,
@@ -36,6 +43,8 @@ module.exports = ['$rootScope', 'scopeHelpers', 'facerace', function($scope, sco
 
 				scene.add(mesh);
 
+				if (player) player.mesh = mesh;
+
 				videoSource.mesh = mesh;
 				videoSource.texture = texture;
 				videoSource.material = material;
@@ -46,10 +55,7 @@ module.exports = ['$rootScope', 'scopeHelpers', 'facerace', function($scope, sco
 				}
 			};
 
-			// http://danpearcymaths.wordpress.com/2012/09/30/infinity-programming-in-geogebra-and-failing-miserably/
-			var p = function(a) { math.floor(math.sqrt(math.add(math.multiply(4, a), 1))); };
-			var q = function(p, a) { math.subtract(a, math.floor(math.divide(math.square(p), 4))); };
-			var parser = math.parser();
+			
 
 			var liveSources = {};
 			$scope.$watchCollection('sources', scopeHelpers.createWatchCollectionFunction($scope, liveSources, {
@@ -60,15 +66,7 @@ module.exports = ['$rootScope', 'scopeHelpers', 'facerace', function($scope, sco
 					delete liveSources[key];
 				},
 				updateAction: function(source, index) {
-					parser.eval('a = ' + index);
-					parser.eval('p = floor(sqrt(4 * a + 1))');
-					parser.eval('q = a - floor(p^2 / 4)');
 					
-					var point = parser.eval('q * i^p + (floor((p + 2) / 4) - floor((p + 1) / 4) * i) * i^(p - 1)');
-
-					var mesh = source.mesh;
-					mesh.position.y = point.re;
-					mesh.position.x = point.im;
 				}
 			}));
 

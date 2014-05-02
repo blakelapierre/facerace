@@ -9,16 +9,13 @@ Player.prototype.update = function() {
 	var mesh = this.mesh,
 		data = this.simulationData;
 
-	mesh.position.x = data.position[0];
-	mesh.position.y = data.position[1];
-	mesh.position.z = data.position[2];
-
-	console.log(mesh, data);
+	mesh.position.x = data.position[0] + data.offset[0];
+	mesh.position.y = data.position[1] + data.offset[1];
+	mesh.position.z = data.position[2] + data.offset[2];
 }
 
 Player.prototype.setMode = function(mode) {
 	this.mode = mode;
-	console.log(this);
 }
 
 module.exports = Player;

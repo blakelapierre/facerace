@@ -92,6 +92,8 @@ module.exports = [
 
 								tq.set(q[0], q[1], q[2], q[3]);
 								mq.slerp(tq, 0.05);
+
+								player.update();
 							});
 
 							$scope.$apply();

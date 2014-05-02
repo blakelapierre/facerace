@@ -30,6 +30,11 @@ module.exports = ['$rootScope', 'mapLoader', 'playersManager', function($scope, 
 				},
 				video: function(event) {
 					console.log('video', event);
+
+					var player = $scope.livePlayers[event._player],
+						source = $scope.liveSources[event._event];
+
+					if (player && source) player.mesh = source.mesh;
 				},
 				setMap: function(event) {
 					mapLoader(scene, event._event);

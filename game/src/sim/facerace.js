@@ -1,8 +1,12 @@
 var _ = require('lodash'),
-	core = require('./core');
+	core = require('./core'),
+	math = require('mathjs')(),
+	Random = require('./../../dist/libs/random');
 
 module.exports = function(isServer, rtc, io) {
-	var tickRate = 500;
+	var tickRate = 100;
+
+	var random = new Random(); // don't care about seeds right now
 
 	var eventQ = [],
 		sockets = {},
@@ -45,7 +49,21 @@ module.exports = function(isServer, rtc, io) {
 		player: {
 			pre: function(state, eventQ, player, newPlayer) {
 				state.players[newPlayer.id] = newPlayer;
-				console.log(newPlayer);
+				
+				var parser = math.parser(),
+					index = 0;
+				_.each(state.players, function(player, key) {
+					parser.eval('a = ' + index++);
+					parser.eval('p = floor(sqrt(4 * a + 1))');
+					parser.eval('q = a - floor(p^2 / 4)');
+					
+					var point = parser.eval('q * i^p + (floor((p + 2) / 4) - floor((p + 1) / 4) * i) * i^(p - 1)');
+
+					
+					player.position[1] = point.re;
+					player.position[0] = point.im;
+				});
+
 				(modeHandlers[state.mode] || {join: function() {}}).join(state, newPlayer);
 				return true;
 			}
@@ -91,6 +109,7 @@ module.exports = function(isServer, rtc, io) {
 		},
 		mode: {
 			pre: function(state, eventQ, player, mode) {
+				(modeHandlers[state.mode] || {leave: function() {}}).leave(state);
 				state.mode = mode;
 				(modeHandlers[mode] || {set: function() { console.log('**invalid modes being sent!'); }}).set(state);
 				return true;
@@ -133,13 +152,23 @@ module.exports = function(isServer, rtc, io) {
 			},
 			join: function(state, player) {
 				player.effects.push('quake');
+			},
+			leave: function(state) {
+				state.videoFrameRate = 30;
+
+				_.each(state.players, function(player) {
+					_.remove(player.effects, function(e) { return e == 'quake'; });
+				});
+
+				console.log('leave');
 			}
 		}
 	};
 
 	var effects = {
-		'quake': function(player) {
-			player.position[0] += 1;
+		'quake': function(player, clock) {
+			player.offset[1] = random.normal(0, 0.05);
+			player.offset[0] = random.normal(0, 0.05);
 		}
 	};
 
@@ -151,6 +180,7 @@ module.exports = function(isServer, rtc, io) {
 				var player = {
 					id: socket.id,
 					position: [0,0,0],
+					offset: [0, 0, 0],
 					orientation: {
 						quaternion: [0, 0, 0, 1],
 						alpha: 0,
@@ -284,7 +314,7 @@ module.exports = function(isServer, rtc, io) {
 		state.clock += 1;
 
 		_.each(state.players, function(player) {
-			if (player.effects.length > 0) _.each(player.effects, function(effect) { effects[effect](player); });
+			if (player.effects.length > 0) _.each(player.effects, function(effect) { effects[effect](player, state.clock); });
 		})
 	}));
 };
