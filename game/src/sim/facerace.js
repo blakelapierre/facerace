@@ -13,7 +13,8 @@ module.exports = function(isServer, rtc, io) {
 					clock: 0,
 					start: new Date()
 				},
-				players: {}
+				players: {},
+				videoFrameRate: 30
 			}
 		},
 		stateEvents = []; // *ONLY* used to keep track that we need to send the full state to incoming sockets *after* we process their entry to the game.
@@ -124,6 +125,8 @@ module.exports = function(isServer, rtc, io) {
 	var modeHandlers = {
 		'quake': {
 			set: function(state) {
+				state.videoFrameRate = 1;
+
 				_.each(state.players, function(player) {
 					player.effects.push('quake');
 				});

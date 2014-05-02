@@ -16,7 +16,7 @@ module.exports = [
 		$scope.$on('updateScene', (function() {
 			var waitingForState = function(transport, now, dt) {
 				if (transport.state && transport.state._yourID != null) {
-					console.log(transport);
+					$scope.stateObj = transport.state;
 					updateFn = haveState;
 					if (transport.state.map) mapLoader(scene, transport.state.map);
 				}
@@ -48,11 +48,11 @@ module.exports = [
 					controlUpdatesPerSecond = 4;
 
 				return (function() {
-					function updateVideoSources(now) {
+					function updateVideoSources(framerate, now) {
 						_.each($scope.liveSources, function(source, id) {
 							var element = source.element;
 							if (element.readyState == element.HAVE_ENOUGH_DATA &&
-								now - source.texture.lastUpdate > (1000 / maxfps) ) {
+								now - source.texture.lastUpdate > (1000 / framerate) ) {
 								source.texture.needsUpdate = true;
 								source.texture.lastUpdate = now;
 							}
@@ -61,8 +61,6 @@ module.exports = [
 					};
 
 					return function(transport, now, dt) {
-						updateVideoSources(now);
-
 						if (transport) {
 							$scope.$broadcast('newState', transport);
 
@@ -98,6 +96,8 @@ module.exports = [
 
 							$scope.$apply();
 						}
+
+						updateVideoSources($scope.stateObj.videoFrameRate || 30, now);
 					};
 				})();
 			})();
