@@ -77,7 +77,7 @@ module.exports = [
 					_.each(transport.events.processedEvents, dispatch);
 
 					_.each($scope.livePlayers, function(player) {
-						var data = player.data,
+						var data = player.simulationData,
 							q = data.orientation.quaternion,
 							tq = player.targetQuaternion,
 							mesh = player.mesh,

@@ -82,6 +82,7 @@ module.exports = function(isServer, rtc, io) {
 		mode: {
 			pre: function(state, eventQ, player, mode) {
 				state.mode = mode;
+				(modeHandlers[mode] || function() { console.log('**invalid modes being sent!'); })(state);
 				return true;
 			}
 		},
@@ -111,6 +112,20 @@ module.exports = function(isServer, rtc, io) {
 		});
 	});
 
+	var modeHandlers = {
+		'quake': function(state) {
+			_.each(state.players, function(player) {
+				player.effects.push('quake');
+			});
+		}
+	};
+
+	var effects = {
+		'quake': function(player) {
+			player.position[0] += 1;
+		}
+	};
+
 	(function(events) {
 		var hookSocket = function(socket) {
 			sockets[socket.id || 'local'] = socket;
@@ -124,7 +139,8 @@ module.exports = function(isServer, rtc, io) {
 						alpha: 0,
 						beta: 0,
 						gamma: 0
-					}
+					},
+					effects: []
 				};
 
 				socket.player = player;
@@ -240,6 +256,10 @@ module.exports = function(isServer, rtc, io) {
 	})(core(eventHandlers.pre, function() {
 		return swapQ();
 	}, function(clock) {
-		// console.log(clock);
+		var state = getState();
+
+		_.each(state.players, function(player) {
+			if (player.effects.length > 0) _.each(player.effects, function(effect) { effects[effect](player); });
+		})
 	}));
 };

@@ -13,7 +13,7 @@ module.exports = function() {
 			};
 
 			$scope.toggleMode = function() {
-				$scope.mode = $scope.mode == 'testMode' ? '' : 'testMode';
+				$scope.mode = $scope.mode == 'quake' ? '' : 'quake';
 				facerace.mode($scope.mode);
 			};
 

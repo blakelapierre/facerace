@@ -1,7 +1,11 @@
-var math = require('mathjs')();
+var math = require('mathjs')(),
+	Player = require('./playerObject/player');
 
 module.exports = ['$rootScope', 'scopeHelpers', function($scope, scopeHelpers) {
 	var scene, cssScene;
+
+	var livePlayers = {};
+
 	return {
 		setScene: function(s, cs) {
 			if (scene) {} // detach?
@@ -14,12 +18,12 @@ module.exports = ['$rootScope', 'scopeHelpers', function($scope, scopeHelpers) {
 					height = 1,
 					material = new THREE.MeshBasicMaterial({side: THREE.DoubleSide}),
 					mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, height, 1, 1), material),
-					player = {
+					player = new Player({
 						data: $scope.players[key],
 						targetQuaternion: new THREE.Quaternion(),
 						mesh: mesh,
 						material: material
-					};
+					});
 
 				//scene.add(mesh);
 				mesh.visible = false;
@@ -62,7 +66,6 @@ module.exports = ['$rootScope', 'scopeHelpers', function($scope, scopeHelpers) {
 			var q = function(p, a) { math.subtract(a, math.floor(math.divide(math.square(p), 4))); };
 			var parser = math.parser();
 
-			var livePlayers = {};
 			$scope.$watchCollection('players', scopeHelpers.createWatchCollectionFunction($scope, livePlayers, {
 				newAction: addPlayer,
 				removeAction: function(key) {
@@ -86,6 +89,12 @@ module.exports = ['$rootScope', 'scopeHelpers', function($scope, scopeHelpers) {
 			$scope.livePlayers = livePlayers;
 
 			return livePlayers;
+		},
+
+		setMode: function(mode) {
+			_.each(livePlayers, function(player) {
+				player.setMode(mode);
+			});
 		}
 	};	
 }];
