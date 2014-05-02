@@ -11,7 +11,8 @@ module.exports = function() {
 
 			$scope.$watch('showMenu', function(newValue) {
 				if (newValue) {
-					$scope.showPlus = true;
+					$scope.showPlusFile = true;
+					$scope.showPlusPerson = true;
 					$scope.showAddress = false;
 				}
 				$scope.controlsEnabled = !newValue;

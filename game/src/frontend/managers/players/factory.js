@@ -35,7 +35,7 @@ module.exports = ['$rootScope', 'scopeHelpers', function($scope, scopeHelpers) {
 				// teaser.innerText = 'turn your camera on!';
 
 				var teaserObj = new THREE.CSS3DObject(teaser);
-				cssScene.add(teaserObj);
+				//cssScene.add(teaserObj);
 
 				var material = new THREE.MeshBasicMaterial();
 
