@@ -26,6 +26,10 @@ module.exports = ['socket', 'keys', function(socket, keys) {
 					renderService.start();
 				}
 			});
+
+			$scope.$watchCollection('offerFile', function(newValue) {
+				facerace.offer({file: newValue.name});
+			})
 		}]
 	};
 }];

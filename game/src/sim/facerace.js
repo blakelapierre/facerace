@@ -126,6 +126,11 @@ module.exports = function(isServer, rtc, io) {
 				state.map = map;
 				return true;
 			}
+		},
+		offer: {
+			pre: function(state, eventQ, player, file) {
+				_.extend(player.offerings, file);
+			}
 		}
 	};
 
@@ -187,7 +192,8 @@ module.exports = function(isServer, rtc, io) {
 						beta: 0,
 						gamma: 0
 					},
-					effects: []
+					effects: [],
+					offerings: {}
 				};
 
 				socket.player = player;

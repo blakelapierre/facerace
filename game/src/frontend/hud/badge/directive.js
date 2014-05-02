@@ -1,9 +1,31 @@
-var angular = require('angular');
+var angular = require('angular'),
+	FileReaderJS = require('filereader');
 
 module.exports = function() {
 	return {
 		template: require('./template.html'),
 		restrict: 'E',
+		link: function($scope, element, attributes) {
+			$scope.shareFile = function() {
+				var input = document.createElement('input');
+				input.type = 'file';
+
+				$scope.offerFile = {};
+
+				FileReaderJS.setupInput(input, {
+					on: {
+						load: function(e, file) {
+							$scope.offerFile.name = file.name;
+							$scope.offerFile.reader = e.target;
+						}
+					}
+				});
+
+				input.click();
+				
+				$scope.showMenu = false;
+			};
+		},
 		controller: ['$scope', '$http', function($scope, $http) {
 			$scope.toggleMenu = function() {
 				$scope.showMenu = !$scope.showMenu;
