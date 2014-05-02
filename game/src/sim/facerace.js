@@ -8,6 +8,10 @@ module.exports = function(isServer, rtc, io) {
 		sockets = {},
 		state = {
 			state: {
+				beacon: {
+					clock: 0,
+					start: new Date()
+				},
 				players: {}
 			}
 		},
@@ -239,7 +243,7 @@ module.exports = function(isServer, rtc, io) {
 			var now = new Date().getTime(),
 				dt = now - lastTick;
 
-			if (dt < tickRate) return transport;
+			if (dt < tickRate) return false;
 
 			lastTick = now;
 
@@ -265,8 +269,10 @@ module.exports = function(isServer, rtc, io) {
 		}, isServer ? serverExtensions : clientExtensions);	
 	})(core(eventHandlers.pre, function() {
 		return swapQ();
-	}, function(clock) {
+	}, function(coreClock) {
 		var state = getState();
+
+		state.clock += 1;
 
 		_.each(state.players, function(player) {
 			if (player.effects.length > 0) _.each(player.effects, function(effect) { effects[effect](player); });

@@ -42,9 +42,10 @@ module.exports = function(config, callback) {
 		var transport = {},
 			log = [];
 		setInterval(function () {
-			transport = facerace(transport);
-			if (log.length == 0) log.push(transport.state);
-			if (transport.events && transport.events.processedEvents.length > 0) log.push(transport.events.processedEvents);
+			var result = facerace(transport);
+			if (result) transport = result;
+			// if (log.length == 0) log.push(transport.state);
+			// if (transport.events && transport.events.processedEvents.length > 0) log.push(transport.events.processedEvents);
 		}, 100);
 	})();
 

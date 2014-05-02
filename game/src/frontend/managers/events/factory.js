@@ -6,7 +6,6 @@ module.exports = ['$rootScope', 'mapLoader', 'playersManager', function($scope, 
 	};
 
 	function dispatch (event) {
-		console.log('e', event);
 		(eventHandlers[event.type] || function() { })(event);
 	};
 

@@ -15,7 +15,8 @@ module.exports = [
 		// I don't think we can detach from scope...not documented anyway
 		$scope.$on('updateScene', (function() {
 			var waitingForState = function(transport, now, dt) {
-				if (transport.state._yourID != null) {
+				if (transport.state && transport.state._yourID != null) {
+					console.log(transport);
 					updateFn = haveState;
 					if (transport.state.map) mapLoader(scene, transport.state.map);
 				}
@@ -99,11 +100,14 @@ module.exports = [
 				var now = new Date().getTime(),
 					dt = now - lastFrame;
 
-				transport = facerace(transport);
+				var result = facerace(transport);
 
-				updateFn(transport, now, dt);
+				if (result) {
+					transport = result;
+					updateFn(transport, now, dt);
 
-				lastFrame = now;
+					lastFrame = now;
+				}
 			};
 		})());
 	};
