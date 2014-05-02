@@ -34,10 +34,17 @@ module.exports = ['$rootScope', 'mapLoader', 'playersManager', function($scope, 
 					var player = $scope.livePlayers[event._player],
 						source = $scope.liveSources[event._event];
 
-					if (player && source) player.mesh = source.mesh;
+					if (player && source) {
+						scene.remove(source.mesh);
+						player.rig.add(source.mesh);
+						player.mesh = source.mesh;
+					}
 				},
 				setMap: function(event) {
 					mapLoader(scene, event._event);
+				},
+				offer: function(event) {
+					playersManager.offer(event._player, event._event);
 				}
 			};
 

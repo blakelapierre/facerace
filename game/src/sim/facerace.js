@@ -130,6 +130,7 @@ module.exports = function(isServer, rtc, io) {
 		offer: {
 			pre: function(state, eventQ, player, file) {
 				_.extend(player.offerings, file);
+				return true;
 			}
 		}
 	};

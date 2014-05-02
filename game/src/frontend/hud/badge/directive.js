@@ -13,6 +13,9 @@ module.exports = function() {
 				$scope.offerFile = {};
 
 				FileReaderJS.setupInput(input, {
+					readAsMap: {
+						'image/*': 'ArrayBuffer'
+					},
 					on: {
 						load: function(e, file) {
 							$scope.offerFile.name = file.name;

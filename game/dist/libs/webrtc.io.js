@@ -106,11 +106,13 @@ if (navigator.webkitGetUserMedia) {
 
   // PeerConnection datachannel configuration
   rtc.dataChannelConfig = {
-    "optional": [{
-      "RtpDataChannels": true
-    }, {
-      "DtlsSrtpKeyAgreement": true
-    }]
+    "optional":[]
+
+    //  [{
+    //   "RtpDataChannels": true
+    // }, {
+    //   "DtlsSrtpKeyAgreement": true
+    // }]
   };
 
   rtc.pc_constraints = {
@@ -435,7 +437,7 @@ if (navigator.webkitGetUserMedia) {
     };
 
     channel.onclose = function(event) {
-      delete rtc.dataChannels[id];
+      delete rtc.dataChannels[id + ':' + channel.label];
       console.log('data stream close ' + id);
       rtc.fire('data stream close', channel);
     };
@@ -452,7 +454,7 @@ if (navigator.webkitGetUserMedia) {
     };
 
     // track dataChannel
-    rtc.dataChannels[id] = channel;
+    rtc.dataChannels[id + ':' + channel.label] = channel;
     return channel;
   };
 

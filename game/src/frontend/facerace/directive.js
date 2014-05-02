@@ -28,7 +28,23 @@ module.exports = ['socket', 'keys', function(socket, keys) {
 			});
 
 			$scope.$watchCollection('offerFile', function(newValue) {
-				facerace.offer({file: newValue.name});
+				if (newValue) {
+					facerace.offer({file: newValue.name});
+				}
+			});
+
+			rtc.on('data stream data', function(channel, message) {
+				if ($scope.offerFile && message == $scope.offerFile.name) {
+					console.log(channel, $scope.offerFile.reader);
+					channel.send($scope.offerFile.reader.result)
+				}
+				else {
+					var a = document.createElement('a');
+					a.href = message;
+					a.download = 'test';
+
+					a.click();
+				}
 			})
 		}]
 	};
