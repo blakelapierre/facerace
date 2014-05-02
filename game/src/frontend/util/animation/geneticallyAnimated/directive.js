@@ -1,4 +1,4 @@
-var Random = require('random');
+var Random = require('Random');
 
 module.exports = ['dynamicAnimation', function(dynamicAnimation) {
 	var applyAnimation = function(element, animation) {

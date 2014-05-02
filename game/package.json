@@ -37,6 +37,9 @@
       "partialify"
     ]
   },
+  "browser": {
+    "Random": "./dist/libs/random.js"
+  },
   "browserify-shim": {
     "angular": "global:angular",
     "three": "global:THREE",
@@ -45,7 +48,6 @@
     "socket.io": "global:io",
     "underscore": "global:_",
     "lodash": "global:_",
-    "mathjs": "global:mathjs",
-    "random": "global:Random"
+    "mathjs": "global:mathjs"
   }
 }
