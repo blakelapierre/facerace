@@ -2,14 +2,11 @@ var angular = require('angular'),
 	_ = require('lodash');
 
 
-module.exports = function() {
-	
-
+module.exports = ['keys', function(keys) {
 	return {
 		template: require('./template.html'),
 		restrict: 'E',
 		link: function($scope, element, attributes) {
-
 			var createCommand = function(displayName, click) {
 				return {
 					displayName: displayName,
@@ -45,6 +42,14 @@ module.exports = function() {
 
 				return false;
 			});
+
+			keys.setScopeBroadcast(false);
+			keys.setKeyHandlers({
+				192: function(down) {
+					console.log(down);
+					if (down) $scope.showDebug = !$scope.showDebug;
+				}
+			})
 		}
 	};
-};
+}];
