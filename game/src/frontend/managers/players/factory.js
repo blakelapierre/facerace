@@ -100,49 +100,48 @@ module.exports = ['$rootScope', 'scopeHelpers', function($scope, scopeHelpers) {
 			});
 		},
 
-		offer: function(playerID, offerings) {
-			var player = livePlayers[playerID];
+		offer: (function() {
+			return function(playerID, offerings) {
+				var player = livePlayers[playerID];
 
-			console.log(offerings);
 
-			console.log(player);
+				if (offerings.file) {
+					var teaser = document.createElement('div');
+					teaser.className = 'file-offering';
+					teaser.innerText = offerings.file;
 
-			if (offerings.file) {
-				var teaser = document.createElement('div');
-				teaser.className = 'file-offering';
-				teaser.innerText = offerings.file;
+					teaser.onclick = function(e) {
+						var channel = $scope.webrtc.dataChannels[player.simulationData.peerConnectionID + ':fileTransfer'];
+						console.log(channel, offerings);
+						if (channel) {
+							channel.send(offerings.file);
+							$scope.showDebug = true;
+						}
+					};
 
-				teaser.onclick = function(e) {
-					var channel = $scope.webrtc.dataChannels[player.simulationData.peerConnectionID + ':fileTransfer'];
-					console.log(channel, offerings);
-					if (channel) {
-						channel.send(offerings.file);
-						$scope.showDebug = true;
-					}
-				};
+					var teaserObj = new THREE.CSS3DObject(teaser);
+					cssScene.add(teaserObj);
 
-				var teaserObj = new THREE.CSS3DObject(teaser);
-				cssScene.add(teaserObj);
+					var material = new THREE.MeshBasicMaterial();
 
-				var material = new THREE.MeshBasicMaterial();
+					material.color.set('black');
+					material.opacity = 0;
+					material.blending = THREE.NoBlending;
 
-				material.color.set('black');
-				material.opacity = 0;
-				material.blending = THREE.NoBlending;
+					var geometry = new THREE.PlaneGeometry(1, 1, 1, 1);
+					var planeMesh= new THREE.Mesh( geometry, material );
 
-				var geometry = new THREE.PlaneGeometry(1, 1, 1, 1);
-				var planeMesh= new THREE.Mesh( geometry, material );
+					scene.add(planeMesh);
 
-				scene.add(planeMesh);
+					teaserObj.scale.multiplyScalar(1 / 200);
 
-				teaserObj.scale.multiplyScalar(1 / 200);
+					planeMesh.position = player.rig.position;
+					teaserObj.position = player.rig.position;
+					teaserObj.quaternion = player.rig.quaternion;
 
-				planeMesh.position = player.rig.position;
-				teaserObj.position = player.rig.position;
-				teaserObj.quaternion = player.rig.quaternion;
-
-				console.log('offered');
-			}
-		}
+					console.log('offered');
+				}
+			};
+		})()
 	};	
 }];
