@@ -44,12 +44,18 @@ module.exports = ['keys', function(keys) {
 			});
 
 			keys.setMode('handlers');
-			keys.setKeyHandlers({
+
+			var handlers = {
 				192: function(down) {
 					console.log(down);
 					if (down) $scope.showDebug = !$scope.showDebug;
+					else handlers['192'] = function(down) {
+						if (down) $scope.showMaps = true;
+					}
 				}
-			})
+			};
+
+			keys.setKeyHandlers(handlers);
 		}
 	};
 }];
