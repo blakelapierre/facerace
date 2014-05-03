@@ -42,15 +42,20 @@ module.exports = ['$rootScope', '$analytics', function($rootScope, $analytics) {
 			channel.send(result.byteLength + ';' + file.name);
 
 			var offset = 0,
-				backoff = 0;
+				backoff = 0,
+				startTime = new Date().getTime();
 			var sendChunk = function() {
 				if (offset == result.byteLength) return;
 
+				var now = new Date().getTime();
 				var size = Math.min(offset + chunkSize, result.byteLength),
 					chunk = result.slice(offset, size);
 				try {
-					channel.send(chunk);
-					offset += chunkSize;
+					for (var i = 0; i < 5; i++) {
+						channel.send(chunk);
+						offset += chunkSize;
+					}
+					$rootScope.upSpeed = offset / (now - startTime) / 1000;
 					backoff = 0
 					if (offset < result.byteLength) setTimeout(sendChunk, 0);
 				} catch(e) {

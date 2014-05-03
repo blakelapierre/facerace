@@ -46,7 +46,9 @@ module.exports = ['socket', 'keys', function(socket, keys) {
 				else {
 					var incoming = channelManager[channel];
 					if (incoming) {
-						var view = new DataView(message, 0, message.byteLength);
+						var view = new DataView(message, 0, message.byteLength),
+							now = new Date().getTime();
+
 						for (var i = 0; i < message.byteLength; i++) {
 							incoming.view.setUint8(incoming.position + i, view.getUint8(i));
 						}
@@ -55,6 +57,7 @@ module.exports = ['socket', 'keys', function(socket, keys) {
 
 						$scope.received = incoming.position;
 						$scope.total = incoming.byteLength;
+						$scope.downSpeed = incoming.position / (now - incoming.start) / 1000;
 						
 						console.log('received', message.byteLength, 'of', incoming.byteLength, 'at position', incoming.position);
 
@@ -82,7 +85,8 @@ module.exports = ['socket', 'keys', function(socket, keys) {
 							name: name,
 							position: 0,
 							buffer: buffer,
-							view: view
+							view: view,
+							start: new Date().getTime()
 						};
 					}
 				}
