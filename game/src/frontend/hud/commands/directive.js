@@ -47,11 +47,7 @@ module.exports = ['keys', function(keys) {
 
 			var handlers = {
 				192: function(down) {
-					console.log(down);
 					if (down) $scope.showDebug = !$scope.showDebug;
-					else handlers['192'] = function(down) {
-						if (down) $scope.showMaps = true;
-					}
 				}
 			};
 
