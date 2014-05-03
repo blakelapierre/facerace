@@ -41,7 +41,8 @@ module.exports = ['$rootScope', '$analytics', function($rootScope, $analytics) {
 
 			channel.send(result.byteLength + ';' + file.name);
 
-			var offset = 0;
+			var offset = 0,
+				backoff = 0;
 			var sendChunk = function() {
 				if (offset == result.byteLength) return;
 
@@ -50,9 +51,11 @@ module.exports = ['$rootScope', '$analytics', function($rootScope, $analytics) {
 				try {
 					channel.send(chunk);
 					offset += chunkSize;
-					sendChunk();
+					backoff = 0
+					if (offset < result.byteLength) setTimeout(sendChunk, 0);
 				} catch(e) {
-					setTimeout(sendChunk, 500);
+					setTimeout(sendChunk, backoff);
+					backoff += 100;
 				}
 			};
 			sendChunk();

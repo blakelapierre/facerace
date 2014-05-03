@@ -38,7 +38,6 @@ module.exports = ['socket', 'keys', function(socket, keys) {
 
 			var channelManager = {};
 			rtc.on('data stream data', function(channel, message) {
-				console.log(message);
 				if ($scope.offeredFile && message == $scope.offeredFile.name) {
 					console.log(channel, $scope.offeredFile);
 
