@@ -46,12 +46,9 @@ module.exports = ['socket', 'keys', function(socket, keys) {
 				else {
 					var incoming = channelManager[channel];
 					if (incoming) {
-						var view = new DataView(message, 0, message.byteLength),
-							now = new Date().getTime();
+						var now = new Date().getTime();
 
-						for (var i = 0; i < message.byteLength; i++) {
-							incoming.view.setUint8(incoming.position + i, view.getUint8(i));
-						}
+						incoming.buffers.push(message);
 
 						incoming.position += message.byteLength;
 
@@ -60,7 +57,7 @@ module.exports = ['socket', 'keys', function(socket, keys) {
 						$scope.downSpeed = incoming.position / (now - incoming.start) / 1000;
 			
 						if (incoming.position == incoming.byteLength) {
-							var blob = new Blob([incoming.buffer]);
+							var blob = new Blob(incoming.buffers);
 
 							var a = document.createElement('a');
 							a.href = window.URL.createObjectURL(blob);
@@ -72,9 +69,7 @@ module.exports = ['socket', 'keys', function(socket, keys) {
 					else {
 						var parts = message.toString().split(';'),
 							byteLength = parseInt(parts[0]),
-							name = parts[1],
-							buffer = new ArrayBuffer(byteLength),
-							view = new DataView(buffer, 0, byteLength);
+							name = parts[1];
 
 						console.log('Incoming file of byteLength', byteLength, '!');
 
@@ -82,8 +77,7 @@ module.exports = ['socket', 'keys', function(socket, keys) {
 							byteLength: byteLength,
 							name: name,
 							position: 0,
-							buffer: buffer,
-							view: view,
+							buffers: [],
 							start: new Date().getTime()
 						};
 					}
