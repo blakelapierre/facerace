@@ -112,6 +112,7 @@ module.exports = ['$rootScope', 'scopeHelpers', function($scope, scopeHelpers) {
 
 				teaser.onclick = function(e) {
 					var channel = $scope.webrtc.dataChannels[player.simulationData.peerConnectionID + ':fileTransfer'];
+					console.log(channel, offerings);
 					if (channel) channel.send(offerings.file);
 				};
 

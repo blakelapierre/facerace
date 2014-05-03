@@ -29,6 +29,22 @@ module.exports = function() {
 			];			
 
 			$scope.commands = commands;
+
+			var processDragOverEnter = function(e) {
+				e.preventDefault();
+				e.dataTransfer.effectAllowed = 'copy';
+				return false;
+			};
+
+			element.bind('dragover', processDragOverEnter);
+			element.bind('dragenter', processDragOverEnter);
+			element.bind('drop', function(e) {
+				e.preventDefault();
+
+				$scope.offeredFile = e.dataTransfer.files[0];
+
+				return false;
+			});
 		}
 	};
 };

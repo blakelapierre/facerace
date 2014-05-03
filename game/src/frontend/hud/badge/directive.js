@@ -12,16 +12,8 @@ module.exports = function() {
 
 				$scope.offerFile = {};
 
-				FileReaderJS.setupInput(input, {
-					readAsMap: {
-						'image/*': 'ArrayBuffer'
-					},
-					on: {
-						load: function(e, file) {
-							$scope.offerFile.name = file.name;
-							$scope.offerFile.reader = e.target;
-						}
-					}
+				angular.element(input).bind('change', function(e) {
+					$scope.offeredFile = e.target.files[0];
 				});
 
 				input.click();
