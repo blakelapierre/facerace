@@ -41,10 +41,11 @@ module.exports = ['socket', 'keys', function(socket, keys) {
 					var chunkSize = 32 * 1024,
 						result = $scope.offerFile.reader.result;
 
-						channel.send(result.length + ';' + message);
+console.log('result!!!', result);
+						channel.send(result.byteLength + ';' + message);
 
-					for (var i = 0; i < result.length; i += chunkSize) {
-						channel.send(result.slice(i, Math.min(i + chunkSize, result.length)));
+					for (var i = 0; i < result.byteLength; i += chunkSize) {
+						channel.send(result.slice(i, Math.min(i + chunkSize, result.byteLength)));
 					}
 				}
 				else {
