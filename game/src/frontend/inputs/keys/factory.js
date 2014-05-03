@@ -3,13 +3,13 @@
 	Provides access to the keyboad.
 
 	The service is a function. Call the function to get a live-hash showing you the status 
-	of every key. If a key doesn't exist in the hash, It is assumed to be 'up'. It just 
+	of every key. If a key doesn't exist in the hash, it is assumed to be 'up'. It just 
 	means the key has never been pushed since the Service started.
 
 	By default the service will $broadcast the 'keychange' event/message with the keycode 
 	that just changed status as well as the up/down status.
 
-	You can supply your own button handlers and skip the $broadcast like so:
+	You can supply your own key handlers and skip the $broadcast like so:
 
 	keys.setMode('handlers');
 	keys.setKeyHandlers({
@@ -17,6 +17,10 @@
 			if (down) $scope.showDebug = !$scope.showDebug;
 		}
 	});
+
+	The object you pass into `setKeyHandlers`, is also live. Meaning you can swap out the 
+	functions you assigned to each key and the next time the key changes status, that 
+	function will be called automatically.
 
 */
 
