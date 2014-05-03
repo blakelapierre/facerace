@@ -443,7 +443,7 @@ if (navigator.webkitGetUserMedia) {
     };
 
     channel.onmessage = function(message) {
-      console.log('data stream message ' + id);
+      //console.log('data stream message ' + id);
       //console.log(message);
       rtc.fire('data stream data', channel, message.data);
     };

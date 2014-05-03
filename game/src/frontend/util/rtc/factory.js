@@ -33,7 +33,7 @@ module.exports = ['$rootScope', '$analytics', function($rootScope, $analytics) {
 	};
 
 	rtc.sendFile = function(channel, file) {
-		var chunkSize = 128 * 1024,
+		var chunkSize = 64 * 1024,
 			reader = new FileReader();
 
 		reader.onload = function(e) {
@@ -49,7 +49,7 @@ module.exports = ['$rootScope', '$analytics', function($rootScope, $analytics) {
 
 				var now = new Date().getTime();
 
-				for (var i = 0; i < 5; i++) {
+				for (var i = 0; i < 10; i++) {
 					var size = Math.min(offset + chunkSize, result.byteLength),
 						chunk = result.slice(offset, size);
 					try {

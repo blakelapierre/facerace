@@ -58,9 +58,7 @@ module.exports = ['socket', 'keys', function(socket, keys) {
 						$scope.received = incoming.position;
 						$scope.total = incoming.byteLength;
 						$scope.downSpeed = incoming.position / (now - incoming.start) / 1000;
-						
-						console.log('received', message.byteLength, 'of', incoming.byteLength, 'at position', incoming.position);
-
+			
 						if (incoming.position == incoming.byteLength) {
 							var blob = new Blob([incoming.buffer]);
 
