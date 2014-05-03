@@ -1,8 +1,7 @@
 module.exports = ['$rootScope', function($scope) {
 	var w = angular.element(window),
 		keymap = {},
-		keyHandlers = {},
-		currentUp, currentDown;
+		keyHandlers = {};
 
 
 	function broadcastDown(event) {
@@ -36,28 +35,29 @@ module.exports = ['$rootScope', function($scope) {
 	w.bind('keydown', broadcastDown);
 	w.bind('keyup', broadcastUp);
 	
-	getKeymap.setScopeBroadcast = function(shouldBroadcast) {
-		if (shouldBroadcast) {
+	getKeymap.setMode = (function() {
+		var currentDown, currentUp;
+
+		function setHandlers(events) {
 			w.unbind('keydown', currentDown);
 			w.unbind('keyup', currentUp);
 
-			currentDown = broadcastDown;
-			currentUp = broadcastUp;
+			currentDown = events.down;
+			currentUp = events.up;
 
 			w.bind('keydown', currentDown);
 			w.bind('keyup', currentUp);
 		}
-		else {
-			w.unbind('keydown', currentDown);
-			w.unbind('keyup', currentUp);
-			
-			currentDown = handlersDown;
-			currentUp = handlersUp;
 
-			w.bind('keydown', currentDown);
-			w.bind('keyup', currentUp);
-		}
-	};
+		var modes = {
+			'broadcast': { down: broadcastDown, up: broadcastUp },
+			'handlers': { down: handlersDown, up: handlersUp }
+		};
+
+		return function(mode) {
+			setHandlers(modes[mode]);
+		};
+	})();
 
 	getKeymap.setKeyHandlers = function(handlers) {
 		keyHandlers = handlers;

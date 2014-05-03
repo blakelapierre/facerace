@@ -43,7 +43,7 @@ module.exports = ['keys', function(keys) {
 				return false;
 			});
 
-			keys.setScopeBroadcast(false);
+			keys.setMode('handlers');
 			keys.setKeyHandlers({
 				192: function(down) {
 					console.log(down);
