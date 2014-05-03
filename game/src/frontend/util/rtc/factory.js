@@ -33,7 +33,7 @@ module.exports = ['$rootScope', '$analytics', function($rootScope, $analytics) {
 	};
 
 	rtc.sendFile = function(channel, file) {
-		var chunkSize = 32 * 1024,
+		var chunkSize = 128 * 1024,
 			reader = new FileReader();
 
 		reader.onload = function(e) {
@@ -48,19 +48,20 @@ module.exports = ['$rootScope', '$analytics', function($rootScope, $analytics) {
 				if (offset == result.byteLength) return;
 
 				var now = new Date().getTime();
-				var size = Math.min(offset + chunkSize, result.byteLength),
-					chunk = result.slice(offset, size);
-				try {
-					for (var i = 0; i < 5; i++) {
+
+				for (var i = 0; i < 5; i++) {
+					var size = Math.min(offset + chunkSize, result.byteLength),
+						chunk = result.slice(offset, size);
+					try {
 						channel.send(chunk);
 						offset += chunkSize;
+						$rootScope.upSpeed = offset / (now - startTime) / 1000;	
+					} catch(e) {
+						setTimeout(sendChunk, backoff);
+						backoff += 100;
 					}
-					$rootScope.upSpeed = offset / (now - startTime) / 1000;
-					backoff = 0
+
 					if (offset < result.byteLength) setTimeout(sendChunk, 0);
-				} catch(e) {
-					setTimeout(sendChunk, backoff);
-					backoff += 100;
 				}
 			};
 			sendChunk();
