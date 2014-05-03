@@ -30,7 +30,7 @@ module.exports = ['$sce', 'rtc', function CameraDirective($sce, rtc) {
 			rtc.createStream({video: true, audio: true}, function(stream) {
 				var video = createVideo(stream, rtc._me);
 				$scope.sources[video.socketID] = video;
-				$scope.$apply();
+				$scope.$broadcast('addSource', video);
 			});
 
 			window.addEventListener('hashchange', function(e) {
@@ -43,10 +43,16 @@ module.exports = ['$sce', 'rtc', function CameraDirective($sce, rtc) {
 			rtc.on('add remote stream', function(stream, socketID) {
 				var video = createVideo(stream, socketID);
 				$scope.sources[video.socketID] = video;
-				$scope.$apply();
+				$scope.$broadcast('addSource', video);
 			});
 
 			rtc.on('disconnect stream', function(socketID) {
+				var source = $scope.sources[socketID];
+
+				$scope.$broadcast('removeSource', source);
+
+				if (source.element) element.remove(source.element);
+
 				delete $scope.sources[socketID];
 				$scope.$apply();
 			});

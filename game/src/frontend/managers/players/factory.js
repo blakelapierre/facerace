@@ -59,6 +59,8 @@ module.exports = ['$rootScope', 'scopeHelpers', function($scope, scopeHelpers) {
 
 				//scene.add(planeMesh);
 
+				scene.add(player.rig);
+
 				livePlayers[key] = player;
 			};
 

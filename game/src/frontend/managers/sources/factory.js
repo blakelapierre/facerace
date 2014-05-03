@@ -9,7 +9,7 @@ module.exports = ['$rootScope', 'scopeHelpers', 'facerace', function($scope, sco
 			scene = s;
 			cssScene = cs;
 
-			var addSource = function(key, source) {
+			var addSource = function(key, videoSource) {
 				console.log('source', key)
 
 				var player = _.find($scope.livePlayers, function(player) {
@@ -18,8 +18,7 @@ module.exports = ['$rootScope', 'scopeHelpers', 'facerace', function($scope, sco
 				});
 				console.log(player); 
 
-				var videoSource = $scope.sources[key],
-					video = videoSource.element,
+				var video = videoSource.element,
 					width = 1,
 					height = 1,
 					texture = new THREE.Texture(video), 
@@ -58,17 +57,15 @@ module.exports = ['$rootScope', 'scopeHelpers', 'facerace', function($scope, sco
 			
 
 			var liveSources = {};
-			$scope.$watchCollection('sources', scopeHelpers.createWatchCollectionFunction($scope, liveSources, {
-				newAction: addSource,
-				removeAction: function(key) {
-					var videoSource = liveSources[key];
-					scene.remove(videoSource.mesh);
-					delete liveSources[key];
-				},
-				updateAction: function(source, index) {
-					
-				}
-			}));
+			$scope.$on('addSource', function(e, source) {
+				addSource(source.socketID, source);
+			});
+
+			$scope.$on('removeSource', function(e, source) {
+				var videoSource = liveSources[source.socketID];
+				scene.remove(videoSource.mesh);
+				delete liveSsources[key];
+			});
 
 			$scope.liveSources = liveSources;
 			
