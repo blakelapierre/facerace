@@ -1,3 +1,25 @@
+/*
+
+	Provides access to the keyboad.
+
+	The service is a function. Call the function to get a live-hash showing you the status 
+	of every key. If a key doesn't exist in the hash, It is assumed to be 'up'. It just 
+	means the key has never been pushed since the Service started.
+
+	By default the service will $broadcast the 'keychange' event/message with the keycode 
+	that just changed status as well as the up/down status.
+
+	You can supply your own button handlers and skip the $broadcast like so:
+
+	keys.setMode('handlers');
+	keys.setKeyHandlers({
+		192: function(down) {
+			if (down) $scope.showDebug = !$scope.showDebug;
+		}
+	});
+
+*/
+
 module.exports = ['$rootScope', function($scope) {
 	var w = angular.element(window),
 		keymap = {},
