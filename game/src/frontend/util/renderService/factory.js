@@ -1,26 +1,30 @@
 module.exports = function($rootScope) {
-	var lastRender = 0,
-		thisRender = 0,
+	var start = 0,
+		lastRender = 0,
+		absolute = 0,
 		dt = 0,
 		renderCount = 0;
 
 	var activeRender = function() {
-		thisRender = new Date().getTime();
-		dt = thisRender - lastRender;
+		absolute = new Date().getTime();
+		dt = absolute - lastRender;
 		renderCount++;
 
 		window.requestAnimationFrame(render);
 
-		$rootScope.$emit('updateScene', dt, thisRender, renderCount);
-		$rootScope.$emit('renderScene', dt, thisRender, renderCount);
+		var elapsed = new Date().getTime() - start;
+
+		$rootScope.$broadcast('updateScene', dt, elapsed, absolute, renderCount);
+		$rootScope.$broadcast('renderScene', dt, elapsed, absolute, renderCount);
 	};
 
 	var pausedRender = function() {};
 
 	return {
 		start: function() {
+			start = new Date().getTime();
 			lastRender = 0;
-			thisRender = 0;
+			absolute = 0;
 			renderCount = 0;
 
 			render = activeRender;
