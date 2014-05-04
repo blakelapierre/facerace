@@ -10,7 +10,7 @@ module.exports = ['$rootScope', function($scope) {
 				var geometry = trackData.geometry;
 
 				for (var i = 0; i < geometry.vertices.length; i++) {
-					geometry.vertices[i].z += Math.sin(time / 1000 + i);
+					geometry.vertices[i].z = 5 * Math.sin(time / 1000 + i) + 7 * Math.cos(time / 500 + i);
 				}
 
 				geometry.verticesNeedUpdate = true;
@@ -30,7 +30,7 @@ module.exports = ['$rootScope', function($scope) {
 		track.position.y = -0.5;
 
 		for (var i = 0; i < geometry.vertices.length; i++) {
-			geometry.vertices[i].z += 5 * Math.sin(i);
+			geometry.vertices[i].z = 5 * Math.sin(i);
 		}
 
 		scene.add(track);
