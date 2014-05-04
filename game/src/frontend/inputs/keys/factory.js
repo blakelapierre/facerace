@@ -3,7 +3,7 @@
 	Provides access to the keyboad.
 
 	The service is a function. Call the function to get a live-hash showing you the status 
-	of every key. If a key doesn't exist in the hash, it is assumed to be 'up'. It just 
+	of every key. If a key doesn't exist in the hash, it is assumed to be 'up'/false. It just 
 	means the key has never been pushed since the Service started.
 
 	By default the service will $broadcast the 'keychange' event/message with the keycode 
