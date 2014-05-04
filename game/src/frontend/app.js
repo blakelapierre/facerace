@@ -9,6 +9,8 @@ module.exports = angular.module('facerace', ['angulartics', 'angulartics.google.
 	.directive('commands',	require('./hud/commands/directive'))
 	.directive('debug', 	require('./hud/debug/directive'))
 
+	.directive('fileDropArea',	require('./inputs/file/dropArea/directive'))
+
 	.directive('video', 	require('./inputs/video/directive'))
 	
 	.directive('sceneRenderer', 	require('./sceneRenderer/directive'))
