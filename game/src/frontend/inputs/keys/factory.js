@@ -55,12 +55,13 @@ module.exports = ['$rootScope', function($scope) {
 	function getKeymap() {
 		return keymap;
 	};
-	
 
-	getKeymap.keymap = keymap;
 
 	w.bind('keydown', broadcastDown);
 	w.bind('keyup', broadcastUp);
+
+
+	getKeymap.keymap = keymap;
 	
 	getKeymap.setMode = (function() {
 		var currentDown, currentUp;
