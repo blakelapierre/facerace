@@ -73,8 +73,8 @@ module.exports = ['$rootScope', function($scope) {
 			currentDown = events.down;
 			currentUp = events.up;
 
-			w.bind('keydown', currentDown);
 			w.bind('keyup', currentUp);
+			w.bind('keydown', currentDown);
 		}
 
 		var modes = {
