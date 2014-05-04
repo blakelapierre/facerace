@@ -1,6 +1,6 @@
 module.exports = [
-	'$rootScope', 'facerace', 'eventsManager', 'mapLoader', 'orientation', 
-	function($scope, facerace, eventsManager, mapLoader, orientation) {
+	'$rootScope', 'facerace', 'eventsManager', 'mapLoader', 'trackLoader', 'orientation', 
+	function($scope, facerace, eventsManager, mapLoader, trackLoader, orientation) {
 
 	var scene, cssScene;
 
@@ -19,6 +19,7 @@ module.exports = [
 					$scope.stateObj = transport.state;
 					updateFn = haveState;
 					if (transport.state.map) mapLoader(scene, transport.state.map);
+					if (transport.state.track) trackLoader(scene, transport.state.track);
 				}
 			};
 

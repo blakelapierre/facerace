@@ -18,7 +18,7 @@ module.exports = function(grunt) {
 				files: ['src/app.js', 'src/**/*.*', 'dist/index.html'],
 				tasks: ['less:bundle', 'autoprefixer:dist', 'browserify:bundle', 'express:dev'],
 				options: {
-					livereload: true
+					livereload: 2886
 				}
 			}
 		},
