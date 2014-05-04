@@ -33,28 +33,29 @@ module.exports = ['$rootScope', function($scope) {
 	function broadcastDown(event) {
 		keymap[event.which] = true;
 		$scope.$broadcast('keychange', event.which, true);
-	}
+	};
 
 	function broadcastUp(event) {
 		keymap[event.which] = false;
 		$scope.$broadcast('keychange', event.which, false);
-	}
+	};
 
 	function handlersDown(event) {
 		keymap[event.which] = true;
 		var handler = keyHandlers[event.which];
 		if (handler) handler(true);
-	}
+	};
 
 	function handlersUp(event) {
 		keymap[event.which] = false;
 		var handler = keyHandlers[event.which];
 		if (handler) handler(false);
-	}
+	};
 
 	function getKeymap() {
 		return keymap;
-	}
+	};
+	
 
 	getKeymap.keymap = keymap;
 
