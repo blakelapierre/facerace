@@ -7,8 +7,8 @@ module.exports = ['socket', 'keyboard', function(socket, keyboard) {
 		template: require('./template.html'),
 		link: function($scope, element, attributes) { },
 		controller:  [
-			'$scope', 'renderService', 'eventsManager', 'playersManager', 'sourcesManager', 'updateManager', 'facerace',
-			function($scope, renderService, eventsManager, playersManager, sourcesManager, updateManager, facerace) {
+			'$scope', '$http', 'renderService', 'eventsManager', 'playersManager', 'sourcesManager', 'updateManager', 'facerace',
+			function($scope, $http, renderService, eventsManager, playersManager, sourcesManager, updateManager, facerace) {
 
 			$scope.$on('sceneReady', function(e, s) {
 				if (s.name == 'main') {
@@ -27,10 +27,21 @@ module.exports = ['socket', 'keyboard', function(socket, keyboard) {
 				}
 			});
 
-			$scope.$watch('offeredFile', function(newValue) {
-				console.log('offered file changed');
-				if (newValue) {
-					facerace.offer({file: newValue.name});
+			$scope.$watch('offeredFile', function(offeredFile) {
+				console.log('offered file changed', offeredFile);
+				if (offeredFile) {
+					facerace.offer({file: offeredFile.name});
+
+					if (offeredFile.type.indexOf('image/') == 0) {
+						var fd = new FormData();
+
+						fd.append('file', offeredFile);
+
+						$http.post('/images', fd, {
+							headers: { 'Content-Type': undefined },
+							transformRequest: angular.identity
+						});
+					}
 				}
 			});
 

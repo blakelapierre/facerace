@@ -1,6 +1,7 @@
 dist/bundle.js
 dist/index.html
 dist/style.css
+dist/images
 node_modules/
 public_address
 temp/

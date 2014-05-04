@@ -38,5 +38,6 @@ exports.startServer({
 	port: 2888,
 	rtcport: 2887,
 	serverRoot: __dirname,
-	repoLocation: path.join(__dirname, './../../')
+	repoLocation: path.join(__dirname, './../../'),
+	distRoot: path.join(__dirname, './../dist')
 }, function(webserver, io, rtc) { });

@@ -5,6 +5,7 @@ var path = require('path'),
 	webRTC = require('webrtc.io'),
 	roomNotifier = require('./roomNotifier'),
 	gitManager = require('./gitManager'),
+	imageManager = require('./imageManager'),
 	_ = require('lodash'),
 	app = express();
 
@@ -54,6 +55,8 @@ module.exports = function(config, callback) {
 	roomNotifier(router, manager, config);
 
 	gitManager(router, config);
+
+	imageManager(router, config);
 
 	router.get('/channels', function(req, res) {
 		res.json(manager.rtc.rooms);
