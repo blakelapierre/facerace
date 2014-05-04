@@ -64,7 +64,7 @@ module.exports = ['$rootScope', 'scopeHelpers', 'facerace', function($scope, sco
 			$scope.$on('removeSource', function(e, source) {
 				var videoSource = liveSources[source.socketID];
 				scene.remove(videoSource.mesh);
-				delete liveSsources[key];
+				delete liveSources[key];
 			});
 
 			$scope.liveSources = liveSources;

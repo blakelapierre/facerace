@@ -36,5 +36,7 @@ module.exports = function() {
 
 		mapData.skybox = skybox;
 		mapData.pointLight = pointLight;
+
+		scene._mapData = mapData;
 	};	
 };
