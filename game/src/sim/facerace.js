@@ -127,6 +127,12 @@ module.exports = function(isServer, rtc, io) {
 				return true;
 			}
 		},
+		setTrack: {
+			pre: function(state, eventQ, player, track) {
+				state.track = track;
+				return true;
+			}
+		},
 		offer: {
 			pre: function(state, eventQ, player, file) {
 				_.extend(player.offerings, file);

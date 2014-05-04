@@ -101,7 +101,7 @@ module.exports = ['$rootScope', 'scopeHelpers', function($scope, scopeHelpers) {
 		},
 
 		offer: (function() {
-			function addToScene(teaser) {
+			function addToScene(teaser, player) {
 				var teaserObj = new THREE.CSS3DObject(teaser);
 					cssScene.add(teaserObj);
 
@@ -140,7 +140,7 @@ module.exports = ['$rootScope', 'scopeHelpers', function($scope, scopeHelpers) {
 						}
 					};
 
-					addToScene(teaser);
+					addToScene(teaser, player);
 				}
 			};
 		})()

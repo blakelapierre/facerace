@@ -40,6 +40,8 @@ module.exports = ['socket', 'keyboard', function(socket, keyboard) {
 						$http.post('/images', fd, {
 							headers: { 'Content-Type': undefined },
 							transformRequest: angular.identity
+						}).success(function(data) {
+							facerace.setTrack(data.id);
 						});
 					}
 				}

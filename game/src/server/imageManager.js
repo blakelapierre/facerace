@@ -8,7 +8,7 @@ module.exports = function(router, config) {
 
 	var images = path.join(config.distRoot, 'images');
 
-	fs.mkdirSync(images);
+	try {fs.mkdirSync(images);} catch(e) {}
 
 	router.post('/images', function(req, res) {
 		// We should probably roll our own version of this

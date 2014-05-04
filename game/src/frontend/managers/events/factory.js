@@ -1,4 +1,7 @@
-module.exports = ['$rootScope', 'mapLoader', 'playersManager', function($scope, mapLoader, playersManager) {
+module.exports = [
+	'$rootScope', 'mapLoader', 'trackLoader', 'playersManager', 
+	function($scope, mapLoader, trackLoader, playersManager) {
+	
 	var scene, cssScene, eventHandlers;
 
 	function startQuakeMode () {
@@ -42,6 +45,9 @@ module.exports = ['$rootScope', 'mapLoader', 'playersManager', function($scope, 
 				},
 				setMap: function(event) {
 					mapLoader(scene, event._event);
+				},
+				setTrack: function(event) {
+					trackLoader(scene, event._event);
 				},
 				offer: function(event) {
 					playersManager.offer(event._player, event._event);
