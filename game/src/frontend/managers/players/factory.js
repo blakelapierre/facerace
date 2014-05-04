@@ -101,9 +101,30 @@ module.exports = ['$rootScope', 'scopeHelpers', function($scope, scopeHelpers) {
 		},
 
 		offer: (function() {
+			function addToScene(teaser) {
+				var teaserObj = new THREE.CSS3DObject(teaser);
+					cssScene.add(teaserObj);
+
+				var material = new THREE.MeshBasicMaterial();
+
+				material.color.set('black');
+				material.opacity = 0;
+				material.blending = THREE.NoBlending;
+
+				var geometry = new THREE.PlaneGeometry(1, 1, 1, 1);
+				var planeMesh= new THREE.Mesh( geometry, material );
+
+				scene.add(planeMesh);
+
+				teaserObj.scale.multiplyScalar(1 / 200);
+
+				planeMesh.position = player.rig.position;
+				teaserObj.position = player.rig.position;
+				teaserObj.quaternion = player.rig.quaternion;
+			};
+
 			return function(playerID, offerings) {
 				var player = livePlayers[playerID];
-
 
 				if (offerings.file) {
 					var teaser = document.createElement('div');
@@ -112,34 +133,14 @@ module.exports = ['$rootScope', 'scopeHelpers', function($scope, scopeHelpers) {
 
 					teaser.onclick = function(e) {
 						var channel = $scope.webrtc.dataChannels[player.simulationData.peerConnectionID + ':fileTransfer'];
-						console.log(channel, offerings);
+						
 						if (channel) {
 							channel.send(offerings.file);
 							$scope.showDebug = true;
 						}
 					};
 
-					var teaserObj = new THREE.CSS3DObject(teaser);
-					cssScene.add(teaserObj);
-
-					var material = new THREE.MeshBasicMaterial();
-
-					material.color.set('black');
-					material.opacity = 0;
-					material.blending = THREE.NoBlending;
-
-					var geometry = new THREE.PlaneGeometry(1, 1, 1, 1);
-					var planeMesh= new THREE.Mesh( geometry, material );
-
-					scene.add(planeMesh);
-
-					teaserObj.scale.multiplyScalar(1 / 200);
-
-					planeMesh.position = player.rig.position;
-					teaserObj.position = player.rig.position;
-					teaserObj.quaternion = player.rig.quaternion;
-
-					console.log('offered');
+					addToScene(teaser);
 				}
 			};
 		})()
