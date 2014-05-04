@@ -21,7 +21,7 @@ module.exports = angular.module('facerace', ['angulartics', 'angulartics.google.
 
 	.factory('facerace',	require('./facerace/factory'))
 
-	.factory('keys',		require('./inputs/keys/factory'))
+	.factory('keyboard',	require('./inputs/keyboard/factory'))
 	.factory('socket', 		require('./inputs/socket/factory'))
 	.factory('orientation', require('./inputs/orientation/factory'))
 

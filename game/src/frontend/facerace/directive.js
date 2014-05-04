@@ -1,7 +1,7 @@
 var angular = require('angular'),
 	_ = require('lodash');
 
-module.exports = ['socket', 'keys', function(socket, keys) {
+module.exports = ['socket', 'keyboard', function(socket, keyboard) {
 	return {
 		restrict: 'E',
 		template: require('./template.html'),

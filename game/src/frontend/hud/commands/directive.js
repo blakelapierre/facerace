@@ -2,7 +2,7 @@ var angular = require('angular'),
 	_ = require('lodash');
 
 
-module.exports = ['keys', function(keys) {
+module.exports = ['keyboard', function(keyboard) {
 	return {
 		template: require('./template.html'),
 		restrict: 'E',
@@ -43,7 +43,7 @@ module.exports = ['keys', function(keys) {
 				return false;
 			});
 
-			keys.setMode('handlers');
+			keyboard.setMode('handlers');
 
 			var handlers = {
 				192: function(down) {
@@ -51,7 +51,7 @@ module.exports = ['keys', function(keys) {
 				}
 			};
 
-			keys.setKeyHandlers(handlers);
+			keyboard.setKeyHandlers(handlers);
 		}
 	};
 }];

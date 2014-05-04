@@ -11,8 +11,8 @@
 
 	You can supply your own key handlers and skip the $broadcast like so:
 
-	keys.setMode('handlers');
-	keys.setKeyHandlers({
+	keyboard.setMode('handlers');
+	keyboard.setKeyHandlers({
 		192: function(down) {
 			if (down) $scope.showDebug = !$scope.showDebug;
 		}
@@ -24,7 +24,7 @@
 
 */
 
-module.exports = ['$rootScope', function($scope) {
+module.exports = ['$rootScope', function keyboard($scope) {
 	var w = angular.element(window),
 		keymap = {},
 		keyHandlers = {};

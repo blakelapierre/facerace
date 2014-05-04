@@ -4,8 +4,8 @@ module.exports = function() {
 	return {
 		template: require('./template.html'),
 		restrict: 'E',
-		controller: ['$scope', 'keys', 'facerace', function($scope, keys, facerace) {
-			$scope.keymap = keys();
+		controller: ['$scope', 'keyboard', 'facerace', function($scope, keyboard, facerace) {
+			$scope.keyboard = keyboard();
 
 			$scope.setMap = function(map) {
 				facerace.setMap(map);
