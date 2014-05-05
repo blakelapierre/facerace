@@ -52,6 +52,9 @@ module.exports = ['$rootScope', function($scope) {
 				y: 'easeOutQuad',
 				z: 'bounce'
 			},
+			start: function() {
+				camera.up.set(0, 1, 0);
+			},
 			step: function(t) {
 				camera.position.y = t.y;
 				camera.position.z = t.z;
