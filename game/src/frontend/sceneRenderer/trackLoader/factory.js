@@ -1,6 +1,9 @@
+var Tweenable = require('tweenable');
+
 module.exports = ['$rootScope', function($scope) {
 
 	return function(scene, trackName) {
+
 		var trackData = scene._trackData || {},
 			track = trackData.track;
 
@@ -10,7 +13,7 @@ module.exports = ['$rootScope', function($scope) {
 				var geometry = trackData.geometry;
 
 				for (var i = 0; i < geometry.vertices.length; i++) {
-					geometry.vertices[i].z = 5 * Math.sin(time / 1000 + i) + 7 * Math.cos(time / 500 + i);
+					geometry.vertices[i].z = 5 * Math.sin(time / 1000 + i) - 7 * Math.cos(time / 250 - i);
 				}
 
 				geometry.verticesNeedUpdate = true;
@@ -29,15 +32,45 @@ module.exports = ['$rootScope', function($scope) {
 		track.rotateX(-Math.PI / 2);
 		track.position.y = -0.5;
 
-		for (var i = 0; i < geometry.vertices.length; i++) {
-			geometry.vertices[i].z = 5 * Math.sin(i);
-		}
-
 		scene.add(track);
 
 		trackData.track = track;
 		trackData.geometry = geometry;
 
 		scene._trackData = trackData;
+
+		var camera = $scope.activeScene.camera;
+
+		var outTween = new Tweenable(),
+			inTween = new Tweenable();
+
+		outTween.tween({
+			from: 	{ y: 1, z: 1 },
+			to: 	{ y: 1000, z: 1000 },
+			duration: 1500,
+			easing: {
+				y: 'easeOutQuad',
+				z: 'bounce'
+			},
+			step: function(t) {
+				camera.position.y = t.y;
+				camera.position.z = t.z;
+			},
+			finish: function() {
+				inTween.tween({
+					from: 	{ y: 1000, z: 1000 },
+					to: 	{ y: 500, z: 1 },
+					duration: 750,
+					easing: {
+						y: 'easeOutQuad',
+						z: 'bounce'
+					},
+					step: function(t) {
+						camera.position.y = t.y;
+						camera.position.z = t.z;
+					}
+				});
+			}
+		});
 	};  
 }];

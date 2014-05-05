@@ -50,6 +50,7 @@
     "underscore": "global:_",
     "lodash": "global:_",
     "mathjs": "global:mathjs",
-    "filereader": "global:FileReaderJS"
+    "filereader": "global:FileReaderJS",
+    "tweenable": "global:Tweenable"
   }
 }
