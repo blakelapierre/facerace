@@ -44,8 +44,7 @@ module.exports = [
 					};
 				})();
 
-				var maxfps = 30,
-					lastControlUpdate = new Date().getTime(),
+				var lastControlUpdate = new Date().getTime(),
 					controlUpdatesPerSecond = 4;
 
 				return (function() {
