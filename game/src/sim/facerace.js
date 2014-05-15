@@ -170,6 +170,9 @@ module.exports = function(isServer, rtc, io) {
 
 				_.each(state.players, function(player) {
 					_.remove(player.effects, function(e) { return e == 'quake'; });
+					player.offset[0] = 0;
+					player.offset[1] = 0;
+					player.offset[2] = 0;
 				});
 
 				console.log('leave');
