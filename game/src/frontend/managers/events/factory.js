@@ -35,7 +35,7 @@ module.exports = [
           console.log('video', event);
 
           var player = $scope.livePlayers[event._player],
-            source = $scope.liveSources[event._event];
+              source = $scope.liveSources[event._event];
 
           if (player && source) {
             scene.remove(source.mesh);

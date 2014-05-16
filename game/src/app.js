@@ -1,7 +1,7 @@
 var http = require('request'),
-  fs = require('fs'),
-  path = require('path'),
-  faceraceServer = require('./server/server');
+    fs = require('fs'),
+    path = require('path'),
+    faceraceServer = require('./server/server');
 
 var startServer = function(config, callback) {
   getPublicAddress(function(address) {

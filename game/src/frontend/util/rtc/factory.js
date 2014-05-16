@@ -2,7 +2,7 @@ var rtc = require('webrtc.io');
 
 module.exports = ['$rootScope', '$analytics', function($rootScope, $analytics) {
   var room = window.location.hash || '#facerace',
-    url = 'ws://' + window.location.hostname + ':2887';
+      url = 'ws://' + window.location.hostname + ':2887';
   rtc.connect(url, room);
 
   $analytics.eventTrack('rtc_connect', {category: url, action: 'connect', label: room});
@@ -34,7 +34,7 @@ module.exports = ['$rootScope', '$analytics', function($rootScope, $analytics) {
 
   rtc.sendFile = function(channel, file) {
     var chunkSize = 64 * 1024,
-      reader = new FileReader();
+        reader = new FileReader();
 
     reader.onload = function(e) {
       var result = e.target.result;
@@ -42,8 +42,8 @@ module.exports = ['$rootScope', '$analytics', function($rootScope, $analytics) {
       channel.send(result.byteLength + ';' + file.name);
 
       var offset = 0,
-        backoff = 0,
-        startTime = new Date().getTime();
+          backoff = 0,
+          startTime = new Date().getTime();
       var sendChunk = function() {
         if (offset == result.byteLength) return;
 
@@ -51,7 +51,7 @@ module.exports = ['$rootScope', '$analytics', function($rootScope, $analytics) {
 
         for (var i = 0; i < 10; i++) {
           var size = Math.min(offset + chunkSize, result.byteLength),
-            chunk = result.slice(offset, size);
+              chunk = result.slice(offset, size);
           try {
             channel.send(chunk);
             offset += chunkSize;

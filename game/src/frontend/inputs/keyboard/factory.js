@@ -26,8 +26,8 @@
 
 module.exports = ['$rootScope', function keyboard($scope) {
   var w = angular.element(window),
-    keymap = {},
-    keyHandlers = {};
+      keymap = {},
+      keyHandlers = {};
 
 
   function broadcastDown(event) {

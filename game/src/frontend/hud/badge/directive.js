@@ -1,5 +1,5 @@
 var angular = require('angular'),
-  FileReaderJS = require('filereader');
+    FileReaderJS = require('filereader');
 
 module.exports = function() {
   return {

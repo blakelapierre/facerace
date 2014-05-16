@@ -1,7 +1,7 @@
 var _ = require('lodash'),
-  core = require('./core'),
-  math = require('mathjs')(),
-  Random = require('./../../dist/libs/random');
+    core = require('./core'),
+    math = require('mathjs')(),
+    Random = require('./../../dist/libs/random');
 
 module.exports = function(isServer, rtc, io) {
   var tickRate = 100;
@@ -9,20 +9,20 @@ module.exports = function(isServer, rtc, io) {
   var random = new Random(); // don't care about seeds right now
 
   var eventQ = [],
-    sockets = {},
-    state = {
-      state: {
-        clock: 0,
-        beacon: {
+      sockets = {},
+      state = {
+        state: {
           clock: 0,
-          start: new Date()
-        },
-        players: {},
-        videoFrameRate: 30
-      }
-    },
-    stateEvents = []; // *ONLY* used to keep track that we need to send the full state to incoming sockets *after* we process their entry to the game.
-    //NEVER USE FOR ANYTHING ELSE ^^^^^ TRY TO GET RID OF IT!
+          beacon: {
+            clock: 0,
+            start: new Date()
+          },
+          players: {},
+          videoFrameRate: 30
+        }
+      },
+      stateEvents = []; // *ONLY* used to keep track that we need to send the full state to incoming sockets *after* we process their entry to the game.
+      //NEVER USE FOR ANYTHING ELSE ^^^^^ TRY TO GET RID OF IT!
 
   var getState = function() {
     return state.state;
@@ -51,7 +51,7 @@ module.exports = function(isServer, rtc, io) {
         state.players[newPlayer.id] = newPlayer;
         
         var parser = math.parser(),
-          index = 0;
+            index = 0;
         _.each(state.players, function(player, key) {
           parser.eval('a = ' + index++);
           parser.eval('p = floor(sqrt(4 * a + 1))');
@@ -89,9 +89,9 @@ module.exports = function(isServer, rtc, io) {
     orientation: {
       pre: function(state, eventQ, player, orientation) {
         var po = player.orientation,
-          o = orientation,
-          pq = po.quaternion,
-          nq = o.quaternion;
+            o = orientation,
+            pq = po.quaternion,
+            nq = o.quaternion;
 
         pq[0] = nq[0];
         pq[1] = nq[1];
@@ -231,7 +231,7 @@ module.exports = function(isServer, rtc, io) {
         else {
           socket.on(key, function(event) {
             var state = getState(),
-              player = state.players[event._fromID];
+                player = state.players[event._fromID];
 
             eventQ.push({type: key, _player: player, _event: event._event});
           });
@@ -264,8 +264,8 @@ module.exports = function(isServer, rtc, io) {
 
     var serverBroadcast = (function(transport) {
       var events = transport.processedEvents.concat(transport.outgoingEvents),
-        state = getState(),
-        clientEvent = {};
+          state = getState(),
+          clientEvent = {};
 
       if (events.length > 0) {
         _.each(state.players, function(destinationPlayer, playerID) {
@@ -296,7 +296,7 @@ module.exports = function(isServer, rtc, io) {
       lastTick = new Date().getTime();
     return _.extend(function(outerTransport) {
       var now = new Date().getTime(),
-        dt = now - lastTick;
+          dt = now - lastTick;
 
       if (dt < tickRate) return false;
 

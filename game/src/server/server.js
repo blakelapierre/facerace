@@ -1,13 +1,13 @@
 var path = require('path'),
-  fs = require('fs'),
-  express = require('express'),
-  socketIO = require('socket.io'),
-  webRTC = require('webrtc.io'),
-  roomNotifier = require('./roomNotifier'),
-  gitManager = require('./gitManager'),
-  imageManager = require('./imageManager'),
-  _ = require('lodash'),
-  app = express();
+    fs = require('fs'),
+    express = require('express'),
+    socketIO = require('socket.io'),
+    webRTC = require('webrtc.io'),
+    roomNotifier = require('./roomNotifier'),
+    gitManager = require('./gitManager'),
+    imageManager = require('./imageManager'),
+    _ = require('lodash'),
+    app = express();
 
 module.exports = function(config, callback) {
   var serverRoot = config.serverRoot;
@@ -17,14 +17,14 @@ module.exports = function(config, callback) {
 
 
   var webserver = app.listen(config.port),
-    manager = webRTC.listen(config.rtcport),
-    io = socketIO.listen(webserver);
+      manager = webRTC.listen(config.rtcport),
+      io = socketIO.listen(webserver);
 
   io.set('log level', 0);
 
   var transport = {},
-    facerace = require('../sim/facerace'),
-    facerace = facerace(true, manager, io);
+      facerace = require('../sim/facerace'),
+      facerace = facerace(true, manager, io);
 
   var imagesRoot = path.join(serverRoot, 'images');
   fs.readdir(imagesRoot, function(err, files) {
@@ -41,7 +41,7 @@ module.exports = function(config, callback) {
 
   (function() {
     var transport = {},
-      log = [];
+        log = [];
     setInterval(function () {
       var result = facerace(transport);
       if (result) transport = result;

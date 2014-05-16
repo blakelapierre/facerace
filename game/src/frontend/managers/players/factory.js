@@ -1,5 +1,5 @@
 var math = require('mathjs')(),
-  Player = require('./playerObject/player');
+    Player = require('./playerObject/player');
 
 module.exports = ['$rootScope', 'scopeHelpers', function($scope, scopeHelpers) {
   var scene, cssScene;
@@ -15,16 +15,16 @@ module.exports = ['$rootScope', 'scopeHelpers', function($scope, scopeHelpers) {
 
       var addPlayer = function(key, player) {
         var width = 1,
-          height = 1,
-          material = new THREE.MeshBasicMaterial({side: THREE.DoubleSide}),
-          mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, height, 1, 1), material),
-          player = new Player({
-            data: $scope.players[key],
-            targetQuaternion: new THREE.Quaternion(),
-            rig: new THREE.Object3D(),
-            mesh: mesh,
-            material: material
-          });
+            height = 1,
+            material = new THREE.MeshBasicMaterial({side: THREE.DoubleSide}),
+            mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, height, 1, 1), material),
+            player = new Player({
+              data: $scope.players[key],
+              targetQuaternion: new THREE.Quaternion(),
+              rig: new THREE.Object3D(),
+              mesh: mesh,
+              material: material
+            });
 
         //scene.add(mesh);
         mesh.visible = false;

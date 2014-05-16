@@ -9,8 +9,8 @@ module.exports = function() {
 
   return function(scene, map) {
     var mapData = scene._mapData || {},
-      skybox = mapData.skybox,
-      pointLight = mapData.pointLight;
+        skybox = mapData.skybox,
+        pointLight = mapData.pointLight;
 
     if (skybox) scene.remove(skybox);
     if (pointLight) scene.remove(pointLight);

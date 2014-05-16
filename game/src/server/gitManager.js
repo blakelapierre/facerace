@@ -1,6 +1,6 @@
 var _ = require('lodash'),
-  git = require('git'),
-  Repo = git.Repo;
+    git = require('git'),
+    Repo = git.Repo;
 
 module.exports = function(router, config) {
   var current_commit = null;

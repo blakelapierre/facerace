@@ -31,7 +31,7 @@ module.exports = [
 
           return function(orientation) {
             var q = orientation.quaternion,
-              lq = lastOrientation.quaternion;
+                lq = lastOrientation.quaternion;
 
             if (q[0] == lq[0] && q[1] == lq[1] && q[2] == lq[2] && q[3] == lq[3]) return false;
 
@@ -45,7 +45,7 @@ module.exports = [
         })();
 
         var lastControlUpdate = new Date().getTime(),
-          controlUpdatesPerSecond = 4;
+            controlUpdatesPerSecond = 4;
 
         return (function() {
           function updateVideoSources(framerate, now) {
@@ -85,10 +85,10 @@ module.exports = [
 
               _.each($scope.livePlayers, function(player) {
                 var data = player.simulationData,
-                  q = data.orientation.quaternion,
-                  tq = player.targetQuaternion,
-                  mesh = player.mesh,
-                  mq = mesh.quaternion;
+                    q = data.orientation.quaternion,
+                    tq = player.targetQuaternion,
+                    mesh = player.mesh,
+                    mq = mesh.quaternion;
 
                 // tq.set(q[0], q[1], q[2], q[3]);
                 // mq.slerp(tq, 0.05);
@@ -107,10 +107,10 @@ module.exports = [
       var updateFn = waitingForState;  
 
       var lastFrame = new Date().getTime(),
-        transport = {};
+          transport = {};
       return function () {
         var now = new Date().getTime(),
-          dt = now - lastFrame;
+            dt = now - lastFrame;
 
         var result = facerace(transport);
 

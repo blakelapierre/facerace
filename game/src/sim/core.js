@@ -2,7 +2,7 @@ var _ = require('lodash');
 
 module.exports = function(eventHandlers, getEventsFn, updateFn) {
   var clock = 0,
-    eventQ = [];
+      eventQ = [];
 
   var swapQ = function(newQ) {
     var events = newQ || eventQ;

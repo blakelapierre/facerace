@@ -1,5 +1,5 @@
 var angular = require('angular'),
-  _ = require('lodash');
+    _ = require('lodash');
 
 module.exports = ['$sce', 'rtc', function CameraDirective($sce, rtc) {
   return {

@@ -1,21 +1,21 @@
 var angular = require('angular'),
-  THREE = require('three');
+    THREE = require('three');
 
 module.exports = function() {
   var quaternion = [0, 0, 0, 1],
-    alpha = 0,
-    beta = 0,
-    gamma = 0,
-    windowOrientation = THREE.Math.degToRad(window.orientation || 0),
-    metrics = {};
+      alpha = 0,
+      beta = 0,
+      gamma = 0,
+      windowOrientation = THREE.Math.degToRad(window.orientation || 0),
+      metrics = {};
 
 
   var orientationListener = (function() {
     var screenQuaternion = new THREE.Quaternion(),
-      worldHalfAngle = Math.PI / 2,
-      worldQuaternion = new THREE.Quaternion(Math.sin(-worldHalfAngle), 0, 0, Math.cos(-worldHalfAngle)),
-      deviceEuler = new THREE.Euler(),
-      finalQuaternion = new THREE.Quaternion();
+        worldHalfAngle = Math.PI / 2,
+        worldQuaternion = new THREE.Quaternion(Math.sin(-worldHalfAngle), 0, 0, Math.cos(-worldHalfAngle)),
+        deviceEuler = new THREE.Euler(),
+        finalQuaternion = new THREE.Quaternion();
 
     return function(event) {
       //controls.turn = event.beta - calibration[1];

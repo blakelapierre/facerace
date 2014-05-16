@@ -1,14 +1,14 @@
 module.exports = function($rootScope) {
   var start = 0,
-    lastRender = 0,
-    absolute = 0,
-    dt = 0,
-    renderCount = 0;
+      lastRender = 0,
+      absolute = 0,
+      dt = 0,
+      renderCount = 0;
 
   var activeRender = function() {
-    absolute = new Date().getTime();
-    dt = absolute - lastRender;
-    renderCount++;
+      absolute = new Date().getTime();
+      dt = absolute - lastRender;
+      renderCount++;
 
     window.requestAnimationFrame(render);
 

@@ -1,7 +1,7 @@
 var fs = require('fs'),
-  crypto = require('crypto'),
-  path = require('path'),
-  multiparty = require('multiparty');
+    crypto = require('crypto'),
+    path = require('path'),
+    multiparty = require('multiparty');
 
 module.exports = function(router, config) {
   var tempCount = 0;
@@ -22,7 +22,7 @@ module.exports = function(router, config) {
       var tempFile = path.join(images, tempCount.toString());
 
       var read = fs.createReadStream(file.path),
-        write = fs.createWriteStream(tempFile);
+          write = fs.createWriteStream(tempFile);
 
       read.on('data', function(data) {
         hash.update(data);

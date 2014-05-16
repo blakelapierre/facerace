@@ -28,7 +28,7 @@ module.exports = function() {
     
     this.keyframes = [];
     var keytexts = [],
-      keyframeHash = {},
+        keyframeHash = {},
     
     /**
      * Makes the rule indexable
@@ -127,7 +127,7 @@ module.exports = function() {
   };
   
   var prefix = "",
-    prefixes = ['WebKit', 'Moz'];
+      prefixes = ['WebKit', 'Moz'];
     
   for(var i=0; i<prefixes.length; i++) {
     if(window[prefixes[i]+'CSSKeyframeRule'])
@@ -140,8 +140,8 @@ module.exports = function() {
     var rules = this.style.cssText.split(';');
     for(var i=0; i<rules.length; i++) {
       var parts = rules[i].split(':'),
-        key = trim(parts[0]),
-        value = trim(parts[1]);
+          key = trim(parts[0]),
+          value = trim(parts[1]);
       
       if(key !== '' && value !== '')
         css[key] = value;
@@ -182,9 +182,9 @@ module.exports = function() {
   var addAnimation = function(config) {
     console.log(config);
     var name = config.name,
-      duration = config.duration || '1s',
-      iterationCount = config.iterationCount || 'infinite',
-      timingFunction = config.timingFunction || 'linear';
+        duration = config.duration || '1s',
+        iterationCount = config.iterationCount || 'infinite',
+        timingFunction = config.timingFunction || 'linear';
 
     setAnimationRule(name, duration, iterationCount, timingFunction);
 

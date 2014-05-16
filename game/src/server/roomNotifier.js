@@ -1,16 +1,16 @@
 var http = require('request'),
-  nodemailer = require('nodemailer');
+    nodemailer = require('nodemailer');
 
 module.exports = function(router, manager, config) {
 
   var mailer = nodemailer.createTransport('SMTP', {
-    host: 'mail.facerace.in',
-    port: 587,
-    auth: {
-      user: 'you.are.invited@facerace.in',
-      pass: 'palebluedot'
-    }
-  });
+      host: 'mail.facerace.in',
+      port: 587,
+      auth: {
+        user: 'you.are.invited@facerace.in',
+        pass: 'palebluedot'
+      }
+    });
 
   var roomSubscriptions = {
     
@@ -65,7 +65,7 @@ module.exports = function(router, manager, config) {
 
   router.post('/invite/:address', function(req, res) {
     var address = req.params.address,
-      room = req.body;
+        room = req.body;
     console.log(arguments);
 
     var data = ''
@@ -74,7 +74,7 @@ module.exports = function(router, manager, config) {
     });
     req.on('end', function() {
       var message = JSON.parse(data),
-        room = message.room;
+          room = message.room;
 
       invite(address, room);
 

@@ -1,6 +1,6 @@
 module.exports = ['$rootScope', function($scope) {
   var scenes = {},
-    sceneCount = 0;
+      sceneCount = 0;
 
   $scope.scenes = scenes;
 
@@ -15,7 +15,7 @@ module.exports = ['$rootScope', function($scope) {
   return {
     addScene: function(name, includeCssScene, width, height) {
       var camera = new THREE.PerspectiveCamera(85, width / height, 0.1, 1000000),
-        cssCamera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000000);
+          cssCamera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000000);
 
       camera.up.set(0, 1, 0);
       camera.position.z = 2;
@@ -47,7 +47,7 @@ module.exports = ['$rootScope', function($scope) {
     updateCameras: function(width, height) {
       _.each(scenes, function(scene) {
         var camera = scene.camera,
-          cssCamera = scene.cssCamera;
+            cssCamera = scene.cssCamera;
 
         camera.aspect = width / height;
         camera.updateProjectionMatrix();

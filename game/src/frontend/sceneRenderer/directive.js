@@ -1,7 +1,7 @@
 var angular = require('angular'),
-  THREE = require('three'),
-  Stats = require('stats'),
-  _ = require('lodash');
+    THREE = require('three'),
+    Stats = require('stats'),
+    _ = require('lodash');
 
 module.exports = ['scenesManager', function(scenesManager) {
   return {
@@ -9,12 +9,12 @@ module.exports = ['scenesManager', function(scenesManager) {
     template: require('./template.html'),
     link: function($scope, element, attributes) {
       var width = window.innerWidth,
-        height = window.innerHeight,
-        webGLRenderer = new THREE.WebGLRenderer({antialias: false, alpha: true}),
-        cssRenderer = new THREE.CSS3DRenderer({}),
-        stats = new Stats(),
-        managedScene = scenesManager.addScene('main', true, width, height),
-        controls = new THREE.TrackballControls(managedScene.camera);
+          height = window.innerHeight,
+          webGLRenderer = new THREE.WebGLRenderer({antialias: false, alpha: true}),
+          cssRenderer = new THREE.CSS3DRenderer({}),
+          stats = new Stats(),
+          managedScene = scenesManager.addScene('main', true, width, height),
+          controls = new THREE.TrackballControls(managedScene.camera);
 
       controls.enabled = false;
 
@@ -35,7 +35,7 @@ module.exports = ['scenesManager', function(scenesManager) {
       _.each([webGLRenderer, cssRenderer], function(renderer) {
         console.log(renderer._rendererName, renderer);
         var element = renderer._element,
-          name = renderer._rendererName;
+            name = renderer._rendererName;
         
         renderer.setSize(width, height);
 
@@ -53,7 +53,7 @@ module.exports = ['scenesManager', function(scenesManager) {
 
       var resize = function(e) {
         var height = e.target.innerHeight,
-          width = e.target.innerWidth;
+            width = e.target.innerWidth;
           
         webGLRenderer.setSize(width, height);
         cssRenderer.setSize(width, height);
@@ -66,9 +66,9 @@ module.exports = ['scenesManager', function(scenesManager) {
         controls.update();
 
         var activeScene = $scope.activeScene,
-          scene = activeScene.scene,
-          cssScene = activeScene.cssScene,
-          camera = activeScene.camera;
+            scene = activeScene.scene,
+            cssScene = activeScene.cssScene,
+            camera = activeScene.camera;
 
         webGLRenderer.render(scene, camera);
         if (cssScene) cssRenderer.render(cssScene, camera);

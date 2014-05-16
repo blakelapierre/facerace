@@ -5,7 +5,7 @@ module.exports = ['$rootScope', function($scope) {
   return function(scene, trackName) {
 
     var trackData = scene._trackData || {},
-      track = trackData.track;
+        track = trackData.track;
 
     if (track) scene.remove(track);
     else {
@@ -24,7 +24,7 @@ module.exports = ['$rootScope', function($scope) {
     image.needsUpdate = true;
 
     var geometry = new THREE.PlaneGeometry(1000, 1000, 100, 100),
-      material = new THREE.MeshBasicMaterial({ map: image, side: THREE.DoubleSide });
+        material = new THREE.MeshBasicMaterial({ map: image, side: THREE.DoubleSide });
 
     geometry.dynamic = true;
 
@@ -42,7 +42,7 @@ module.exports = ['$rootScope', function($scope) {
     var camera = $scope.activeScene.camera;
 
     var outTween = new Tweenable(),
-      inTween = new Tweenable();
+        inTween = new Tweenable();
 
     outTween.tween({
       from:   { y: 1, z: 1 },

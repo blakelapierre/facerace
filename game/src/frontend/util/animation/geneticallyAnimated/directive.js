@@ -16,7 +16,7 @@ module.exports = ['dynamicAnimation', function(dynamicAnimation) {
     var collapsed = {};
     for (var key in keyframes) {
       var frame = keyframes[key],
-        newFrame = {};
+          newFrame = {};
 
       for (var property in frame) {
         var value = frame[property];
@@ -46,11 +46,11 @@ module.exports = ['dynamicAnimation', function(dynamicAnimation) {
     restrict: 'A',
     link: function($scope, element, attributes) {
       var animationClass = attributes.geneticallyAnimated,
-        animation = dynamicAnimation.addAnimation({
-          name: animationClass,
-          duration: '5s'
-        }),
-        keyframe = animation.keyframeAnimation;
+          animation = dynamicAnimation.addAnimation({
+            name: animationClass,
+            duration: '5s'
+          }),
+          keyframe = animation.keyframeAnimation;
 
       element.addClass(animationClass);
 
@@ -62,11 +62,11 @@ module.exports = ['dynamicAnimation', function(dynamicAnimation) {
       applyAnimation(element, animation);
 
       var yRotations = [0, 180, 360, 180, 0],
-        xRotations = [0, 180, 360, 180, 0],
-        zRotations = [0, 180, 360, 180, 0],
-        percentStep = 100 / (yRotations.length - 1),
-        keyframes = {},
-        transforms = new Array(yRotations.length);
+          xRotations = [0, 180, 360, 180, 0],
+          zRotations = [0, 180, 360, 180, 0],
+          percentStep = 100 / (yRotations.length - 1),
+          keyframes = {},
+          transforms = new Array(yRotations.length);
 
       for (var i = 0; i < yRotations.length; i++) {
         var transform = {
@@ -81,11 +81,11 @@ module.exports = ['dynamicAnimation', function(dynamicAnimation) {
       }
 
       var mu = [0.33, 0, 0.66, 1],
-        sigma = [0.01, 0.01, 0.01, 0.01],
-        timing = [0, 0, 0, 0];
+          sigma = [0.01, 0.01, 0.01, 0.01],
+          timing = [0, 0, 0, 0];
       setInterval(function() {
         var t0 = transforms[0],
-          tl = transforms[transforms.length - 1];
+            tl = transforms[transforms.length - 1];
 
         t0.rotateY = tl.rotateY;
         t0.rotateX = tl.rotateX;
@@ -93,8 +93,8 @@ module.exports = ['dynamicAnimation', function(dynamicAnimation) {
 
         for (var i = 1; i < yRotations.length; i++) {
           var yRotation = random.normal(yRotations[i], 10),
-            xRotation = random.normal(xRotations[i], 10),
-            zRotation = random.normal(zRotations[i], 10);
+              xRotation = random.normal(xRotations[i], 10),
+              zRotation = random.normal(zRotations[i], 10);
 
           transforms[i].rotateY = yRotation + 'deg';
           transforms[i].rotateX = xRotation + 'deg';

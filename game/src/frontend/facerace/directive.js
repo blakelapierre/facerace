@@ -1,5 +1,5 @@
 var angular = require('angular'),
-  _ = require('lodash');
+    _ = require('lodash');
 
 module.exports = ['socket', 'keyboard', function(socket, keyboard) {
   return {
@@ -13,15 +13,15 @@ module.exports = ['socket', 'keyboard', function(socket, keyboard) {
       $scope.$on('sceneReady', function(e, s) {
         if (s.name == 'main') {
           var scene = s.scene,
-            cssScene = s.cssScene,
-            camera = s.camera,
-            controls = s.controls;
+              cssScene = s.cssScene,
+              camera = s.camera,
+              controls = s.controls;
 
 
           var dispatch = eventsManager.setScene(scene, cssScene),
-            livePlayers = playersManager.setScene(scene, cssScene),
-            liveSources = sourcesManager.setScene(scene, cssScene),
-            liveTransport = updateManager.setScene(scene, cssScene, camera);
+              livePlayers = playersManager.setScene(scene, cssScene),
+              liveSources = sourcesManager.setScene(scene, cssScene),
+              liveTransport = updateManager.setScene(scene, cssScene, camera);
 
           renderService.start();
         }
@@ -81,8 +81,8 @@ module.exports = ['socket', 'keyboard', function(socket, keyboard) {
           }
           else {
             var parts = message.toString().split(';'),
-              byteLength = parseInt(parts[0]),
-              name = parts[1];
+                byteLength = parseInt(parts[0]),
+                name = parts[1];
 
             console.log('Incoming file of byteLength', byteLength, '!');
 

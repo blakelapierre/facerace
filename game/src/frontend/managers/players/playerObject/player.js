@@ -8,7 +8,7 @@ function Player(config) {
 
 Player.prototype.update = function() {
   var rig = this.rig,
-    data = this.simulationData;
+      data = this.simulationData;
 
   rig.position.x = data.position[0] + data.offset[0];
   rig.position.y = data.position[1] + data.offset[1];
