@@ -32,10 +32,7 @@ module.exports = ['recursiveDirective', function(recursiveDirective) {
       $scope.showValue = true;
 
       $scope.toggleKey = function(key) {
-        console.log(key);
-        if ($scope.type === 'object' || $scope.type === 'array') {
-          $scope.showValue = !$scope.showValue;
-        }
+        if ($scope.type === 'object' || $scope.type === 'array') $scope.showValue = !$scope.showValue;
       };
 
       $scope.$watch('obj', function(obj) {
