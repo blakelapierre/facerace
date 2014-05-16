@@ -3,8 +3,8 @@
 <span ng-if="type == 'array'">[<json-renderer ng-repeat="child in obj track by $index" obj="child" parent="obj">,</json-renderer>]</span>
 
 <span ng-if="type == 'object'">{<div ng-repeat="(key, value) in obj">
-		<json-renderer class="json-obj" key="key" obj="value" parent="obj"></json-renderer>
-	</div>}
+    <json-renderer class="json-obj" key="key" obj="value" parent="obj"></json-renderer>
+  </div>}
 </span>
 
 <span ng-if="type == 'boolean'" class="json-boolean">"{{obj}}"</span>

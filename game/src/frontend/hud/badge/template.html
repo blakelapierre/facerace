@@ -1,10 +1,10 @@
 <div ng-show="showMenu" class="menu">
-	<div ng-show="showPlusFile" class="plus" ng-click="shareFile()">+ File</div>
-	<div ng-show="showPlusPerson" class="plus" ng-click="showPlusPerson = false; showAddress = true">+ Person</div>
-	<form ng-show="showAddress" ng-submit="sendInvite()">
-		<input focus-on="showAddress" ng-model="address" class="address" type="text" name="who" placeholder="email or text">
-	</form>
+  <div ng-show="showPlusFile" class="plus" ng-click="shareFile()">+ File</div>
+  <div ng-show="showPlusPerson" class="plus" ng-click="showPlusPerson = false; showAddress = true">+ Person</div>
+  <form ng-show="showAddress" ng-submit="sendInvite()">
+    <input focus-on="showAddress" ng-model="address" class="address" type="text" name="who" placeholder="email or text">
+  </form>
 </div>
 <div ng-click="toggleMenu()">
-	({{webrtc.peerConnections.length}})<span genetically-animated="badgeAnimations" class="badge">{{room}}</span>
+  ({{webrtc.peerConnections.length}})<span genetically-animated="badgeAnimations" class="badge">{{room}}</span>
 </div>

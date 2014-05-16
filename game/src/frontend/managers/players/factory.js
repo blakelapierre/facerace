@@ -1,148 +1,148 @@
 var math = require('mathjs')(),
-	Player = require('./playerObject/player');
+  Player = require('./playerObject/player');
 
 module.exports = ['$rootScope', 'scopeHelpers', function($scope, scopeHelpers) {
-	var scene, cssScene;
+  var scene, cssScene;
 
-	var livePlayers = {};
+  var livePlayers = {};
 
-	return {
-		setScene: function(s, cs) {
-			if (scene) {} // detach?
+  return {
+    setScene: function(s, cs) {
+      if (scene) {} // detach?
 
-			scene = s;
-			cssScene = cs;
+      scene = s;
+      cssScene = cs;
 
-			var addPlayer = function(key, player) {
-				var width = 1,
-					height = 1,
-					material = new THREE.MeshBasicMaterial({side: THREE.DoubleSide}),
-					mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, height, 1, 1), material),
-					player = new Player({
-						data: $scope.players[key],
-						targetQuaternion: new THREE.Quaternion(),
-						rig: new THREE.Object3D(),
-						mesh: mesh,
-						material: material
-					});
+      var addPlayer = function(key, player) {
+        var width = 1,
+          height = 1,
+          material = new THREE.MeshBasicMaterial({side: THREE.DoubleSide}),
+          mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, height, 1, 1), material),
+          player = new Player({
+            data: $scope.players[key],
+            targetQuaternion: new THREE.Quaternion(),
+            rig: new THREE.Object3D(),
+            mesh: mesh,
+            material: material
+          });
 
-				//scene.add(mesh);
-				mesh.visible = false;
+        //scene.add(mesh);
+        mesh.visible = false;
 
-				var teaser = document.createElement('div');
-				var teaser = document.createElement('slider');
-				teaser.type = 'range'
-				// teaser.className = 'teaser';
-				// teaser.innerText = 'turn your camera on!';
+        var teaser = document.createElement('div');
+        var teaser = document.createElement('slider');
+        teaser.type = 'range'
+        // teaser.className = 'teaser';
+        // teaser.innerText = 'turn your camera on!';
 
-				var teaserObj = new THREE.CSS3DObject(teaser);
-				//cssScene.add(teaserObj);
+        var teaserObj = new THREE.CSS3DObject(teaser);
+        //cssScene.add(teaserObj);
 
-				var material = new THREE.MeshBasicMaterial();
+        var material = new THREE.MeshBasicMaterial();
 
-				material.color.set('black');
-				material.opacity = 0;
-				material.blending = THREE.NoBlending;
+        material.color.set('black');
+        material.opacity = 0;
+        material.blending = THREE.NoBlending;
 
-				var geometry = new THREE.PlaneGeometry(1, 1, 1, 1);
-				var planeMesh= new THREE.Mesh( geometry, material );
+        var geometry = new THREE.PlaneGeometry(1, 1, 1, 1);
+        var planeMesh= new THREE.Mesh( geometry, material );
 
-				planeMesh.position.x = 0;
-				planeMesh.position.y = 0;
-				teaserObj.scale.multiplyScalar(1 / 200);
+        planeMesh.position.x = 0;
+        planeMesh.position.y = 0;
+        teaserObj.scale.multiplyScalar(1 / 200);
 
-				//sliderObj.position = planeMesh.position;
-				teaserObj.position.x = -2;
-				teaserObj.position.y = -2;
-				teaserObj.position.z = 0.1;
-				teaserObj.quaternion = planeMesh.quaternion;
+        //sliderObj.position = planeMesh.position;
+        teaserObj.position.x = -2;
+        teaserObj.position.y = -2;
+        teaserObj.position.z = 0.1;
+        teaserObj.quaternion = planeMesh.quaternion;
 
-				//scene.add(planeMesh);
+        //scene.add(planeMesh);
 
-				scene.add(player.rig);
+        scene.add(player.rig);
 
-				livePlayers[key] = player;
-			};
+        livePlayers[key] = player;
+      };
 
-			// http://danpearcymaths.wordpress.com/2012/09/30/infinity-programming-in-geogebra-and-failing-miserably/
-			var p = function(a) { math.floor(math.sqrt(math.add(math.multiply(4, a), 1))); };
-			var q = function(p, a) { math.subtract(a, math.floor(math.divide(math.square(p), 4))); };
-			var parser = math.parser();
+      // http://danpearcymaths.wordpress.com/2012/09/30/infinity-programming-in-geogebra-and-failing-miserably/
+      var p = function(a) { math.floor(math.sqrt(math.add(math.multiply(4, a), 1))); };
+      var q = function(p, a) { math.subtract(a, math.floor(math.divide(math.square(p), 4))); };
+      var parser = math.parser();
 
-			$scope.$watchCollection('players', scopeHelpers.createWatchCollectionFunction($scope, livePlayers, {
-				newAction: addPlayer,
-				removeAction: function(key) {
-					var player = livePlayers[key];
-					scene.remove(player.mesh);
-					delete livePlayers[key];
-				},
-				updateAction: function(player, index) {
-					parser.eval('a = ' + index);
-					parser.eval('p = floor(sqrt(4 * a + 1))');
-					parser.eval('q = a - floor(p^2 / 4)');
-					
-					var point = parser.eval('q * i^p + (floor((p + 2) / 4) - floor((p + 1) / 4) * i) * i^(p - 1)');
+      $scope.$watchCollection('players', scopeHelpers.createWatchCollectionFunction($scope, livePlayers, {
+        newAction: addPlayer,
+        removeAction: function(key) {
+          var player = livePlayers[key];
+          scene.remove(player.mesh);
+          delete livePlayers[key];
+        },
+        updateAction: function(player, index) {
+          parser.eval('a = ' + index);
+          parser.eval('p = floor(sqrt(4 * a + 1))');
+          parser.eval('q = a - floor(p^2 / 4)');
+          
+          var point = parser.eval('q * i^p + (floor((p + 2) / 4) - floor((p + 1) / 4) * i) * i^(p - 1)');
 
-					var mesh = player.mesh;
-					mesh.position.y = point.re;
-					mesh.position.x = point.im;
-				}
-			}));
+          var mesh = player.mesh;
+          mesh.position.y = point.re;
+          mesh.position.x = point.im;
+        }
+      }));
 
-			$scope.livePlayers = livePlayers;
+      $scope.livePlayers = livePlayers;
 
-			return livePlayers;
-		},
+      return livePlayers;
+    },
 
-		setMode: function(mode) {
-			_.each(livePlayers, function(player) {
-				player.setMode(mode);
-			});
-		},
+    setMode: function(mode) {
+      _.each(livePlayers, function(player) {
+        player.setMode(mode);
+      });
+    },
 
-		offer: (function() {
-			function addToScene(teaser, player) {
-				var teaserObj = new THREE.CSS3DObject(teaser);
-					cssScene.add(teaserObj);
+    offer: (function() {
+      function addToScene(teaser, player) {
+        var teaserObj = new THREE.CSS3DObject(teaser);
+          cssScene.add(teaserObj);
 
-				var material = new THREE.MeshBasicMaterial();
+        var material = new THREE.MeshBasicMaterial();
 
-				material.color.set('black');
-				material.opacity = 0;
-				material.blending = THREE.NoBlending;
+        material.color.set('black');
+        material.opacity = 0;
+        material.blending = THREE.NoBlending;
 
-				var geometry = new THREE.PlaneGeometry(1, 1, 1, 1);
-				var planeMesh= new THREE.Mesh( geometry, material );
+        var geometry = new THREE.PlaneGeometry(1, 1, 1, 1);
+        var planeMesh= new THREE.Mesh( geometry, material );
 
-				scene.add(planeMesh);
+        scene.add(planeMesh);
 
-				teaserObj.scale.multiplyScalar(1 / 200);
+        teaserObj.scale.multiplyScalar(1 / 200);
 
-				planeMesh.position = player.rig.position;
-				teaserObj.position = player.rig.position;
-				teaserObj.quaternion = player.rig.quaternion;
-			};
+        planeMesh.position = player.rig.position;
+        teaserObj.position = player.rig.position;
+        teaserObj.quaternion = player.rig.quaternion;
+      };
 
-			return function(playerID, offerings) {
-				var player = livePlayers[playerID];
+      return function(playerID, offerings) {
+        var player = livePlayers[playerID];
 
-				if (offerings.file) {
-					var teaser = document.createElement('div');
-					teaser.className = 'file-offering';
-					teaser.innerText = offerings.file;
+        if (offerings.file) {
+          var teaser = document.createElement('div');
+          teaser.className = 'file-offering';
+          teaser.innerText = offerings.file;
 
-					teaser.onclick = function(e) {
-						var channel = $scope.webrtc.dataChannels[player.simulationData.peerConnectionID + ':fileTransfer'];
-						
-						if (channel) {
-							channel.send(offerings.file);
-							$scope.showDebug = true;
-						}
-					};
+          teaser.onclick = function(e) {
+            var channel = $scope.webrtc.dataChannels[player.simulationData.peerConnectionID + ':fileTransfer'];
+            
+            if (channel) {
+              channel.send(offerings.file);
+              $scope.showDebug = true;
+            }
+          };
 
-					addToScene(teaser, player);
-				}
-			};
-		})()
-	};	
+          addToScene(teaser, player);
+        }
+      };
+    })()
+  };  
 }];
