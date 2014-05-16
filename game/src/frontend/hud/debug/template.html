@@ -1,17 +1,24 @@
-<!-- <div class="webrtc">
+<div class="webrtc">
 	<div class="webrtc-container">
 		<json-renderer obj="webrtc"></json-renderer>
+		{{received}}/{{total}}@d:{{downSpeed}} MB/su:{{upSpeed}} MB/s
 	</div>
 </div>
 <div class="state">
 	<div class="state-container">
 		<json-renderer obj="state"></json-renderer>
 	</div>
-</div> -->
-<div class="webrtc"><pre>{{webrtc | json}}{{received}}/{{total}}@d:{{downSpeed}} MB/su:{{upSpeed}} MB/s</pre></div>
-<div class="state"><pre>{{state | json}}</pre></div>
-<div class="last-event"><pre>{{lastEvent | json}}</pre></div>
-<div class="keymap">{{keyboard | json}}</div>
+</div>
+<div class="last-event">
+	<div class="last-event-container">
+		<json-renderer obj="lastEvent"></json-renderer>
+	</div>
+</div>
+<div class="keymap">
+	<div class="keymap-container">
+		<json-renderer obj="keyboard"></json-renderer>
+	</div>
+</div>
 <div class="controls">
 	<input type="button" ng-click="toggleMode()" value="Quake Mode" />
 	<input type="button" ng-click="hide_webGLRenderer = !hide_webGLRenderer" value="Hide WebGL" />
