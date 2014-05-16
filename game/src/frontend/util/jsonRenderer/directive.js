@@ -1,7 +1,7 @@
 var _ = require('lodash');
 
 module.exports = ['recursiveDirective', function(recursiveDirective) {
-  var getType = function(obj) {
+  function getType(obj) {
     if (obj == null) return 'null'
       
     var type = typeof obj;
@@ -29,16 +29,18 @@ module.exports = ['recursiveDirective', function(recursiveDirective) {
     controller: function($scope) {
       $scope._ = _; // Used by template
 
+      $scope.showValue = true;
+
       $scope.toggleKey = function(key) {
         console.log(key);
-        if ($scope.type === 'object') {
-          $scope.showObject = !$scope.showObject;
+        if ($scope.type === 'object' || $scope.type === 'array') {
+          $scope.showValue = !$scope.showValue;
         }
       };
 
       $scope.$watch('obj', function(obj) {
         $scope.type = getType(obj);
-        if ($scope.type === 'object') $scope.showObject = true;
+        if ($scope.type === 'object' || $scope.type === 'array') $scope.showValue = true;
       });
     },
     compile: function(element) {
