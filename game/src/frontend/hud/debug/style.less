@@ -1,6 +1,28 @@
 debug {
   color: #fff;
 
+  .debug-column {
+    position: absolute;
+    top: 0;
+    
+    width: 33.33%;
+    height: 100%;
+
+    overflow: visible;
+
+    &.debug-column-1 {
+      left: 0;
+    }
+
+    &.debug-column-2 {
+      left: 33.33%;
+    }
+
+    &.debug-column-3 {
+      left: 66.66%;
+    }
+  }
+
   .webrtc {
     position: absolute;
     left: 33%;

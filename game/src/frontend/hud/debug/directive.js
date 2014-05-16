@@ -29,7 +29,12 @@ module.exports = function() {
       $scope.$on('newState', function(event, transport) {
         $scope.lastEvent = transport.events.processedEvents.length > 0 ? transport.events.processedEvents : $scope.lastEvent;
         $scope.state = transport.state;
+
+        $scope.column1Objs = [$scope.state];
+        $scope.column3Objs = [$scope.lastEvent];
       });
+
+      $scope.column2Objs = [$scope.webrtc];
     }]
   };
 };
