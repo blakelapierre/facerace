@@ -25,15 +25,20 @@ module.exports = ['recursiveDirective', function(recursiveDirective) {
     template: require('./template.html'),
     scope: {obj: '=', parent: '=', key: "="},
     link: function($scope, element, attributes) {
-
     },
     controller: function($scope) {
-      $scope._ = _;
-      $scope.type = getType($scope.obj);
+      $scope._ = _; // Used by template
+
+      $scope.toggleKey = function(key) {
+        console.log(key);
+        if ($scope.type === 'object') {
+          $scope.showObject = !$scope.showObject;
+        }
+      };
 
       $scope.$watch('obj', function(obj) {
         $scope.type = getType(obj);
-
+        if ($scope.type === 'object') $scope.showObject = true;
       });
     },
     compile: function(element) {
