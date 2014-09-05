@@ -2,7 +2,8 @@ var _ = require('lodash');
 
 module.exports = function(eventHandlers, getEventsFn, updateFn) {
   var clock = 0,
-      eventQ = [];
+      eventQ = [],
+      history = [];
 
   function tick(transport) {
     clock += 1;
@@ -19,11 +20,16 @@ module.exports = function(eventHandlers, getEventsFn, updateFn) {
   }
 
   function processEventQ() {
-    var events = swapQ(getEventsFn());
-    return _.filter(events, function(event) {
+    var queuedEvents = swapQ(getEventsFn());
+
+    var processedEvents = _.filter(queuedEvents, function(event) {
       event._c = clock;
       return (eventHandlers[event.type] || defaultHandler)(eventQ, event);
     });
+
+    history.push([clock, processedEvents]);
+
+    return processedEvents;
   }
 
   function swapQ(newQ) {
@@ -33,9 +39,16 @@ module.exports = function(eventHandlers, getEventsFn, updateFn) {
   }
 
   function defaultHandler() {
-    console.log('default', arguments);
+    console.log('defaultHandler()', arguments);
     return false;
   }
 
-  return tick;
+  return _.extend(tick, {
+    transport: {},
+    truncateHistory: function() {
+      var existingHistory = history;
+      history = [];
+      return existingHistory;
+    }
+  });
 };

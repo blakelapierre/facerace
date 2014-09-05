@@ -86,6 +86,6 @@ module.exports = function(grunt) {
 	});
 
 	grunt.registerTask('debug', 'test', function() {
-		grunt.task.run('preprocess:livereload', 'less:bundle', 'autoprefixer:dist', 'browserify:bundle', 'express:dev', 'watch:game');
+		grunt.task.run('preprocess:livereload', 'less:bundle', 'autoprefixer:dist', 'browserify:bundle', 'express:dev', 'watch:game', 'bgShell:startClient');
 	});
 };
