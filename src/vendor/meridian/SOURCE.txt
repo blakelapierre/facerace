@@ -1,0 +1,3 @@
+Vendored from github.com/blakelapierre/meridian (main) engine, render, and net,
+which ports github.com/blakelapierre/nbody-raycaster. Cache-bust query strings
+stripped. sim/crust.js is a FaceRace shim exporting VOXEL_M only.
