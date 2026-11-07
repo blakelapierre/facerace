@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="FaceRace">
+  <rect width="32" height="32" rx="7" fill="#10140f"/>
+  <circle cx="16" cy="13.6" r="8.6" fill="#f3efe4"/>
+  <circle cx="12.7" cy="12.6" r="1.85" fill="#10140f"/>
+  <circle cx="19.3" cy="12.6" r="1.85" fill="#10140f"/>
+  <path d="M12.2 16.8h7.6" stroke="#d64532" stroke-width="2.4" stroke-linecap="round"/>
+  <path d="M6.5 25.2h19" stroke="#e7a322" stroke-width="3.1" stroke-linecap="round"/>
+</svg>
