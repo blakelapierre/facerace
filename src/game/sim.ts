@@ -26,6 +26,12 @@ export type Sim = {
   keys: Set<string>;
   touch: Set<string>;
   steer: number;
+  /** Joystick sideways, −1..1. Positive is player-left. Replaces tilt while pushed. */
+  stick: number;
+  /** Phone tilt, −1..1. Positive is player-left. */
+  tilt: number;
+  /** Joystick gas, −1..1. Positive is forward. */
+  gas: number;
   banner: string;
   bestMs: number | null;
 };
@@ -89,6 +95,9 @@ export function createSim(playerName = "You"): Sim {
     keys: new Set(),
     touch: new Set(),
     steer: 0,
+    stick: 0,
+    tilt: 0,
+    gas: 0,
     banner: "",
     bestMs: best,
   };
@@ -102,15 +111,18 @@ function readSteer(sim: Sim) {
   let steer = sim.steer;
   if (down(sim, "KeyA") || down(sim, "ArrowLeft")) steer += 1;
   if (down(sim, "KeyD") || down(sim, "ArrowRight")) steer -= 1;
+  steer += Math.abs(sim.stick) > 0.08 ? sim.stick : sim.tilt;
   if (steer > 1) return 1;
   if (steer < -1) return -1;
   return steer;
 }
 
 function throttle(sim: Sim) {
-  let t = 0;
+  let t = sim.gas;
   if (down(sim, "KeyW") || down(sim, "ArrowUp")) t += 1;
   if (down(sim, "KeyS") || down(sim, "ArrowDown")) t -= 1;
+  if (t > 1) return 1;
+  if (t < -1) return -1;
   return t;
 }
 

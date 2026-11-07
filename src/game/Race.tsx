@@ -22,6 +22,23 @@ function ordinal(n: number) {
   return `${n}th`;
 }
 
+/** Degrees the screen's right edge is below the left. Positive → turn right. */
+function screenRoll(event: DeviceOrientationEvent) {
+  const angle = screen.orientation?.angle ?? Number(window.orientation ?? 0);
+  const beta = event.beta ?? 0;
+  const gamma = event.gamma ?? 0;
+  if (angle === 90) return beta;
+  if (angle === 270 || angle === -90) return -beta;
+  if (angle === 180) return -gamma;
+  return gamma;
+}
+
+function clampUnit(n: number) {
+  if (n > 1) return 1;
+  if (n < -1) return -1;
+  return n;
+}
+
 export function Race() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -34,10 +51,15 @@ export function Race() {
   const statusRef = useRef<HTMLParagraphElement>(null);
   const standRef = useRef<HTMLUListElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const stickRef = useRef<HTMLDivElement>(null);
+  const knobRef = useRef<HTMLDivElement>(null);
   const simRef = useRef<Sim | null>(null);
   const netRef = useRef<RaceNet | null>(null);
   const faceRef = useRef<FaceImage | null>(null);
   const botFaces = useRef<Map<string, FaceImage>>(new Map());
+  const orbitRef = useRef({ yaw: 0, pitch: 0 });
+  const lookingRef = useRef(false);
+  const lookPoint = useRef<{ id: number; x: number; y: number } | null>(null);
   const [phase, setPhase] = useState<"grid" | "live">("grid");
   const [camOn, setCamOn] = useState(false);
   const [camError, setCamError] = useState("");
@@ -67,9 +89,12 @@ export function Race() {
 
     const fit = () => {
       const box = canvas.parentElement?.getBoundingClientRect();
-      const dpr = Math.min(window.devicePixelRatio || 1, 1.25);
-      const viewW = Math.max(320, Math.floor((box?.width || window.innerWidth || 960) * dpr));
-      const viewH = Math.max(180, Math.floor((box?.height || window.innerHeight || 540) * dpr));
+      const cssW = box?.width || window.innerWidth || 960;
+      const cssH = box?.height || window.innerHeight || 540;
+      // A full-window backing store plus the raytrace freezes desktop GPUs, then the picture goes black.
+      const scale = Math.min(1, 960 / Math.max(1, cssW), 540 / Math.max(1, cssH));
+      const viewW = Math.max(320, Math.floor(cssW * scale));
+      const viewH = Math.max(180, Math.floor(cssH * scale));
       if (canvas.width === viewW && canvas.height === viewH) return false;
       canvas.width = viewW;
       canvas.height = viewH;
@@ -93,10 +118,29 @@ export function Race() {
       sim.keys.clear();
       sim.touch.clear();
       sim.steer = 0;
+      sim.stick = 0;
+      sim.gas = 0;
     };
     window.addEventListener("keydown", keysDown);
     window.addEventListener("keyup", keysUp);
     window.addEventListener("blur", blur);
+
+    let tiltZero: number | null = null;
+    const onTilt = (event: DeviceOrientationEvent) => {
+      const current = simRef.current;
+      if (!current) return;
+      const roll = screenRoll(event);
+      if (tiltZero == null) tiltZero = roll;
+      const delta = roll - tiltZero;
+      const dead = 4;
+      const mag = Math.max(0, Math.abs(delta) - dead);
+      current.tilt = clampUnit(-(Math.sign(delta) * mag) / 18);
+    };
+    const resetTilt = () => {
+      tiltZero = null;
+    };
+    window.addEventListener("deviceorientation", onTilt);
+    screen.orientation?.addEventListener("change", resetTilt);
 
     let smooth = chaseCamera(sim.karts[0]!);
     let prevYaw = sim.karts[0]!.yaw;
@@ -133,7 +177,23 @@ export function Race() {
         painter?.setSmoothing?.(true);
       };
       window.addEventListener("resize", onResize);
-      return () => window.removeEventListener("resize", onResize);
+      const lost = (event: Event) => {
+        event.preventDefault();
+        painter = null;
+        gridPainted = false;
+      };
+      const restored = () => {
+        painter = gpu.createGpuPainter(canvas);
+        painter?.setSmoothing?.(true);
+        gridPainted = false;
+      };
+      canvas.addEventListener("webglcontextlost", lost);
+      canvas.addEventListener("webglcontextrestored", restored);
+      return () => {
+        window.removeEventListener("resize", onResize);
+        canvas.removeEventListener("webglcontextlost", lost);
+        canvas.removeEventListener("webglcontextrestored", restored);
+      };
     };
     const bootDone = boot();
 
@@ -159,7 +219,13 @@ export function Race() {
         faceAt = now;
         faceRef.current = paintFace(player.seed, video);
       }
-      const want = chaseCamera(player);
+      const orbit = orbitRef.current;
+      if (!lookingRef.current) {
+        const settle = Math.exp(-dt * 0.9);
+        orbit.yaw *= settle;
+        orbit.pitch *= settle;
+      }
+      const want = chaseCamera(player, 7.5, orbit);
       const blend = 1 - Math.exp(-dt * 5.5);
       smooth = {
         x: smooth.x + (want.x - smooth.x) * blend,
@@ -195,12 +261,14 @@ export function Race() {
       ];
       const boxW = canvas.width;
       const boxH = canvas.height;
-      const traceCap = player.speed > 2 ? 480 : 640;
+      const heavy = boxW * boxH > 700 * 420;
+      const traceCap = heavy ? 300 : Math.min(boxW, 400);
       const traceW = Math.max(200, Math.min(boxW, traceCap));
       const traceH = Math.max(120, Math.round((traceW * boxH) / Math.max(1, boxW)));
       const picture = buildPicture(bodies, smooth, traceW, traceH, !current.running || Math.abs(player.speed) < 0.4);
       const faceLive = !!videoRef.current && videoRef.current.readyState >= 2;
-      const due = current.running || !gridPainted || (faceLive && now - lastPaint > 400);
+      const gap = current.running ? (heavy ? 80 : 48) : 0;
+      const due = (current.running || !gridPainted || (faceLive && now - lastPaint > 400)) && now - lastPaint >= gap;
       if (painter) {
         if (due && !painter.busy?.()) {
           lastPaint = now;
@@ -265,6 +333,8 @@ export function Race() {
       window.removeEventListener("keydown", keysDown);
       window.removeEventListener("keyup", keysUp);
       window.removeEventListener("blur", blur);
+      window.removeEventListener("deviceorientation", onTilt);
+      screen.orientation?.removeEventListener("change", resetTilt);
       void bootDone.then((off) => off?.());
       netRef.current?.close();
       netRef.current = null;
@@ -273,11 +343,58 @@ export function Race() {
     };
   }, []);
 
-  function hold(code: string, down: boolean) {
+  function holdStick(clientX: number, clientY: number) {
+    const pad = stickRef.current;
     const sim = simRef.current;
-    if (!sim) return;
-    if (down) sim.touch.add(code);
-    else sim.touch.delete(code);
+    if (!pad || !sim) return;
+    const rect = pad.getBoundingClientRect();
+    const max = rect.width * 0.34;
+    let dx = clientX - (rect.left + rect.width / 2);
+    let dy = clientY - (rect.top + rect.height / 2);
+    const mag = Math.hypot(dx, dy) || 1;
+    if (mag > max) {
+      dx *= max / mag;
+      dy *= max / mag;
+    }
+    if (knobRef.current) knobRef.current.style.transform = `translate(${dx}px, ${dy}px)`;
+    sim.stick = clampUnit(-dx / max);
+    sim.gas = clampUnit(-dy / max);
+  }
+
+  function releaseStick() {
+    const sim = simRef.current;
+    if (sim) {
+      sim.stick = 0;
+      sim.gas = 0;
+    }
+    if (knobRef.current) knobRef.current.style.transform = "translate(0px, 0px)";
+  }
+
+  function lookDown(event: React.PointerEvent) {
+    const target = event.target as HTMLElement | null;
+    if (target?.closest(".stick, button, input, a, .race-card, .race-sideways")) return;
+    lookingRef.current = true;
+    lookPoint.current = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+  }
+
+  function lookMove(event: React.PointerEvent) {
+    const point = lookPoint.current;
+    if (!point || point.id !== event.pointerId) return;
+    const dx = event.clientX - point.x;
+    const dy = event.clientY - point.y;
+    point.x = event.clientX;
+    point.y = event.clientY;
+    const orbit = orbitRef.current;
+    orbit.yaw += dx * 0.005;
+    orbit.pitch = Math.max(-0.55, Math.min(0.85, orbit.pitch - dy * 0.0035));
+  }
+
+  function lookUp(event: React.PointerEvent) {
+    if (lookPoint.current?.id === event.pointerId) {
+      lookPoint.current = null;
+      lookingRef.current = false;
+    }
   }
 
   async function useCamera() {
@@ -302,6 +419,23 @@ export function Race() {
     if (!sim || sim.running) return;
     const name = nameRef.current?.value.trim().slice(0, 16) || "You";
     sim.karts[0]!.name = name;
+    const orient = DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<string> };
+    if (typeof orient.requestPermission === "function") {
+      try {
+        await orient.requestPermission();
+      } catch {
+        /* tilt stays unused */
+      }
+    }
+    const coarse = window.matchMedia("(pointer: coarse)").matches;
+    if (coarse) {
+      try {
+        await document.documentElement.requestFullscreen();
+        await (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> })?.lock?.("landscape");
+      } catch {
+        /* desktop, or the browser refused */
+      }
+    }
     sim.running = true;
     setPhase("live");
     const code = roomRef.current?.value.trim() ?? "";
@@ -321,9 +455,14 @@ export function Race() {
   }
 
   return (
-    <div className="race-root">
+    <div className="race-root" onPointerDown={lookDown} onPointerMove={lookMove} onPointerUp={lookUp} onPointerCancel={lookUp}>
       <canvas ref={canvasRef} className="race-canvas" />
       <video ref={videoRef} className="race-video" playsInline muted />
+      <div className="race-sideways">
+        <p className="race-kicker">Landscape</p>
+        <h2>Turn the phone sideways</h2>
+        <p>Tilt to steer. Push the stick to drive. Drag the picture to look around.</p>
+      </div>
       <header className="race-top">
         <div>
           <p className="race-kicker">FaceRace</p>
@@ -390,22 +529,28 @@ export function Race() {
             </button>
           </div>
           {camError ? <p className="race-note">{camError}</p> : null}
-          <p className="race-keys">W gas · S brake · A left · D right</p>
+          <p className="race-keys">Keyboard: W gas, S brake, A left, D right. Phone: tilt to turn, stick to drive, drag to look. Landscape is best.</p>
         </form>
       ) : null}
-      <div className="touch-bar">
-        <button type="button" onPointerDown={() => hold("KeyA", true)} onPointerUp={() => hold("KeyA", false)} onPointerLeave={() => hold("KeyA", false)}>
-          Left
-        </button>
-        <button type="button" onPointerDown={() => hold("KeyS", true)} onPointerUp={() => hold("KeyS", false)} onPointerLeave={() => hold("KeyS", false)}>
-          Brake
-        </button>
-        <button type="button" onPointerDown={() => hold("KeyW", true)} onPointerUp={() => hold("KeyW", false)} onPointerLeave={() => hold("KeyW", false)}>
-          Gas
-        </button>
-        <button type="button" onPointerDown={() => hold("KeyD", true)} onPointerUp={() => hold("KeyD", false)} onPointerLeave={() => hold("KeyD", false)}>
-          Right
-        </button>
+      <div
+        className="stick"
+        ref={stickRef}
+        onPointerDown={(event) => {
+          event.stopPropagation();
+          event.currentTarget.setPointerCapture(event.pointerId);
+          holdStick(event.clientX, event.clientY);
+        }}
+        onPointerMove={(event) => {
+          if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+          holdStick(event.clientX, event.clientY);
+        }}
+        onPointerUp={(event) => {
+          event.currentTarget.releasePointerCapture(event.pointerId);
+          releaseStick();
+        }}
+        onPointerCancel={releaseStick}
+      >
+        <div className="stick-knob" ref={knobRef} />
       </div>
     </div>
   );

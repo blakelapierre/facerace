@@ -25,6 +25,8 @@ const INFIELD = [0.16, 0.28, 0.16, 1];
 const WALL = [0.42, 0.44, 0.4, 1];
 const WHITE = [0.92, 0.9, 0.84, 1];
 
+const ROAD_Z = 0.14;
+
 function tri(a: V3, b: V3, c: V3, color: number[]): SceneObject {
   return { type: "shape", kind: "triangle", a, b, c, color, reflectivity: 0.02 };
 }
@@ -66,8 +68,8 @@ export function trackObjects(): SceneObject[] {
     reflectivity: 0.02,
   });
   const half = HALF_W;
-  const z0 = 0;
-  const z1 = 0.07;
+  const z0 = 0.02;
+  const z1 = ROAD_Z;
   objects.push({
     type: "box",
     min: [-STRAIGHT / 2, -RADIUS - half, z0],
@@ -82,7 +84,7 @@ export function trackObjects(): SceneObject[] {
     color: ASPHALT,
     reflectivity: 0.04,
   });
-  const segs = 18;
+  const segs = 10;
   const arcU = (Math.PI * RADIUS) / LAP_LEN;
   const straightU = STRAIGHT / LAP_LEN;
   const halfStraightU = straightU * 0.5;
@@ -92,9 +94,9 @@ export function trackObjects(): SceneObject[] {
   for (const start of [right0, left0]) {
     for (let i = 0; i < segs; i++) road.push([start + (arcU * i) / segs, start + (arcU * (i + 1)) / segs]);
   }
-  for (const [u0, u1] of road) objects.push(...ribbon(u0, u1, half, -half, 0.045, ASPHALT));
+  for (const [u0, u1] of road) objects.push(...ribbon(u0, u1, half, -half, ROAD_Z, ASPHALT));
   const curbSpans: [number, number][] = [...road];
-  const pieces = 8;
+  const pieces = 4;
   for (let i = 0; i < pieces; i++) {
     const f0 = (halfStraightU * i) / pieces;
     const f1 = (halfStraightU * (i + 1)) / pieces;
@@ -104,8 +106,8 @@ export function trackObjects(): SceneObject[] {
   }
   curbSpans.forEach(([u0, u1], i) => {
     const curb = i % 2 === 0 ? CURB_A : CURB_B;
-    objects.push(...ribbon(u0, u1, half, half + 0.55, 0.05, curb));
-    objects.push(...ribbon(u0, u1, -half - 0.55, -half, 0.05, curb));
+    objects.push(...ribbon(u0, u1, half, half + 0.55, ROAD_Z + 0.05, curb));
+    objects.push(...ribbon(u0, u1, -half - 0.55, -half, ROAD_Z + 0.05, curb));
   });
   const posts = 28;
   for (let i = 0; i < posts; i++) {
@@ -126,8 +128,8 @@ export function trackObjects(): SceneObject[] {
   }
   objects.push({
     type: "box",
-    min: [-0.35, -RADIUS - half, 0.08],
-    max: [0.35, -RADIUS + half, 0.12],
+    min: [-0.35, -RADIUS - half, ROAD_Z],
+    max: [0.35, -RADIUS + half, ROAD_Z + 0.03],
     color: WHITE,
     reflectivity: 0.05,
   });
@@ -173,9 +175,11 @@ function kartParts(body: DrawBody, faces: SceneObject[], rest: SceneObject[]) {
   const rx = Math.cos(yaw);
   const ry = -Math.sin(yaw);
   const paint = [color[0], color[1], color[2], 1];
+  const wheelR = 0.22;
+  const wheelZ = ROAD_Z + wheelR + 0.05;
   faces.push({
     type: "sphere",
-    origin: [x - rx * 0.05, y - ry * 0.05, 1.12],
+    origin: [x - rx * 0.05, y - ry * 0.05, 1.34],
     radius: 0.46,
     color: [1, 1, 1, 1],
     reflectivity: 0.04,
@@ -184,17 +188,17 @@ function kartParts(body: DrawBody, faces: SceneObject[], rest: SceneObject[]) {
   rest.push({
     type: "shape",
     kind: "capsule",
-    a: [x - fx * 0.55, y - fy * 0.55, 0.42],
-    b: [x + fx * 0.85, y + fy * 0.85, 0.48],
-    r: 0.38,
+    a: [x - fx * 0.55, y - fy * 0.55, 0.72],
+    b: [x + fx * 0.85, y + fy * 0.85, 0.78],
+    r: 0.32,
     color: paint,
     reflectivity: 0.18,
     tile: "metal",
   });
   rest.push({
     type: "sphere",
-    origin: [x + fx * 0.95, y + fy * 0.95, 0.42],
-    radius: 0.28,
+    origin: [x + fx * 0.95, y + fy * 0.95, 0.7],
+    radius: 0.26,
     color: paint,
     reflectivity: 0.2,
   });
@@ -207,8 +211,8 @@ function kartParts(body: DrawBody, faces: SceneObject[], rest: SceneObject[]) {
   for (const [f, s] of wheels) {
     rest.push({
       type: "sphere",
-      origin: [x + fx * f + rx * s, y + fy * f + ry * s, 0.22],
-      radius: 0.2,
+      origin: [x + fx * f + rx * s, y + fy * f + ry * s, wheelZ],
+      radius: wheelR,
       color: [0.08, 0.08, 0.09, 1],
       reflectivity: 0.06,
     });
@@ -237,23 +241,37 @@ export function buildPicture(
     miss: [0.45, 0.62, 0.82, 1],
     sun: [0.45, 0.22, 0.86],
     objects: [...faces, ...rest, ...trackObjects()],
-    fovea: { x: 0.5, y: 0.42, fovea: 0.55, falloff: 0.9, period: 1, block: 0, still },
+    fovea: {
+      x: 0.5,
+      y: 0.42,
+      fovea: 0.4,
+      falloff: 1.05,
+      period: still ? 2 : 1,
+      block: still ? 0 : 3,
+      still,
+    },
   };
 }
 
-export function chaseCamera(kart: Pick<Kart, "x" | "y" | "yaw" | "speed">, lookAhead = 7.5) {
-  const fx = Math.sin(kart.yaw);
-  const fy = Math.cos(kart.yaw);
+export function chaseCamera(
+  kart: Pick<Kart, "x" | "y" | "yaw" | "speed">,
+  lookAhead = 7.5,
+  orbit: { yaw: number; pitch: number } = { yaw: 0, pitch: 0 },
+) {
+  const yaw = kart.yaw - orbit.yaw;
+  const fx = Math.sin(yaw);
+  const fy = Math.cos(yaw);
   const back = 8.2;
-  const eye = 3.15;
+  const eye = 2.55;
+  const aimZ = 1.2 + orbit.pitch * 3.4;
   const tx = kart.x + fx * lookAhead;
   const ty = kart.y + fy * lookAhead;
   const cx = kart.x - fx * back;
   const cy = kart.y - fy * back;
-  const cz = eye + Math.abs(kart.speed) * 0.02;
+  const cz = Math.max(1.35, eye - orbit.pitch * 0.4);
   const dx = tx - cx;
   const dy = ty - cy;
-  const dz = 1.05 - cz;
+  const dz = aimZ - cz;
   const len = Math.hypot(dx, dy, dz) || 1;
   return { x: cx, y: cy, z: cz, dir: [dx / len, dy / len, dz / len] as V3 };
 }
