@@ -219,12 +219,19 @@ function kartParts(body: DrawBody, faces: SceneObject[], rest: SceneObject[]) {
   }
 }
 
+/** Afternoon arc. Meridian walks a 72-minute day; a race stays in the lit half so the ribbon still reads. */
+export function raceSun(seconds: number): V3 {
+  const phase = seconds * 0.12;
+  return [0.42 + Math.sin(phase) * 0.18, 0.2 + Math.cos(phase * 0.5) * 0.06, 0.78 + Math.sin(phase * 0.7) * 0.06];
+}
+
 export function buildPicture(
   bodies: DrawBody[],
   camera: { x: number; y: number; z: number; dir: V3 },
   width: number,
   height: number,
   still: boolean,
+  sun: V3 = [0.45, 0.22, 0.86],
 ): Picture {
   const faces: SceneObject[] = [];
   const rest: SceneObject[] = [];
@@ -239,15 +246,17 @@ export function buildPicture(
       planeDistance: 1,
     },
     miss: [0.45, 0.62, 0.82, 1],
-    sun: [0.45, 0.22, 0.86],
+    sun,
     objects: [...faces, ...rest, ...trackObjects()],
     fovea: {
       x: 0.5,
       y: 0.42,
-      fovea: 0.4,
+      fovea: 0.55,
       falloff: 1.05,
-      period: still ? 2 : 1,
-      block: still ? 0 : 3,
+      // Meridian sharpens a still view by counting frames (uRefine). The peripheral
+      // cell stays small so a moving frame does not trace every edge pixel.
+      period: 1,
+      block: 2,
       still,
     },
   };

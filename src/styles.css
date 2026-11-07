@@ -66,7 +66,8 @@
 .race-card,
 .stick,
 .race-banner,
-.race-sideways {
+.race-sideways,
+.race-mute {
   position: absolute;
   z-index: 2;
 }
@@ -288,6 +289,24 @@
   background: var(--color-lane);
   box-shadow: 0 6px 16px color-mix(in srgb, black 35%, transparent);
   pointer-events: none;
+}
+
+.race-mute {
+  right: max(0.9rem, env(safe-area-inset-right));
+  bottom: max(0.9rem, env(safe-area-inset-bottom));
+  width: 2.8rem;
+  height: 2.8rem;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  background: color-mix(in srgb, var(--color-panel) 88%, transparent);
+  color: var(--color-paper);
+}
+
+.race-mute svg {
+  width: 1.15rem;
+  height: 1.15rem;
 }
 
 .race-sideways {

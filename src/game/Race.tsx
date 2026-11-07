@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { Camera, Flag, Gauge, Users } from "lucide-react";
+import { Camera, Flag, Gauge, Users, Volume2, VolumeX } from "lucide-react";
 import { paintFace, type FaceImage } from "./faces";
 import { createSim, installProbe, lapOf, placeOf, stepSim, type Sim } from "./sim";
-import { buildPicture, chaseCamera, type DrawBody } from "./scene";
+import { buildPicture, chaseCamera, raceSun, type DrawBody } from "./scene";
+import { createPicturePace, guardTrace } from "./pace";
+import { createRaceAudio, hearAt, type RaceAudio } from "./sound";
 import type { RaceNet } from "./net";
 
 function fmt(seconds: number) {
@@ -60,14 +62,21 @@ export function Race() {
   const orbitRef = useRef({ yaw: 0, pitch: 0 });
   const lookingRef = useRef(false);
   const lookPoint = useRef<{ id: number; x: number; y: number } | null>(null);
+  const audioRef = useRef<RaceAudio | null>(null);
   const [phase, setPhase] = useState<"grid" | "live">("grid");
   const [camOn, setCamOn] = useState(false);
   const [camError, setCamError] = useState("");
+  const [muted, setMuted] = useState(false);
+  const setMutedRef = useRef(setMuted);
+  setMutedRef.current = setMuted;
 
   useEffect(() => {
     const sim = createSim();
     simRef.current = sim;
     installProbe(sim);
+    const audio = createRaceAudio();
+    audioRef.current = audio;
+    const pace = createPicturePace();
     for (const kart of sim.karts) {
       if (kart.ai) botFaces.current.set(kart.id, paintFace(kart.seed));
     }
@@ -109,6 +118,12 @@ export function Race() {
       const simNow = simRef.current;
       if (!simNow) return;
       const tracked = ["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
+      if (event.code === "KeyM" && down) {
+        event.preventDefault();
+        audio.resume();
+        setMutedRef.current(audio.toggle());
+        return;
+      }
       if (!tracked.includes(event.code)) return;
       event.preventDefault();
       if (down) simNow.keys.add(event.code);
@@ -149,8 +164,13 @@ export function Race() {
     let faceAt = 0;
     let hudAt = 0;
     let raf = 0;
-    let gridPainted = false;
     let lastPaint = 0;
+    let paintMs = 42;
+    let prevTraceW = 0;
+    let prevTraceH = 0;
+    let gpuWait = false;
+    let gpuAt = 0;
+    let ambAt = 0;
 
     const boot = async () => {
       const gpu = await import("@/vendor/meridian/render/gpu.js");
@@ -167,7 +187,8 @@ export function Race() {
       };
       make();
       const onResize = () => {
-        gridPainted = false;
+        prevTraceW = 0;
+        prevTraceH = 0;
         if (!fit() || !alive) return;
         if (glFailed) {
           ctx2d = canvas.getContext("2d");
@@ -180,12 +201,14 @@ export function Race() {
       const lost = (event: Event) => {
         event.preventDefault();
         painter = null;
-        gridPainted = false;
+        gpuWait = false;
+        prevTraceW = 0;
+        prevTraceH = 0;
       };
       const restored = () => {
         painter = gpu.createGpuPainter(canvas);
         painter?.setSmoothing?.(true);
-        gridPainted = false;
+        gpuWait = false;
       };
       canvas.addEventListener("webglcontextlost", lost);
       canvas.addEventListener("webglcontextrestored", restored);
@@ -239,6 +262,39 @@ export function Race() {
       };
       const len = Math.hypot(smooth.dir[0], smooth.dir[1], smooth.dir[2]) || 1;
       smooth.dir = [smooth.dir[0] / len, smooth.dir[1] / len, smooth.dir[2] / len];
+      current.shake *= Math.exp(-dt * 8);
+      const kick = Math.sin(current.time * 46) * current.shake * 0.16;
+      const view = {
+        x: smooth.x + smooth.dir[1] * kick,
+        y: smooth.y - smooth.dir[0] * kick,
+        z: smooth.z + kick * 0.35,
+        dir: [smooth.dir[0], smooth.dir[1], smooth.dir[2] - kick * 0.05] as [number, number, number],
+      };
+
+      const slip = Math.min(1, Math.abs(yawRate) / 2.2);
+      let near = current.karts[1] ?? null;
+      let nearD = 48;
+      for (const kart of current.karts) {
+        if (kart === player) continue;
+        const d = Math.hypot(kart.x - player.x, kart.y - player.y);
+        if (d < nearD) {
+          near = kart;
+          nearD = d;
+        }
+      }
+      audio.drive(player.speed, slip, current.running);
+      if (near) {
+        const heard = hearAt(player, player.yaw, near, 46);
+        audio.rivalDrive(near.speed, heard?.pan ?? 0, current.running ? (heard?.gain ?? 0) : 0);
+      }
+      if (current.events.length) {
+        for (const ev of current.events) audio.cue(ev.kind, ev.amount, 0);
+        current.events.length = 0;
+      }
+      if (now - ambAt > 500) {
+        ambAt = now;
+        audio.ambient(now / 1000, player, current.running);
+      }
 
       const remotes = netRef.current?.racers() ?? [];
       const bodies: DrawBody[] = [
@@ -261,34 +317,56 @@ export function Race() {
       ];
       const boxW = canvas.width;
       const boxH = canvas.height;
-      const heavy = boxW * boxH > 700 * 420;
-      const traceCap = heavy ? 300 : Math.min(boxW, 400);
-      const traceW = Math.max(200, Math.min(boxW, traceCap));
-      const traceH = Math.max(120, Math.round((traceW * boxH) / Math.max(1, boxW)));
-      const picture = buildPicture(bodies, smooth, traceW, traceH, !current.running || Math.abs(player.speed) < 0.4);
-      const faceLive = !!videoRef.current && videoRef.current.readyState >= 2;
-      const gap = current.running ? (heavy ? 80 : 48) : 0;
-      const due = (current.running || !gridPainted || (faceLive && now - lastPaint > 400)) && now - lastPaint >= gap;
-      if (painter) {
-        if (due && !painter.busy?.()) {
+      const settled = !current.running || (Math.abs(player.speed) < 0.45 && !lookingRef.current);
+      if (gpuWait && painter && !painter.busy?.()) {
+        paintMs = Math.max(8, performance.now() - gpuAt);
+        gpuWait = false;
+      }
+      if (painter && !gpuWait && !painter.busy?.()) {
+        const paced = pace.step({
+          gap: paintMs,
+          displayW: boxW,
+          displayH: boxH,
+          still: settled,
+          accel: lookingRef.current ? 2 : Math.abs(yawRate),
+        });
+        const traced = guardTrace(paced.width, paced.height, {
+          measured: prevTraceW > 0,
+          drawMs: paintMs,
+          budgetMs: settled ? 110 : 48,
+          prevW: prevTraceW,
+          prevH: prevTraceH,
+          boot: 320,
+        });
+        const traceW0 = Math.max(96, Math.min(boxW, traced.width));
+        const traceH0 = Math.max(54, Math.min(boxH, traced.height));
+        const ceiling = settled ? 720 : 480;
+        const long = Math.max(traceW0, traceH0);
+        const cut = long > ceiling ? ceiling / long : 1;
+        const traceW = Math.max(96, Math.round((traceW0 * cut) / 4) * 4);
+        const traceH = Math.max(54, Math.round((traceH0 * cut) / 4) * 4);
+        const picture = buildPicture(bodies, view, traceW, traceH, settled, raceSun(current.time));
+        gpuAt = performance.now();
+        const ok = painter.paint(picture, traceW, traceH);
+        if (ok) {
+          painter.present(1);
+          gpuWait = true;
+          prevTraceW = traceW;
+          prevTraceH = traceH;
           lastPaint = now;
-          if (!current.running) gridPainted = true;
-          const ok = painter.paint(picture, traceW, traceH);
-          if (ok) painter.present(1);
-          else glFailed = painter.failReason?.() || "picture failed";
-        }
-      } else if (cpu && ctx2d && due) {
+        } else glFailed = painter.failReason?.() || "picture failed";
+      } else if (!painter && glFailed && cpu && ctx2d && now - lastPaint > 800) {
         lastPaint = now;
-        if (!current.running) gridPainted = true;
-        const pixels = cpu.paintFrame(picture, Math.min(traceW, 200), Math.min(traceH, 120));
-        const w = Math.min(traceW, 200);
-        const h = Math.min(traceH, 120);
+        const w = 80;
+        const h = 45;
+        const picture = buildPicture(bodies, view, w, h, true, raceSun(current.time));
+        const pixels = cpu.paintFrame(picture, w, h);
         const image = new ImageData(new Uint8ClampedArray(pixels), w, h);
         const scratch = document.createElement("canvas");
         scratch.width = w;
         scratch.height = h;
         scratch.getContext("2d")?.putImageData(image, 0, 0);
-        ctx2d.imageSmoothingEnabled = false;
+        ctx2d.imageSmoothingEnabled = true;
         ctx2d.drawImage(scratch, 0, 0, canvas.width, canvas.height);
       }
       netRef.current?.tick(
@@ -336,6 +414,8 @@ export function Race() {
       window.removeEventListener("deviceorientation", onTilt);
       screen.orientation?.removeEventListener("change", resetTilt);
       void bootDone.then((off) => off?.());
+      audio.close();
+      audioRef.current = null;
       netRef.current?.close();
       netRef.current = null;
       const stream = videoRef.current?.srcObject as MediaStream | null;
@@ -438,6 +518,8 @@ export function Race() {
     }
     sim.running = true;
     setPhase("live");
+    audioRef.current?.resume();
+    audioRef.current?.cue("horn", 1, 0);
     const code = roomRef.current?.value.trim() ?? "";
     if (!code) {
       if (statusRef.current) statusRef.current.textContent = "Solo heat";
@@ -529,7 +611,7 @@ export function Race() {
             </button>
           </div>
           {camError ? <p className="race-note">{camError}</p> : null}
-          <p className="race-keys">Keyboard: W gas, S brake, A left, D right. Phone: tilt to turn, stick to drive, drag to look. Landscape is best.</p>
+          <p className="race-keys">Keyboard: W gas, S brake, A left, D right, M mute. Phone: tilt to turn, stick to drive, drag to look. Landscape is best.</p>
         </form>
       ) : null}
       <div
@@ -552,6 +634,21 @@ export function Race() {
       >
         <div className="stick-knob" ref={knobRef} />
       </div>
+      <button
+        type="button"
+        className="race-mute"
+        aria-pressed={muted}
+        aria-label={muted ? "Unmute" : "Mute"}
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={() => {
+          const heard = audioRef.current;
+          if (!heard) return;
+          if (!heard.muted) heard.resume();
+          setMuted(heard.toggle());
+        }}
+      >
+        {muted ? <VolumeX aria-hidden="true" /> : <Volume2 aria-hidden="true" />}
+      </button>
     </div>
   );
 }

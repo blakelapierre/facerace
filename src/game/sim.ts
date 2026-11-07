@@ -34,6 +34,14 @@ export type Sim = {
   gas: number;
   banner: string;
   bestMs: number | null;
+  /** One-shot moments for the listener. Drained by the frame loop. */
+  events: { kind: string; amount: number; x: number; y: number }[];
+  shake: number;
+  lapSeen: number;
+  bumpTick: number;
+  scrapeTick: number;
+  wrongTick: number;
+  wrongWay: boolean;
 };
 
 const COLORS: [number, number, number][] = [
@@ -100,6 +108,13 @@ export function createSim(playerName = "You"): Sim {
     gas: 0,
     banner: "",
     bestMs: best,
+    events: [],
+    shake: 0,
+    lapSeen: 0,
+    bumpTick: -100,
+    scrapeTick: -100,
+    wrongTick: -100,
+    wrongWay: false,
   };
 }
 
@@ -200,11 +215,29 @@ export function stepSim(sim: Sim, dt: number) {
     kart.y += Math.cos(kart.yaw) * kart.speed * dt;
     advanceTravel(kart);
     contain(kart);
+    if (kart === player && kart.finishedAt == null) {
+      const uNow = ((kart.travel % 1) + 1) % 1;
+      const sampleNow = pointAt(uNow);
+      const [nlx, nly] = leftNormal(sampleNow);
+      const latNow = (kart.x - sampleNow.x) * nlx + (kart.y - sampleNow.y) * nly;
+      if (Math.abs(latNow) > HALF_W - 0.22 && Math.abs(kart.speed) > 4 && sim.tick - sim.scrapeTick > 18) {
+        sim.scrapeTick = sim.tick;
+        sim.events.push({ kind: "scrape", amount: Math.min(1, Math.abs(kart.speed) / 20), x: kart.x, y: kart.y });
+        sim.shake = Math.min(1, sim.shake + 0.28);
+      }
+      const lap = Math.floor(kart.travel);
+      if (lap > sim.lapSeen && lap < LAPS) {
+        sim.events.push({ kind: "lap", amount: 1, x: kart.x, y: kart.y });
+      }
+      sim.lapSeen = Math.max(sim.lapSeen, lap);
+    }
     if (kart.travel >= LAPS && kart.finishedAt == null) {
       kart.finishedAt = sim.time;
       kart.speed *= 0.5;
       if (kart === player) {
         sim.banner = "Finished";
+        sim.events.push({ kind: "finish", amount: 1, x: kart.x, y: kart.y });
+        sim.shake = Math.min(1, sim.shake + 0.35);
         if (sim.bestMs == null || sim.time * 1000 < sim.bestMs) {
           sim.bestMs = sim.time * 1000;
           try {
@@ -217,10 +250,26 @@ export function stepSim(sim: Sim, dt: number) {
     }
   }
 
+  if (sim.events.length > 16) sim.events.splice(0, sim.events.length - 16);
+
   for (let i = 0; i < sim.karts.length; i++) {
     for (let j = i + 1; j < sim.karts.length; j++) {
       const a = sim.karts[i]!;
       const b = sim.karts[j]!;
+      const dx = a.x - b.x;
+      const dy = a.y - b.y;
+      const dist = Math.hypot(dx, dy);
+      const reach = a.radius + b.radius;
+      let closing = 0;
+      if (dist < reach && dist > 1e-8) {
+        const nx = dx / dist;
+        const ny = dy / dist;
+        const vax = Math.sin(a.yaw) * a.speed;
+        const vay = Math.cos(a.yaw) * a.speed;
+        const vbx = Math.sin(b.yaw) * b.speed;
+        const vby = Math.cos(b.yaw) * b.speed;
+        closing = -((vax - vbx) * nx + (vay - vby) * ny);
+      }
       const p1: [number, number] = [a.x, a.y];
       const p2: [number, number] = [b.x, b.y];
       const v1: [number, number] = [Math.sin(a.yaw) * a.speed, Math.cos(a.yaw) * a.speed];
@@ -234,13 +283,25 @@ export function stepSim(sim: Sim, dt: number) {
       const alongB = v2[0] * Math.sin(b.yaw) + v2[1] * Math.cos(b.yaw);
       a.speed = alongA;
       b.speed = alongB;
+      if (closing > 1.2 && (a === player || b === player) && sim.tick - sim.bumpTick > 8) {
+        sim.bumpTick = sim.tick;
+        const amount = Math.min(1, closing / 16);
+        sim.events.push({ kind: "bump", amount, x: player.x, y: player.y });
+        sim.shake = Math.min(1, sim.shake + amount * 0.85);
+      }
     }
   }
 
   const u = ((player.travel % 1) + 1) % 1;
   const sample = pointAt(u);
   const heading = wrap(player.yaw - sample.yaw);
-  sim.banner = player.finishedAt != null ? "Finished" : Math.abs(heading) > 2.2 ? "Wrong way" : "";
+  const wrong = player.finishedAt == null && Math.abs(heading) > 2.2;
+  if (wrong && !sim.wrongWay && sim.tick - sim.wrongTick > 90) {
+    sim.wrongTick = sim.tick;
+    sim.events.push({ kind: "wrong", amount: 1, x: player.x, y: player.y });
+  }
+  sim.wrongWay = wrong;
+  sim.banner = player.finishedAt != null ? "Finished" : wrong ? "Wrong way" : "";
 }
 
 export function lapOf(kart: Kart) {
