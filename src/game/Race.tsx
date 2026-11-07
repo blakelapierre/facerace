@@ -3,7 +3,6 @@ import { Camera, Flag, Gauge, Users, Volume2, VolumeX } from "lucide-react";
 import { paintFace, type FaceImage } from "./faces";
 import { createSim, installProbe, lapOf, placeOf, stepSim, type Sim } from "./sim";
 import { buildPicture, chaseCamera, raceSun, type DrawBody } from "./scene";
-import { createPicturePace, guardTrace } from "./pace";
 import { createRaceAudio, hearAt, type RaceAudio } from "./sound";
 import type { RaceNet } from "./net";
 
@@ -41,6 +40,11 @@ function clampUnit(n: number) {
   return n;
 }
 
+function preferredHands(): "tilt" | "stick" {
+  if (typeof window === "undefined") return "stick";
+  return window.matchMedia("(pointer: coarse)").matches ? "tilt" : "stick";
+}
+
 export function Race() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -67,16 +71,17 @@ export function Race() {
   const [camOn, setCamOn] = useState(false);
   const [camError, setCamError] = useState("");
   const [muted, setMuted] = useState(false);
+  const [hands, setHands] = useState<"tilt" | "stick">(preferredHands);
   const setMutedRef = useRef(setMuted);
   setMutedRef.current = setMuted;
 
   useEffect(() => {
     const sim = createSim();
+    sim.hands = preferredHands();
     simRef.current = sim;
     installProbe(sim);
     const audio = createRaceAudio();
     audioRef.current = audio;
-    const pace = createPicturePace();
     for (const kart of sim.karts) {
       if (kart.ai) botFaces.current.set(kart.id, paintFace(kart.seed));
     }
@@ -84,6 +89,12 @@ export function Race() {
 
     const canvas = canvasRef.current;
     if (!canvas) return;
+    const blockSelect = (event: Event) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea")) return;
+      event.preventDefault();
+    };
+    canvas.parentElement?.addEventListener("selectstart", blockSelect);
     let painter: {
       paint: (scene: unknown, w: number, h: number) => boolean;
       present: (n?: number) => void;
@@ -135,6 +146,7 @@ export function Race() {
       sim.steer = 0;
       sim.stick = 0;
       sim.gas = 0;
+      sim.pedal = 0;
     };
     window.addEventListener("keydown", keysDown);
     window.addEventListener("keyup", keysUp);
@@ -143,7 +155,7 @@ export function Race() {
     let tiltZero: number | null = null;
     const onTilt = (event: DeviceOrientationEvent) => {
       const current = simRef.current;
-      if (!current) return;
+      if (!current || current.hands !== "tilt") return;
       const roll = screenRoll(event);
       if (tiltZero == null) tiltZero = roll;
       const delta = roll - tiltZero;
@@ -165,9 +177,9 @@ export function Race() {
     let hudAt = 0;
     let raf = 0;
     let lastPaint = 0;
-    let paintMs = 42;
-    let prevTraceW = 0;
-    let prevTraceH = 0;
+    let paintMs = 120;
+    let traceScale = 0.72;
+    let timed = false;
     let gpuWait = false;
     let gpuAt = 0;
     let ambAt = 0;
@@ -187,8 +199,8 @@ export function Race() {
       };
       make();
       const onResize = () => {
-        prevTraceW = 0;
-        prevTraceH = 0;
+        traceScale = 0.72;
+        timed = false;
         if (!fit() || !alive) return;
         if (glFailed) {
           ctx2d = canvas.getContext("2d");
@@ -202,8 +214,8 @@ export function Race() {
         event.preventDefault();
         painter = null;
         gpuWait = false;
-        prevTraceW = 0;
-        prevTraceH = 0;
+        traceScale = 0.72;
+        timed = false;
       };
       const restored = () => {
         painter = gpu.createGpuPainter(canvas);
@@ -317,42 +329,25 @@ export function Race() {
       ];
       const boxW = canvas.width;
       const boxH = canvas.height;
-      const settled = !current.running || (Math.abs(player.speed) < 0.45 && !lookingRef.current);
+      const settled = !lookingRef.current && (Math.abs(player.speed) < 1.2 || !current.running);
       if (gpuWait && painter && !painter.busy?.()) {
         paintMs = Math.max(8, performance.now() - gpuAt);
         gpuWait = false;
+        timed = true;
       }
       if (painter && !gpuWait && !painter.busy?.()) {
-        const paced = pace.step({
-          gap: paintMs,
-          displayW: boxW,
-          displayH: boxH,
-          still: settled,
-          accel: lookingRef.current ? 2 : Math.abs(yawRate),
-        });
-        const traced = guardTrace(paced.width, paced.height, {
-          measured: prevTraceW > 0,
-          drawMs: paintMs,
-          budgetMs: settled ? 110 : 48,
-          prevW: prevTraceW,
-          prevH: prevTraceH,
-          boot: 320,
-        });
-        const traceW0 = Math.max(96, Math.min(boxW, traced.width));
-        const traceH0 = Math.max(54, Math.min(boxH, traced.height));
-        const ceiling = settled ? 720 : 480;
-        const long = Math.max(traceW0, traceH0);
-        const cut = long > ceiling ? ceiling / long : 1;
-        const traceW = Math.max(96, Math.round((traceW0 * cut) / 4) * 4);
-        const traceH = Math.max(54, Math.round((traceH0 * cut) / 4) * 4);
+        if (timed) {
+          if (paintMs < (settled ? 110 : 80)) traceScale = Math.min(1, traceScale * 1.12);
+          else if (paintMs > (settled ? 180 : 150)) traceScale = Math.max(0.58, traceScale * 0.84);
+        }
+        const traceW = Math.max(320, Math.min(boxW, Math.round((boxW * traceScale) / 4) * 4));
+        const traceH = Math.max(180, Math.min(boxH, Math.round((boxH * traceScale) / 4) * 4));
         const picture = buildPicture(bodies, view, traceW, traceH, settled, raceSun(current.time));
         gpuAt = performance.now();
         const ok = painter.paint(picture, traceW, traceH);
         if (ok) {
           painter.present(1);
           gpuWait = true;
-          prevTraceW = traceW;
-          prevTraceH = traceH;
           lastPaint = now;
         } else glFailed = painter.failReason?.() || "picture failed";
       } else if (!painter && glFailed && cpu && ctx2d && now - lastPaint > 800) {
@@ -413,6 +408,7 @@ export function Race() {
       window.removeEventListener("blur", blur);
       window.removeEventListener("deviceorientation", onTilt);
       screen.orientation?.removeEventListener("change", resetTilt);
+      canvas.parentElement?.removeEventListener("selectstart", blockSelect);
       void bootDone.then((off) => off?.());
       audio.close();
       audioRef.current = null;
@@ -450,9 +446,43 @@ export function Race() {
     if (knobRef.current) knobRef.current.style.transform = "translate(0px, 0px)";
   }
 
+  function holdPedal(value: number, event: React.PointerEvent) {
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const sim = simRef.current;
+    if (sim) sim.pedal = value;
+  }
+
+  function releasePedal() {
+    const sim = simRef.current;
+    if (sim) sim.pedal = 0;
+  }
+
+  async function toggleHands() {
+    const sim = simRef.current;
+    if (!sim) return;
+    const next = sim.hands === "tilt" ? "stick" : "tilt";
+    sim.hands = next;
+    sim.tilt = 0;
+    sim.stick = 0;
+    sim.gas = 0;
+    sim.pedal = 0;
+    if (knobRef.current) knobRef.current.style.transform = "translate(0px, 0px)";
+    setHands(next);
+    if (next !== "tilt") return;
+    const orient = DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<string> };
+    if (typeof orient.requestPermission === "function") {
+      try {
+        await orient.requestPermission();
+      } catch {
+        /* tilt stays unused */
+      }
+    }
+  }
+
   function lookDown(event: React.PointerEvent) {
     const target = event.target as HTMLElement | null;
-    if (target?.closest(".stick, button, input, a, .race-card, .race-sideways")) return;
+    if (target?.closest(".stick, .pedals, .race-mode, button, input, a, .race-card, .race-sideways")) return;
     lookingRef.current = true;
     lookPoint.current = { id: event.pointerId, x: event.clientX, y: event.clientY };
     (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
@@ -537,13 +567,19 @@ export function Race() {
   }
 
   return (
-    <div className="race-root" onPointerDown={lookDown} onPointerMove={lookMove} onPointerUp={lookUp} onPointerCancel={lookUp}>
+    <div
+      className={`race-root ${hands === "tilt" ? "is-tilt" : "is-stick"}`}
+      onPointerDown={lookDown}
+      onPointerMove={lookMove}
+      onPointerUp={lookUp}
+      onPointerCancel={lookUp}
+    >
       <canvas ref={canvasRef} className="race-canvas" />
       <video ref={videoRef} className="race-video" playsInline muted />
       <div className="race-sideways">
         <p className="race-kicker">Landscape</p>
         <h2>Turn the phone sideways</h2>
-        <p>Tilt to steer. Push the stick to drive. Drag the picture to look around.</p>
+        <p>Motion mode tilts to steer. Go and Back drive. Or switch to the stick.</p>
       </div>
       <header className="race-top">
         <div>
@@ -611,7 +647,7 @@ export function Race() {
             </button>
           </div>
           {camError ? <p className="race-note">{camError}</p> : null}
-          <p className="race-keys">Keyboard: W gas, S brake, A left, D right, M mute. Phone: tilt to turn, stick to drive, drag to look. Landscape is best.</p>
+          <p className="race-keys">Keyboard: W gas, S brake, A left, D right, M mute. Phone: Motion tilts to steer, with Go and Back. Stick ignores the phone. Drag the picture to look. Landscape is best.</p>
         </form>
       ) : null}
       <div
@@ -633,6 +669,35 @@ export function Race() {
         onPointerCancel={releaseStick}
       >
         <div className="stick-knob" ref={knobRef} />
+      </div>
+      <button
+        type="button"
+        className="race-mode"
+        aria-pressed={hands === "tilt"}
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={() => void toggleHands()}
+      >
+        {hands === "tilt" ? "Motion" : "Stick"}
+      </button>
+      <div className="pedals">
+        <button
+          type="button"
+          className="pedal pedal-go"
+          onPointerDown={(event) => holdPedal(1, event)}
+          onPointerUp={releasePedal}
+          onPointerCancel={releasePedal}
+        >
+          Go
+        </button>
+        <button
+          type="button"
+          className="pedal pedal-back"
+          onPointerDown={(event) => holdPedal(-1, event)}
+          onPointerUp={releasePedal}
+          onPointerCancel={releasePedal}
+        >
+          Back
+        </button>
       </div>
       <button
         type="button"

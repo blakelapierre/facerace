@@ -253,6 +253,9 @@ uniform sampler2D uShapeIndex;
 uniform int uShapeCount;
 uniform int uShapeNodeCount;
 uniform int uLooseShapes;
+uniform sampler2D uTrackTex;
+uniform int uTrackCount;
+uniform float uTrackHalf;
 /*@tree*/
 uniform sampler2D uNodes;
 /*@tree*/
@@ -363,6 +366,67 @@ vec3 withWear(vec3 rgb, vec2 p) {
   return mix(out1, packed, smoothstep(1.0, 2.0, stage));
 }
 
+int wrapTrack(int i, int n) {
+  int m = i - (i / n) * n;
+  if (i < 0) m += n;
+  return m;
+}
+
+// The road is paint on the dune, not a mesh. A triangle ribbon sparkled and left holes.
+vec3 ribbonAlbedo(vec2 p, vec3 base) {
+  int n = uTrackCount;
+  if (n < 4) return base;
+  int stride = max(n / 16, 1);
+  int bestI = 0;
+  float bestD = 1.0e12;
+  for (int k = 0; k < 20; k++) {
+    int i = k * stride;
+    if (i >= n) break;
+    vec2 s = texelFetch(uTrackTex, ivec2(i, 0), 0).xy;
+    float d2 = dot(p - s, p - s);
+    if (d2 < bestD) {
+      bestD = d2;
+      bestI = i;
+    }
+  }
+  int from = bestI - stride;
+  int span = stride * 2 + 2;
+  float best = 1.0e12;
+  float lat = 0.0;
+  int seg = 0;
+  float alongT = 0.0;
+  for (int k = 0; k < 48; k++) {
+    if (k >= span) break;
+    int i = wrapTrack(from + k, n);
+    int j = wrapTrack(i + 1, n);
+    vec4 a = texelFetch(uTrackTex, ivec2(i, 0), 0);
+    vec4 b = texelFetch(uTrackTex, ivec2(j, 0), 0);
+    vec2 ab = b.xy - a.xy;
+    float ab2 = dot(ab, ab);
+    float t = ab2 > 1.0e-5 ? clamp(dot(p - a.xy, ab) / ab2, 0.0, 1.0) : 0.0;
+    vec2 q = a.xy + ab * t;
+    float d2 = dot(p - q, p - q);
+    if (d2 < best) {
+      best = d2;
+      float spanL = max(length(ab), 1.0e-4);
+      lat = dot(p - q, vec2(-ab.y, ab.x)) / spanL;
+      seg = i;
+      alongT = t;
+    }
+  }
+  float halfW = max(uTrackHalf, 0.5);
+  float ad = abs(lat);
+  if (ad > halfW + 0.9) return base;
+  if (ad > halfW) {
+    bool yellow = (seg - (seg / 2) * 2) == 0;
+    return yellow ? vec3(0.86, 0.55, 0.12) : vec3(0.9, 0.88, 0.8);
+  }
+  vec3 asphalt = vec3(0.17, 0.17, 0.18) * (0.9 + valueNoise(p * 1.1) * 0.14);
+  if (seg == 0 && alongT < 0.22) return vec3(0.86, 0.84, 0.76);
+  if (ad < 0.16 && mod(float(seg) + alongT, 5.0) < 2.0) asphalt = vec3(0.78, 0.76, 0.68);
+  return asphalt;
+}
+
 vec3 groundAlbedo(vec2 p, vec3 n) {
   float crest = clamp(duneHeight(p) / 5.4, 0.0, 1.0);
   float slope = 1.0 - clamp(n.z, 0.0, 1.0);
@@ -381,7 +445,7 @@ vec3 groundAlbedo(vec2 p, vec3 n) {
   grassC *= 0.86 + valueNoise(p * 0.31 + 4.0) * 0.26;
   rockC *= 0.84 + valueNoise(p * 0.19 + 9.0) * 0.28;
   vec3 rgb = mix(mix(sandC, grassC, grassW), rockC, rockW);
-  return withWear(rgb, p);
+  return withWear(ribbonAlbedo(p, rgb), p);
 }
 
 vec3 withPrints(vec3 rgb, vec2 p, int bounce) {
@@ -1281,6 +1345,8 @@ void main() {
   let boxColorTex;
   let digTex;
   let printTex;
+  let trackTex;
+  const trackData = new Float32Array(160 * 4);
   let wearTex = null;
   let wearVersion = -1;
   let rectTex;
@@ -1327,6 +1393,7 @@ void main() {
     boxColorTex = texture(gl, MAX_BOXES);
     digTex = texture(gl, MAX_DIGS);
     printTex = texture(gl, MAX_PRINTS);
+    trackTex = texture(gl, 160);
     wearTex = gl.createTexture();
     gl.activeTexture(gl.TEXTURE13);
     gl.bindTexture(gl.TEXTURE_2D, wearTex);
@@ -1729,6 +1796,18 @@ void main() {
       upload(4, boxColorTex, MAX_BOXES, boxColor);
       upload(5, digTex, MAX_DIGS, digData);
       upload(8, printTex, MAX_PRINTS, printData);
+      const ribbon = scene.track;
+      let trackCount = 0;
+      let trackHalf = 0;
+      if (ribbon && ribbon.samples && ribbon.samples.length >= 16) {
+        trackCount = Math.min(160, ribbon.count | 0, ribbon.samples.length >> 2);
+        trackHalf = ribbon.half || 0;
+        trackData.fill(0);
+        trackData.set(ribbon.samples.subarray(0, trackCount * 4));
+      }
+      gl.activeTexture(gl.TEXTURE10);
+      gl.bindTexture(gl.TEXTURE_2D, trackTex);
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 160, 1, gl.RGBA, gl.FLOAT, trackData);
       const wear = scene.wear;
       if (wear && wear.version !== wearVersion) {
         wearVersion = wear.version;
@@ -1755,6 +1834,9 @@ void main() {
       gl.uniform1i(u("uBoxColor"), 4);
       gl.uniform1i(u("uDigTex"), 5);
       gl.uniform1i(u("uPrintTex"), 8);
+      gl.uniform1i(u("uTrackTex"), 10);
+      gl.uniform1i(u("uTrackCount"), trackCount);
+      gl.uniform1f(u("uTrackHalf"), trackHalf);
       gl.uniform1i(u("uTexRects"), 6);
       gl.uniform1i(u("uAtlas"), 7);
       gl.activeTexture(gl.TEXTURE14);

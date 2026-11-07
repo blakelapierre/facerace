@@ -1,6 +1,7 @@
 import type { FaceImage } from "./faces";
 import type { Kart } from "./sim";
-import { HALF_W, LAP_LEN, RADIUS, STRAIGHT, leftNormal, pointAt } from "./track";
+import { duneHeight } from "./terrain";
+import { course, halfWidth, leftNormal, pointAt, trackRibbon } from "./track";
 
 type V3 = [number, number, number];
 
@@ -15,38 +16,20 @@ export type Picture = {
   sun: V3;
   objects: SceneObject[];
   fovea: { x: number; y: number; fovea: number; falloff: number; period: number; block: number; still: boolean };
+  track?: { half: number; count: number; samples: Float32Array };
 };
 
-const ASPHALT = [0.2, 0.21, 0.22, 1];
 const CURB_A = [0.91, 0.64, 0.13, 1];
-const CURB_B = [0.93, 0.9, 0.84, 1];
 const GRASS = [0.24, 0.38, 0.2, 1];
-const INFIELD = [0.16, 0.28, 0.16, 1];
 const WALL = [0.42, 0.44, 0.4, 1];
 const WHITE = [0.92, 0.9, 0.84, 1];
 
-const ROAD_Z = 0.14;
-
-function tri(a: V3, b: V3, c: V3, color: number[]): SceneObject {
-  return { type: "shape", kind: "triangle", a, b, c, color, reflectivity: 0.02 };
-}
-
-function ribbon(u0: number, u1: number, inner: number, outer: number, z: number, color: number[]): SceneObject[] {
-  const p0 = pointAt(u0);
-  const p1 = pointAt(u1);
-  const [l0x, l0y] = leftNormal(p0);
-  const [l1x, l1y] = leftNormal(p1);
-  const a: V3 = [p0.x + l0x * inner, p0.y + l0y * inner, z];
-  const b: V3 = [p0.x + l0x * outer, p0.y + l0y * outer, z];
-  const c: V3 = [p1.x + l1x * outer, p1.y + l1y * outer, z];
-  const d: V3 = [p1.x + l1x * inner, p1.y + l1y * inner, z];
-  return [tri(a, b, c, color), tri(a, c, d, color)];
-}
-
 let staticScene: SceneObject[] | null = null;
+let builtFor = "";
 
 export function trackObjects(): SceneObject[] {
-  if (staticScene) return staticScene;
+  const id = course().id;
+  if (staticScene && builtFor === id) return staticScene;
   const objects: SceneObject[] = [];
   objects.push({
     type: "shape",
@@ -57,104 +40,55 @@ export function trackObjects(): SceneObject[] {
     tile: "grass",
     reflectivity: 0.02,
   });
-  objects.push({
-    type: "shape",
-    kind: "disk",
-    a: [0, 0, 0.02],
-    b: [0, 0, 1],
-    r: RADIUS - HALF_W + 0.4,
-    color: INFIELD,
-    tile: "grass",
-    reflectivity: 0.02,
-  });
-  const half = HALF_W;
-  const z0 = 0.02;
-  const z1 = ROAD_Z;
-  objects.push({
-    type: "box",
-    min: [-STRAIGHT / 2, -RADIUS - half, z0],
-    max: [STRAIGHT / 2, -RADIUS + half, z1],
-    color: ASPHALT,
-    reflectivity: 0.04,
-  });
-  objects.push({
-    type: "box",
-    min: [-STRAIGHT / 2, RADIUS - half, z0],
-    max: [STRAIGHT / 2, RADIUS + half, z1],
-    color: ASPHALT,
-    reflectivity: 0.04,
-  });
-  const segs = 10;
-  const arcU = (Math.PI * RADIUS) / LAP_LEN;
-  const straightU = STRAIGHT / LAP_LEN;
-  const halfStraightU = straightU * 0.5;
-  const right0 = halfStraightU;
-  const left0 = halfStraightU + arcU + straightU;
-  const road: [number, number][] = [];
-  for (const start of [right0, left0]) {
-    for (let i = 0; i < segs; i++) road.push([start + (arcU * i) / segs, start + (arcU * (i + 1)) / segs]);
-  }
-  for (const [u0, u1] of road) objects.push(...ribbon(u0, u1, half, -half, ROAD_Z, ASPHALT));
-  const curbSpans: [number, number][] = [...road];
-  const pieces = 4;
-  for (let i = 0; i < pieces; i++) {
-    const f0 = (halfStraightU * i) / pieces;
-    const f1 = (halfStraightU * (i + 1)) / pieces;
-    curbSpans.push([f0, f1], [1 - halfStraightU + f0, 1 - halfStraightU + f1]);
-    const top = halfStraightU + arcU;
-    curbSpans.push([top + (straightU * i) / pieces, top + (straightU * (i + 1)) / pieces]);
-  }
-  curbSpans.forEach(([u0, u1], i) => {
-    const curb = i % 2 === 0 ? CURB_A : CURB_B;
-    objects.push(...ribbon(u0, u1, half, half + 0.55, ROAD_Z + 0.05, curb));
-    objects.push(...ribbon(u0, u1, -half - 0.55, -half, ROAD_Z + 0.05, curb));
-  });
-  const posts = 28;
+  const half = halfWidth();
+  const posts = 18;
   for (let i = 0; i < posts; i++) {
     const u = i / posts;
     const p = pointAt(u);
     const [lx, ly] = leftNormal(p);
-    const ox = p.x - lx * (half + 0.7);
-    const oy = p.y - ly * (half + 0.7);
+    const ox = p.x - lx * (half + 1.35);
+    const oy = p.y - ly * (half + 1.35);
+    const z = duneHeight(ox, oy);
     objects.push({
       type: "shape",
       kind: "capsule",
-      a: [ox, oy, 0],
-      b: [ox, oy, 1.25],
-      r: 0.22,
+      a: [ox, oy, z],
+      b: [ox, oy, z + 1.15],
+      r: 0.16,
       color: i % 2 === 0 ? WALL : CURB_A,
       reflectivity: 0.08,
     });
   }
-  objects.push({
-    type: "box",
-    min: [-0.35, -RADIUS - half, ROAD_Z],
-    max: [0.35, -RADIUS + half, ROAD_Z + 0.03],
-    color: WHITE,
-    reflectivity: 0.05,
-  });
+  const gate = pointAt(0);
+  const [glx, gly] = leftNormal(gate);
   for (const side of [-1, 1]) {
-    const y = -RADIUS + side * (half + 0.2);
+    const x = gate.x + glx * side * (half + 0.9);
+    const y = gate.y + gly * side * (half + 0.9);
+    const z = duneHeight(x, y);
     objects.push({
       type: "shape",
       kind: "capsule",
-      a: [0, y, 0],
-      b: [0, y, 3.4],
-      r: 0.16,
+      a: [x, y, z],
+      b: [x, y, z + 3.3],
+      r: 0.14,
       color: WHITE,
       reflectivity: 0.1,
     });
   }
+  const left = [gate.x + glx * half, gate.y + gly * half] as const;
+  const right = [gate.x - glx * half, gate.y - gly * half] as const;
+  const barZ = Math.max(duneHeight(left[0], left[1]), duneHeight(right[0], right[1])) + 3.15;
   objects.push({
     type: "shape",
     kind: "capsule",
-    a: [0, -RADIUS - half, 3.2],
-    b: [0, -RADIUS + half, 3.2],
-    r: 0.14,
+    a: [left[0], left[1], barZ],
+    b: [right[0], right[1], barZ],
+    r: 0.12,
     color: CURB_A,
     reflectivity: 0.12,
     tile: "metal",
   });
+  builtFor = id;
   staticScene = objects;
   return objects;
 }
@@ -176,10 +110,10 @@ function kartParts(body: DrawBody, faces: SceneObject[], rest: SceneObject[]) {
   const ry = -Math.sin(yaw);
   const paint = [color[0], color[1], color[2], 1];
   const wheelR = 0.22;
-  const wheelZ = ROAD_Z + wheelR + 0.05;
+  const ground = duneHeight(x, y);
   faces.push({
     type: "sphere",
-    origin: [x - rx * 0.05, y - ry * 0.05, 1.34],
+    origin: [x - rx * 0.05, y - ry * 0.05, ground + 1.02],
     radius: 0.46,
     color: [1, 1, 1, 1],
     reflectivity: 0.04,
@@ -188,8 +122,8 @@ function kartParts(body: DrawBody, faces: SceneObject[], rest: SceneObject[]) {
   rest.push({
     type: "shape",
     kind: "capsule",
-    a: [x - fx * 0.55, y - fy * 0.55, 0.72],
-    b: [x + fx * 0.85, y + fy * 0.85, 0.78],
+    a: [x - fx * 0.55, y - fy * 0.55, ground + 0.46],
+    b: [x + fx * 0.85, y + fy * 0.85, ground + 0.52],
     r: 0.32,
     color: paint,
     reflectivity: 0.18,
@@ -197,7 +131,7 @@ function kartParts(body: DrawBody, faces: SceneObject[], rest: SceneObject[]) {
   });
   rest.push({
     type: "sphere",
-    origin: [x + fx * 0.95, y + fy * 0.95, 0.7],
+    origin: [x + fx * 0.95, y + fy * 0.95, ground + 0.48],
     radius: 0.26,
     color: paint,
     reflectivity: 0.2,
@@ -209,9 +143,11 @@ function kartParts(body: DrawBody, faces: SceneObject[], rest: SceneObject[]) {
     [-0.5, -0.48],
   ];
   for (const [f, s] of wheels) {
+    const wx = x + fx * f + rx * s;
+    const wy = y + fy * f + ry * s;
     rest.push({
       type: "sphere",
-      origin: [x + fx * f + rx * s, y + fy * f + ry * s, wheelZ],
+      origin: [wx, wy, duneHeight(wx, wy) + wheelR],
       radius: wheelR,
       color: [0.08, 0.08, 0.09, 1],
       reflectivity: 0.06,
@@ -248,15 +184,15 @@ export function buildPicture(
     miss: [0.45, 0.62, 0.82, 1],
     sun,
     objects: [...faces, ...rest, ...trackObjects()],
+    track: { half: halfWidth(), count: 160, samples: trackRibbon(160) },
     fovea: {
       x: 0.5,
       y: 0.42,
       fovea: 0.55,
       falloff: 1.05,
-      // Meridian sharpens a still view by counting frames (uRefine). The peripheral
-      // cell stays small so a moving frame does not trace every edge pixel.
+      // The trace size is the resolution. A blocky fovea never got sharper while the kart moved.
       period: 1,
-      block: 2,
+      block: 0,
       still,
     },
   };
@@ -271,13 +207,13 @@ export function chaseCamera(
   const fx = Math.sin(yaw);
   const fy = Math.cos(yaw);
   const back = 8.2;
-  const eye = 2.55;
-  const aimZ = 1.2 + orbit.pitch * 3.4;
   const tx = kart.x + fx * lookAhead;
   const ty = kart.y + fy * lookAhead;
   const cx = kart.x - fx * back;
   const cy = kart.y - fy * back;
-  const cz = Math.max(1.35, eye - orbit.pitch * 0.4);
+  const ground = duneHeight(kart.x, kart.y);
+  const aimZ = duneHeight(tx, ty) + 1.15 + orbit.pitch * 2.4;
+  const cz = Math.max(duneHeight(cx, cy) + 1.2, ground + 2.35 - orbit.pitch * 0.35);
   const dx = tx - cx;
   const dy = ty - cy;
   const dz = aimZ - cz;

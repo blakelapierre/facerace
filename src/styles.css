@@ -42,6 +42,23 @@
   background: var(--color-ink);
   color: var(--color-paper);
   touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.race-root button {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.race-root input,
+.race-root textarea {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
 }
 
 .race-canvas {
@@ -67,7 +84,9 @@
 .stick,
 .race-banner,
 .race-sideways,
-.race-mute {
+.race-mute,
+.race-mode,
+.pedals {
   position: absolute;
   z-index: 2;
 }
@@ -309,6 +328,57 @@
   height: 1.15rem;
 }
 
+.race-mode,
+.pedals {
+  display: none;
+}
+
+.race-mode {
+  left: max(0.9rem, env(safe-area-inset-left));
+  bottom: max(0.9rem, env(safe-area-inset-bottom));
+  min-width: 5.2rem;
+  height: 2.8rem;
+  padding: 0 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  background: color-mix(in srgb, var(--color-panel) 88%, transparent);
+  color: var(--color-paper);
+  font: inherit;
+  font-weight: 560;
+}
+
+.is-stick .race-mode {
+  left: auto;
+  right: max(4.2rem, calc(env(safe-area-inset-right) + 3.4rem));
+}
+
+.pedals {
+  right: max(0.9rem, env(safe-area-inset-right));
+  bottom: max(4.4rem, calc(env(safe-area-inset-bottom) + 3.6rem));
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.pedal {
+  width: 5.6rem;
+  height: 3.3rem;
+  border-radius: 1rem;
+  border: 1px solid var(--color-line);
+  font: inherit;
+  font-weight: 640;
+  touch-action: none;
+}
+
+.pedal-go {
+  background: var(--color-lane);
+  color: var(--color-ink);
+}
+
+.pedal-back {
+  background: color-mix(in srgb, var(--color-panel) 90%, transparent);
+  color: var(--color-paper);
+}
+
 .race-sideways {
   display: none;
   inset: 0;
@@ -342,7 +412,17 @@
 }
 
 @media (pointer: coarse) {
-  .stick {
+  .race-mode {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .is-tilt .pedals {
+    display: flex;
+  }
+
+  .is-stick .stick {
     display: block;
   }
 

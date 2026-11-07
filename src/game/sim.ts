@@ -1,5 +1,6 @@
 import { bumpSpheres } from "./contact";
-import { HALF_W, LAPS, leftNormal, nearestU, pointAt } from "./track";
+import { duneHeight } from "./terrain";
+import { courseCount, courseIndex, courseName, halfWidth, lapCount, leftNormal, nearestU, pointAt, setCourse } from "./track";
 
 export type Kart = {
   id: string;
@@ -28,10 +29,14 @@ export type Sim = {
   steer: number;
   /** Joystick sideways, −1..1. Positive is player-left. Replaces tilt while pushed. */
   stick: number;
-  /** Phone tilt, −1..1. Positive is player-left. */
+  /** Phone tilt, −1..1. Positive is player-left. Used in motion mode. */
   tilt: number;
-  /** Joystick gas, −1..1. Positive is forward. */
+  /** Joystick gas, −1..1. Positive is forward. Used in stick mode. */
   gas: number;
+  /** Held Go / Back pedals in motion mode. */
+  pedal: number;
+  /** Touch scheme. Motion uses tilt plus pedals. Stick uses the joystick and ignores the phone. */
+  hands: "tilt" | "stick";
   banner: string;
   bestMs: number | null;
   /** One-shot moments for the listener. Drained by the frame loop. */
@@ -42,6 +47,10 @@ export type Sim = {
   scrapeTick: number;
   wrongTick: number;
   wrongWay: boolean;
+  /** Seconds the course name stays on the banner after a change. */
+  bannerUntil: number;
+  /** The stadium has already handed off to the next course. */
+  promoted: boolean;
 };
 
 const COLORS: [number, number, number][] = [
@@ -106,6 +115,8 @@ export function createSim(playerName = "You"): Sim {
     stick: 0,
     tilt: 0,
     gas: 0,
+    pedal: 0,
+    hands: "stick",
     banner: "",
     bestMs: best,
     events: [],
@@ -115,6 +126,8 @@ export function createSim(playerName = "You"): Sim {
     scrapeTick: -100,
     wrongTick: -100,
     wrongWay: false,
+    bannerUntil: 0,
+    promoted: false,
   };
 }
 
@@ -126,14 +139,15 @@ function readSteer(sim: Sim) {
   let steer = sim.steer;
   if (down(sim, "KeyA") || down(sim, "ArrowLeft")) steer += 1;
   if (down(sim, "KeyD") || down(sim, "ArrowRight")) steer -= 1;
-  steer += Math.abs(sim.stick) > 0.08 ? sim.stick : sim.tilt;
+  if (sim.hands === "stick") steer += Math.abs(sim.stick) > 0.08 ? sim.stick : 0;
+  else steer += sim.tilt;
   if (steer > 1) return 1;
   if (steer < -1) return -1;
   return steer;
 }
 
 function throttle(sim: Sim) {
-  let t = sim.gas;
+  let t = sim.hands === "tilt" ? sim.pedal : sim.gas;
   if (down(sim, "KeyW") || down(sim, "ArrowUp")) t += 1;
   if (down(sim, "KeyS") || down(sim, "ArrowDown")) t -= 1;
   if (t > 1) return 1;
@@ -158,15 +172,12 @@ function contain(kart: Kart) {
   const sample = pointAt(u);
   const [lx, ly] = leftNormal(sample);
   const lat = (kart.x - sample.x) * lx + (kart.y - sample.y) * ly;
-  const limit = HALF_W - 0.15;
-  if (Math.abs(lat) > limit) {
-    const clamped = Math.sign(lat) * limit;
-    kart.x = sample.x + lx * clamped;
-    kart.y = sample.y + ly * clamped;
-    kart.speed *= 0.86;
-  } else if (Math.abs(lat) > limit * 0.82) {
-    kart.speed *= 0.985;
-  }
+  const edge = halfWidth() + 0.45;
+  if (Math.abs(lat) <= edge) return;
+  const clamped = Math.sign(lat) * edge;
+  kart.x = sample.x + lx * clamped;
+  kart.y = sample.y + ly * clamped;
+  kart.speed *= 0.9;
 }
 
 function aiSteer(kart: Kart) {
@@ -208,6 +219,10 @@ export function stepSim(sim: Sim, dt: number) {
     if (drive > 0) kart.speed += 22 * dt;
     else if (drive < 0) kart.speed -= 30 * dt;
     else kart.speed -= Math.sign(kart.speed) * 6 * dt;
+    const aheadX = kart.x + Math.sin(kart.yaw) * 2;
+    const aheadY = kart.y + Math.cos(kart.yaw) * 2;
+    const grade = (duneHeight(aheadX, aheadY) - duneHeight(kart.x, kart.y)) / 2;
+    kart.speed -= grade * 16 * dt;
     if (kart.speed > MAX_SPEED) kart.speed = MAX_SPEED;
     if (kart.speed < -9) kart.speed = -9;
     if (Math.abs(kart.speed) < 0.08 && drive === 0) kart.speed = 0;
@@ -220,18 +235,18 @@ export function stepSim(sim: Sim, dt: number) {
       const sampleNow = pointAt(uNow);
       const [nlx, nly] = leftNormal(sampleNow);
       const latNow = (kart.x - sampleNow.x) * nlx + (kart.y - sampleNow.y) * nly;
-      if (Math.abs(latNow) > HALF_W - 0.22 && Math.abs(kart.speed) > 4 && sim.tick - sim.scrapeTick > 18) {
+      if (Math.abs(latNow) > halfWidth() - 0.15 && Math.abs(kart.speed) > 4 && sim.tick - sim.scrapeTick > 18) {
         sim.scrapeTick = sim.tick;
         sim.events.push({ kind: "scrape", amount: Math.min(1, Math.abs(kart.speed) / 20), x: kart.x, y: kart.y });
         sim.shake = Math.min(1, sim.shake + 0.28);
       }
       const lap = Math.floor(kart.travel);
-      if (lap > sim.lapSeen && lap < LAPS) {
+      if (lap > sim.lapSeen && lap < lapCount()) {
         sim.events.push({ kind: "lap", amount: 1, x: kart.x, y: kart.y });
       }
       sim.lapSeen = Math.max(sim.lapSeen, lap);
     }
-    if (kart.travel >= LAPS && kart.finishedAt == null) {
+    if (kart.travel >= lapCount() && kart.finishedAt == null) {
       kart.finishedAt = sim.time;
       kart.speed *= 0.5;
       if (kart === player) {
@@ -292,6 +307,26 @@ export function stepSim(sim: Sim, dt: number) {
     }
   }
 
+  if (player.finishedAt != null && !sim.promoted && courseIndex() < courseCount() - 1 && sim.time - player.finishedAt > 2.6) {
+    sim.promoted = true;
+    setCourse(courseIndex() + 1);
+    for (let i = 0; i < sim.karts.length; i++) {
+      const kart = sim.karts[i]!;
+      const fresh = placeKart(i, kart.name);
+      kart.x = fresh.x;
+      kart.y = fresh.y;
+      kart.yaw = fresh.yaw;
+      kart.speed = 0;
+      kart.travel = fresh.travel;
+      kart.finishedAt = null;
+    }
+    sim.time = 0;
+    sim.lapSeen = 0;
+    sim.bannerUntil = 4.5;
+    sim.wrongWay = false;
+    sim.events.push({ kind: "horn", amount: 1, x: player.x, y: player.y });
+  }
+
   const u = ((player.travel % 1) + 1) % 1;
   const sample = pointAt(u);
   const heading = wrap(player.yaw - sample.yaw);
@@ -301,12 +336,13 @@ export function stepSim(sim: Sim, dt: number) {
     sim.events.push({ kind: "wrong", amount: 1, x: player.x, y: player.y });
   }
   sim.wrongWay = wrong;
-  sim.banner = player.finishedAt != null ? "Finished" : wrong ? "Wrong way" : "";
+  const named = sim.time < sim.bannerUntil;
+  sim.banner = player.finishedAt != null ? "Finished" : named ? courseName() : wrong ? "Wrong way" : "";
 }
 
 export function lapOf(kart: Kart) {
-  if (kart.finishedAt != null) return LAPS;
-  return Math.min(LAPS, Math.floor(kart.travel) + 1);
+  if (kart.finishedAt != null) return lapCount();
+  return Math.min(lapCount(), Math.floor(kart.travel) + 1);
 }
 
 export function placeOf(sim: Sim, kart: Kart) {
