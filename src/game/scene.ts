@@ -17,6 +17,7 @@ export type Picture = {
   objects: SceneObject[];
   fovea: { x: number; y: number; fovea: number; falloff: number; period: number; block: number; still: boolean };
   track?: { half: number; count: number; samples: Float32Array };
+  rain?: number;
 };
 
 const CURB_A = [0.91, 0.64, 0.13, 1];
@@ -168,6 +169,7 @@ export function buildPicture(
   height: number,
   still: boolean,
   sun: V3 = [0.45, 0.22, 0.86],
+  rain = 0,
 ): Picture {
   const faces: SceneObject[] = [];
   const rest: SceneObject[] = [];
@@ -185,6 +187,7 @@ export function buildPicture(
     sun,
     objects: [...faces, ...rest, ...trackObjects()],
     track: { half: halfWidth(), count: 160, samples: trackRibbon(160) },
+    rain,
     fovea: {
       x: 0.5,
       y: 0.42,

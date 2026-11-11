@@ -204,7 +204,9 @@
   left: 50%;
   top: 50%;
   transform: translate(-50%, -46%);
-  width: min(28rem, calc(100% - 1.5rem));
+  width: min(32rem, calc(100% - 1.5rem));
+  max-height: min(40rem, calc(100dvh - 1.25rem));
+  overflow: auto;
   background: var(--color-panel);
   color: var(--color-paper);
   border: 1px solid var(--color-line);
@@ -246,8 +248,67 @@
 
 .race-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.6rem;
   margin-top: 0.85rem;
+}
+
+.course-row,
+.room-list {
+  display: flex;
+  gap: 0.45rem;
+  margin: 0.35rem 0 0.75rem;
+}
+
+.course-row {
+  flex-wrap: wrap;
+}
+
+.room-list {
+  flex-direction: column;
+}
+
+.course-chip,
+.room-row {
+  border: 1px solid var(--color-line);
+  background: transparent;
+  color: var(--color-paper);
+  border-radius: 0.85rem;
+  min-height: 2.75rem;
+  padding: 0.4rem 0.75rem;
+  text-align: left;
+}
+
+.course-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.05rem;
+}
+
+.course-chip span,
+.room-row span {
+  font-size: 0.75rem;
+  color: var(--color-moss);
+}
+
+.course-chip.is-on {
+  background: var(--color-lane);
+  color: var(--color-ink);
+  border-color: transparent;
+}
+
+.course-chip.is-on span {
+  color: color-mix(in srgb, var(--color-ink) 70%, transparent);
+}
+
+.room-row {
+  display: flex;
+  flex-direction: column;
+}
+
+.room-row strong {
+  font-weight: 560;
 }
 
 .race-go,

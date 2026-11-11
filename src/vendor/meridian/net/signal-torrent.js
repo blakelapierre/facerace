@@ -212,5 +212,6 @@ export function createTorrentRoom({
     subscribed: () => true,
     peers: () => roster.size,
     trackersUp: () => sockets.filter((socket) => socket.readyState === 1).length,
+    setCatalog: (next) => { presence.catalog = String(next || ""); },
   };
 }

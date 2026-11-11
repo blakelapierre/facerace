@@ -118,6 +118,28 @@ const ridge = splineCourse([
   [-110, -90],
 ]);
 
+const cinder = splineCourse([
+  [-70, -20],
+  [-95, 30],
+  [-155, 35],
+  [-220, -10],
+  [-230, -70],
+  [-175, -120],
+  [-100, -110],
+  [-60, -70],
+]);
+
+const lake = splineCourse([
+  [118, 70],
+  [130, 110],
+  [90, 150],
+  [30, 145],
+  [12, 100],
+  [28, 58],
+  [78, 48],
+  [112, 52],
+]);
+
 export const COURSES: Course[] = [
   {
     id: "stadium",
@@ -134,6 +156,22 @@ export const COURSES: Course[] = [
     halfW: RIDGE_HALF,
     length: ridge.length,
     pointAt: ridge.pointAt,
+  },
+  {
+    id: "lake",
+    name: "Lake",
+    laps: 2,
+    halfW: 7.2,
+    length: lake.length,
+    pointAt: lake.pointAt,
+  },
+  {
+    id: "cinder",
+    name: "Cinder",
+    laps: 2,
+    halfW: 7.4,
+    length: cinder.length,
+    pointAt: cinder.pointAt,
   },
 ];
 
@@ -154,6 +192,11 @@ export function course() {
 export function setCourse(index: number) {
   active = ((index % COURSES.length) + COURSES.length) % COURSES.length;
   ribbonCache.clear();
+}
+
+export function setCourseById(id: string) {
+  const found = COURSES.findIndex((item) => item.id === id);
+  setCourse(found < 0 ? 0 : found);
 }
 
 export function pointAt(u: number): Sample {

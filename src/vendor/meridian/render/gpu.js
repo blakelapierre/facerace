@@ -230,6 +230,10 @@ uniform int uPrints;
 uniform vec4 uWork;
 uniform float uTime;
 uniform float uRain;
+uniform float uFog;
+uniform vec4 uFog0;
+uniform vec4 uFog1;
+uniform vec4 uFog2;
 uniform float uFrame;
 uniform float uFull;
 ${FOVEA_GLSL}
@@ -332,6 +336,15 @@ float cloudShade(vec3 rd) {
   return cloudShadeAt(uOrigin, rd);
 }
 
+float coneHeight(vec2 p, vec2 c, float radius, float height) {
+  float d = length(p - c);
+  float wobble = 0.92 + 0.08 * sin(p.x * 0.05 + c.y) * cos(p.y * 0.04);
+  float u = d / (radius * wobble);
+  if (u >= 1.0) return 0.0;
+  float s = 1.0 - u;
+  return height * s * s * (3.0 - 2.0 * s);
+}
+
 float duneHeight(vec2 p) {
   float roll = 0.5 * sin(p.x * 0.15) + 0.5 * cos(p.y * 0.13);
   float wash = 0.5 * sin((p.x + p.y) * 0.17 + 1.3) + 0.5;
@@ -341,7 +354,18 @@ float duneHeight(vec2 p) {
   float marsh = exp(-((p.x - 36.0) * (p.x - 36.0) + (p.y + 96.0) * (p.y + 96.0)) / 2200.0);
   h *= 1.0 - marsh * 0.55;
   float ridge = exp(-((p.x + 24.0) * (p.x + 24.0)) / 520.0) * max(cos(p.y * 0.02), 0.0);
-  return clamp(h + ridge * 1.6, 0.0, 5.4);
+  h = clamp(h + ridge * 1.6, 0.0, 5.4);
+  h += coneHeight(p, vec2(-40.0, 160.0), 104.0, 36.0);
+  h += coneHeight(p, vec2(-155.0, -55.0), 72.0, 30.0);
+  float crater = length(p - vec2(-155.0, -55.0));
+  if (crater < 14.0) h -= (1.0 - crater / 14.0) * 12.0;
+  float lakeR = length(p - vec2(70.0, 96.0));
+  float rl = 14.0 * (0.94 + 0.06 * sin(p.x * 0.21));
+  if (lakeR < rl) {
+    float q = lakeR / max(rl, 0.01);
+    h = 2.2 - 0.12 - 1.6 * (1.0 - q * q);
+  }
+  return max(h, -2.0);
 }
 
 vec3 duneNormal(vec2 p) {
@@ -421,7 +445,7 @@ vec3 ribbonAlbedo(vec2 p, vec3 base) {
     bool yellow = (seg - (seg / 2) * 2) == 0;
     return yellow ? vec3(0.86, 0.55, 0.12) : vec3(0.9, 0.88, 0.8);
   }
-  vec3 asphalt = vec3(0.17, 0.17, 0.18) * (0.9 + valueNoise(p * 1.1) * 0.14);
+  vec3 asphalt = vec3(0.17, 0.17, 0.18) * (0.9 + valueNoise(p * 1.1) * 0.14) * (1.0 - uRain * 0.28);
   if (seg == 0 && alongT < 0.22) return vec3(0.86, 0.84, 0.76);
   if (ad < 0.16 && mod(float(seg) + alongT, 5.0) < 2.0) asphalt = vec3(0.78, 0.76, 0.68);
   return asphalt;
@@ -445,6 +469,14 @@ vec3 groundAlbedo(vec2 p, vec3 n) {
   grassC *= 0.86 + valueNoise(p * 0.31 + 4.0) * 0.26;
   rockC *= 0.84 + valueNoise(p * 0.19 + 9.0) * 0.28;
   vec3 rgb = mix(mix(sandC, grassC, grassW), rockC, rockW);
+  float volc = coneHeight(p, vec2(-155.0, -55.0), 72.0, 1.0);
+  rgb = mix(rgb, vec3(0.32, 0.16, 0.11), clamp(volc * 1.5, 0.0, 0.9));
+  float lakeR = length(p - vec2(70.0, 96.0));
+  float rl = 14.0 * (0.94 + 0.06 * sin(p.x * 0.21));
+  if (lakeR < rl) {
+    rgb = mix(vec3(0.45, 0.72, 0.7), vec3(0.06, 0.24, 0.4), clamp((rl - lakeR) / 7.0, 0.0, 1.0));
+    rgb += vec3(0.15) * smoothstep(0.72, 0.9, valueNoise(p * 0.8 + vec2(uTime * 0.15, -uTime * 0.08)));
+  }
   return withWear(ribbonAlbedo(p, rgb), p);
 }
 
@@ -1084,6 +1116,30 @@ vec3 boxNormal(vec3 p, vec3 bmin, vec3 bmax) {
   return vec3(0.0, 0.0, sign(q.z));
 }
 
+float bankAmount(vec3 q, vec4 b) {
+  if (b.z <= 0.5) return 0.0;
+  vec2 o = q.xy - b.xy;
+  float rise = q.z - b.w;
+  return exp(-dot(o, o) / (b.z * b.z)) * smoothstep(-0.6, 0.4, rise) * exp(-max(rise, 0.0) / 2.2);
+}
+
+vec3 bankFog(vec3 ro, vec3 rd, float tHit, vec3 color) {
+  float t1 = min(tHit, 240.0);
+  if (t1 < 2.0) return color;
+  float optical = 0.0;
+  for (int i = 0; i < 6; i++) {
+    vec3 q = ro + rd * (t1 * (float(i) + 0.5) / 6.0);
+    float d = bankAmount(q, uFog0) + bankAmount(q, uFog1) + bankAmount(q, uFog2);
+    if (d < 0.02) continue;
+    float roll = valueNoise(q.xy * 0.05 + vec2(uTime * 0.35, uTime * 0.12));
+    optical += d * smoothstep(0.32, 0.8, roll) * (t1 / 6.0);
+  }
+  float T = exp(-0.07 * optical * (0.7 + uRain * 0.8));
+  float day = smoothstep(-0.05, 0.25, normalize(uSun).z);
+  vec3 fogC = mix(vec3(0.26, 0.28, 0.32), vec3(0.8, 0.82, 0.84), day);
+  return mix(fogC, color, clamp(T, 0.0, 1.0));
+}
+
 void main() {
   // Foveated progressive tracing: the gaze region traces every frame at full resolution;
   // the periphery traces one pixel per cell, every few frames, and stays in the accumulation target between.
@@ -1101,6 +1157,7 @@ void main() {
   float px = (uu * 2.0 - 1.0) * uAspect * halfAngle;
   float py = (1.0 - vv * 2.0) * halfAngle;
   vec3 rd = normalize(uRight * px + uUp * py + uForward * uPlane);
+  vec3 eye = rd;
   vec3 ro = uOrigin;
   vec3 accum = vec3(0.0);
   float thru = 1.0;
@@ -1306,6 +1363,7 @@ void main() {
     float streak = step(0.86, fract(rp.x)) * smoothstep(0.0, 0.25, fall) * step(fall, 0.25) * step(0.55, h);
     accum = mix(accum, vec3(0.55, 0.6, 0.66), uRain * (0.18 + 0.5 * streak));
   }
+  if (uFog > 0.5) accum = bankFog(uOrigin, eye, firstT, accum);
   // Alpha carries log depth (0 near, 1 at 4 km) for future reprojection.
   float depthCode = clamp(log2(1.0 + firstT) / 12.0, 0.0, 1.0);
   fragColor = vec4(present(accum), depthCode);
@@ -1882,6 +1940,10 @@ void main() {
       gl.uniform1i(u("uDigs"), digs);
       gl.uniform1i(u("uPrints"), shown);
       gl.uniform1f(u("uRain"), scene.rain || 0);
+      gl.uniform1f(u("uFog"), 1);
+      gl.uniform4f(u("uFog0"), 70, 96, 18, 2.2);
+      gl.uniform4f(u("uFog1"), -155, -55, 40, 10);
+      gl.uniform4f(u("uFog2"), 36, -96, 22, 0.8);
       const work = scene.work;
       gl.uniform4f(u("uWork"), work ? work.x : 0, work ? work.y : 0, work ? work.height : 0, work ? work.mode : 0);
       gl.uniform1f(u("uTime"), scene.time || 0);

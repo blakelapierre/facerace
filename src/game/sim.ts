@@ -1,6 +1,6 @@
 import { bumpSpheres } from "./contact";
-import { duneHeight } from "./terrain";
-import { courseCount, courseIndex, courseName, halfWidth, lapCount, leftNormal, nearestU, pointAt, setCourse } from "./track";
+import { duneHeight, waterAt } from "./terrain";
+import { courseCount, courseIndex, courseName, halfWidth, lapCount, leftNormal, nearestU, pointAt, setCourse, setCourseById } from "./track";
 
 export type Kart = {
   id: string;
@@ -228,6 +228,7 @@ export function stepSim(sim: Sim, dt: number) {
     if (Math.abs(kart.speed) < 0.08 && drive === 0) kart.speed = 0;
     kart.x += Math.sin(kart.yaw) * kart.speed * dt;
     kart.y += Math.cos(kart.yaw) * kart.speed * dt;
+    if (waterAt(kart.x, kart.y) != null) kart.speed *= Math.pow(0.15, dt);
     advanceTravel(kart);
     contain(kart);
     if (kart === player && kart.finishedAt == null) {
@@ -338,6 +339,27 @@ export function stepSim(sim: Sim, dt: number) {
   sim.wrongWay = wrong;
   const named = sim.time < sim.bannerUntil;
   sim.banner = player.finishedAt != null ? "Finished" : named ? courseName() : wrong ? "Wrong way" : "";
+}
+
+export function parkOn(sim: Sim, courseId: string) {
+  setCourseById(courseId);
+  for (let i = 0; i < sim.karts.length; i++) {
+    const kart = sim.karts[i]!;
+    const fresh = placeKart(i, kart.name);
+    kart.x = fresh.x;
+    kart.y = fresh.y;
+    kart.yaw = fresh.yaw;
+    kart.speed = 0;
+    kart.travel = fresh.travel;
+    kart.finishedAt = null;
+  }
+  sim.time = 0;
+  sim.lapSeen = 0;
+  sim.bannerUntil = 4.5;
+  sim.wrongWay = false;
+  sim.promoted = courseIndex() >= courseCount() - 1;
+  sim.running = false;
+  sim.banner = courseName();
 }
 
 export function lapOf(kart: Kart) {

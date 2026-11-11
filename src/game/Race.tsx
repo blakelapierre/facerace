@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { Camera, Flag, Gauge, Users, Volume2, VolumeX } from "lucide-react";
 import { paintFace, type FaceImage } from "./faces";
-import { createSim, installProbe, lapOf, placeOf, stepSim, type Sim } from "./sim";
+import { createSim, installProbe, lapOf, parkOn, placeOf, stepSim, type Sim } from "./sim";
 import { buildPicture, chaseCamera, raceSun, type DrawBody } from "./scene";
 import { createRaceAudio, hearAt, type RaceAudio } from "./sound";
+import { rainAt } from "./terrain";
+import { COURSES, lapCount } from "./track";
+import { freshCode, openBoard, type ListedRoom } from "./lobby";
 import type { RaceNet } from "./net";
 
 function fmt(seconds: number) {
@@ -48,7 +51,6 @@ function preferredHands(): "tilt" | "stick" {
 export function Race() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
-  const roomRef = useRef<HTMLInputElement>(null);
   const speedRef = useRef<HTMLSpanElement>(null);
   const lapRef = useRef<HTMLSpanElement>(null);
   const placeRef = useRef<HTMLSpanElement>(null);
@@ -67,7 +69,15 @@ export function Race() {
   const lookingRef = useRef(false);
   const lookPoint = useRef<{ id: number; x: number; y: number } | null>(null);
   const audioRef = useRef<RaceAudio | null>(null);
-  const [phase, setPhase] = useState<"grid" | "live">("grid");
+  const boardRef = useRef<{ announce: (card: { code: string; course: string; host: string; live: boolean }) => void; close: () => void } | null>(null);
+  const weatherRef = useRef(12);
+  const armRef = useRef(false);
+  const [phase, setPhase] = useState<"menu" | "live">("menu");
+  const [seat, setSeat] = useState<"pick" | "host" | "wait">("pick");
+  const [courseId, setCourseId] = useState(COURSES[0]!.id);
+  const [rooms, setRooms] = useState<ListedRoom[]>([]);
+  const [boardNote, setBoardNote] = useState("Looking for rooms…");
+  const [roomCode, setRoomCode] = useState("");
   const [camOn, setCamOn] = useState(false);
   const [camError, setCamError] = useState("");
   const [muted, setMuted] = useState(false);
@@ -86,6 +96,16 @@ export function Race() {
       if (kart.ai) botFaces.current.set(kart.id, paintFace(kart.seed));
     }
     faceRef.current = paintFace(7);
+
+    let closedBoard = false;
+    void openBoard((found, note) => {
+      if (closedBoard) return;
+      setRooms(found);
+      setBoardNote(note);
+    }).then((board) => {
+      if (closedBoard) board.close();
+      else boardRef.current = board;
+    });
 
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -237,6 +257,7 @@ export function Race() {
       raf = requestAnimationFrame(frameLoop);
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
+      weatherRef.current += dt;
       const current = simRef.current;
       if (!current) return;
       acc += dt;
@@ -342,7 +363,7 @@ export function Race() {
         }
         const traceW = Math.max(320, Math.min(boxW, Math.round((boxW * traceScale) / 4) * 4));
         const traceH = Math.max(180, Math.min(boxH, Math.round((boxH * traceScale) / 4) * 4));
-        const picture = buildPicture(bodies, view, traceW, traceH, settled, raceSun(current.time));
+        const picture = buildPicture(bodies, view, traceW, traceH, settled, raceSun(weatherRef.current), rainAt(weatherRef.current));
         gpuAt = performance.now();
         const ok = painter.paint(picture, traceW, traceH);
         if (ok) {
@@ -354,7 +375,7 @@ export function Race() {
         lastPaint = now;
         const w = 80;
         const h = 45;
-        const picture = buildPicture(bodies, view, w, h, true, raceSun(current.time));
+        const picture = buildPicture(bodies, view, w, h, true, raceSun(weatherRef.current), rainAt(weatherRef.current));
         const pixels = cpu.paintFrame(picture, w, h);
         const image = new ImageData(new Uint8ClampedArray(pixels), w, h);
         const scratch = document.createElement("canvas");
@@ -379,7 +400,7 @@ export function Race() {
       if (now - hudAt > 80) {
         hudAt = now;
         if (speedRef.current) speedRef.current.textContent = String(Math.round(Math.abs(player.speed) * 8));
-        if (lapRef.current) lapRef.current.textContent = `${lapOf(player)} / 3`;
+        if (lapRef.current) lapRef.current.textContent = `${lapOf(player)} / ${lapCount()}`;
         if (placeRef.current) placeRef.current.textContent = ordinal(placeOf(current, player));
         if (clockRef.current) {
           const shown = player.finishedAt ?? current.time;
@@ -409,6 +430,8 @@ export function Race() {
       window.removeEventListener("deviceorientation", onTilt);
       screen.orientation?.removeEventListener("change", resetTilt);
       canvas.parentElement?.removeEventListener("selectstart", blockSelect);
+      closedBoard = true;
+      boardRef.current?.close();
       void bootDone.then((off) => off?.());
       audio.close();
       audioRef.current = null;
@@ -524,10 +547,12 @@ export function Race() {
     }
   }
 
-  async function start() {
+  async function begin(code: string, course: string) {
     const sim = simRef.current;
-    if (!sim || sim.running) return;
+    if (!sim || sim.running || armRef.current) return;
+    armRef.current = true;
     const name = nameRef.current?.value.trim().slice(0, 16) || "You";
+    parkOn(sim, course);
     sim.karts[0]!.name = name;
     const orient = DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<string> };
     if (typeof orient.requestPermission === "function") {
@@ -548,13 +573,14 @@ export function Race() {
     }
     sim.running = true;
     setPhase("live");
+    setSeat("pick");
     audioRef.current?.resume();
     audioRef.current?.cue("horn", 1, 0);
-    const code = roomRef.current?.value.trim() ?? "";
     if (!code) {
       if (statusRef.current) statusRef.current.textContent = "Solo heat";
       return;
     }
+    boardRef.current?.announce({ code, course, host: name, live: true });
     const { createRaceNet } = await import("./net");
     const net = await createRaceNet(code, (line) => {
       if (statusRef.current) statusRef.current.textContent = line;
@@ -565,6 +591,22 @@ export function Race() {
     }
     netRef.current = net;
   }
+
+  function createRoom() {
+    const code = freshCode();
+    const name = nameRef.current?.value.trim().slice(0, 16) || "You";
+    setRoomCode(code);
+    setSeat("host");
+    boardRef.current?.announce({ code, course: courseId, host: name, live: false });
+    if (statusRef.current) statusRef.current.textContent = "Room posted";
+  }
+
+  useEffect(() => {
+    if (phase === "live" || seat !== "wait") return;
+    const hit = rooms.find((room) => room.code === roomCode && room.live);
+    if (!hit) return;
+    void begin(hit.code, hit.course);
+  });
 
   return (
     <div
@@ -618,34 +660,104 @@ export function Race() {
           Grid is set
         </p>
       </aside>
-      {phase === "grid" ? (
+      {phase === "menu" ? (
         <form
           className="race-card"
           onSubmit={(event) => {
             event.preventDefault();
-            void start();
+            if (seat === "host") void begin(roomCode, courseId);
+            else void begin("", courseId);
           }}
         >
           <p className="race-kicker">Pit lane</p>
-          <h2>Three laps. Don’t cut the grass.</h2>
-          <label>
-            Name
-            <input ref={nameRef} name="name" defaultValue="You" maxLength={16} autoComplete="nickname" />
-          </label>
-          <label>
-            Room
-            <input ref={roomRef} name="room" defaultValue="pit" maxLength={24} autoCapitalize="off" spellCheck={false} />
-          </label>
-          <p className="race-note">Same room code shares the track over Meridian’s tracker net. Leave it blank to race only the field. A face photo goes to people in your room.</p>
-          <div className="race-actions">
-            <button type="button" className="race-ghost" onClick={() => void useCamera()}>
-              <Camera aria-hidden="true" />
-              {camOn ? "Face live" : "Use my face"}
-            </button>
-            <button type="submit" className="race-go">
-              Start
-            </button>
-          </div>
+          {seat === "pick" ? (
+            <>
+              <h2>Pick a course. Open a room, or just go.</h2>
+              <label>
+                Name
+                <input ref={nameRef} name="name" defaultValue="You" maxLength={16} autoComplete="nickname" />
+              </label>
+              <p className="race-kicker">Course</p>
+              <div className="course-row">
+                {COURSES.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={`course-chip ${courseId === item.id ? "is-on" : ""}`}
+                    onClick={() => setCourseId(item.id)}
+                  >
+                    {item.name}
+                    <span>{item.laps} laps</span>
+                  </button>
+                ))}
+              </div>
+              <p className="race-kicker">Rooms</p>
+              <div className="room-list">
+                {rooms.length === 0 ? <p className="race-note">{boardNote}</p> : null}
+                {rooms.map((room) => (
+                  <button
+                    key={room.id}
+                    type="button"
+                    className="room-row"
+                    onClick={() => {
+                      setRoomCode(room.code);
+                      setCourseId(room.course);
+                      setSeat(room.live ? "pick" : "wait");
+                      if (room.live) void begin(room.code, room.course);
+                    }}
+                  >
+                    <strong>{room.host}</strong>
+                    <span>
+                      {COURSES.find((item) => item.id === room.course)?.name ?? room.course} · {room.code}
+                      {room.live ? " · racing" : " · waiting"}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <div className="race-actions">
+                <button type="button" className="race-ghost" onClick={() => void useCamera()}>
+                  <Camera aria-hidden="true" />
+                  {camOn ? "Face live" : "Use my face"}
+                </button>
+                <button type="button" className="race-ghost" onClick={createRoom}>
+                  New room
+                </button>
+                <button type="submit" className="race-go">
+                  Race the field
+                </button>
+              </div>
+            </>
+          ) : null}
+          {seat === "host" ? (
+            <>
+              <h2>Room {roomCode} is on the trackers.</h2>
+              <p className="race-note">
+                {COURSES.find((item) => item.id === courseId)?.name} · friends join from the room list, then you start everyone.
+              </p>
+              <div className="race-actions">
+                <button type="button" className="race-ghost" onClick={() => setSeat("pick")}>
+                  Back
+                </button>
+                <button type="submit" className="race-go">
+                  Start the race
+                </button>
+              </div>
+            </>
+          ) : null}
+          {seat === "wait" ? (
+            <>
+              <h2>Waiting for the start.</h2>
+              <p className="race-note">Room {roomCode}. You’ll go when the host starts. If the trackers stay quiet, start anyway.</p>
+              <div className="race-actions">
+                <button type="button" className="race-ghost" onClick={() => setSeat("pick")}>
+                  Back
+                </button>
+                <button type="button" className="race-go" onClick={() => void begin(roomCode, courseId)}>
+                  Start now
+                </button>
+              </div>
+            </>
+          ) : null}
           {camError ? <p className="race-note">{camError}</p> : null}
           <p className="race-keys">Keyboard: W gas, S brake, A left, D right, M mute. Phone: Motion tilts to steer, with Go and Back. Stick ignores the phone. Drag the picture to look. Landscape is best.</p>
         </form>
