@@ -114,8 +114,33 @@ const ridge = splineCourse([
   [90, 115],
   [-10, 140],
   [-110, 70],
-  [-165, -10],
-  [-110, -90],
+  [-180, 55],
+  [-240, -30],
+  [-200, -150],
+  [-70, -145],
+]);
+
+const caldera = splineCourse([
+  [-85, -55],
+  [-120, -2],
+  [-148, -20],
+  [-170, -38],
+  [-186, -68],
+  [-168, -98],
+  [-120, -100],
+  [-90, -78],
+]);
+
+const summit = splineCourse([
+  [-40, 64],
+  [22, 90],
+  [48, 140],
+  [8, 182],
+  [-22, 178],
+  [-58, 172],
+  [-96, 140],
+  [-104, 100],
+  [-70, 70],
 ]);
 
 const cinder = splineCourse([
@@ -172,6 +197,22 @@ export const COURSES: Course[] = [
     halfW: 7.4,
     length: cinder.length,
     pointAt: cinder.pointAt,
+  },
+  {
+    id: "caldera",
+    name: "Caldera",
+    laps: 2,
+    halfW: 6.4,
+    length: caldera.length,
+    pointAt: caldera.pointAt,
+  },
+  {
+    id: "summit",
+    name: "Summit",
+    laps: 2,
+    halfW: 6.6,
+    length: summit.length,
+    pointAt: summit.pointAt,
   },
 ];
 

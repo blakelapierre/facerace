@@ -72,6 +72,7 @@ export function Race() {
   const boardRef = useRef<{ announce: (card: { code: string; course: string; host: string; live: boolean }) => void; close: () => void } | null>(null);
   const weatherRef = useRef(12);
   const armRef = useRef(false);
+  const leaveRef = useRef<() => void>(() => {});
   const [phase, setPhase] = useState<"menu" | "live">("menu");
   const [seat, setSeat] = useState<"pick" | "host" | "wait">("pick");
   const [courseId, setCourseId] = useState(COURSES[0]!.id);
@@ -149,6 +150,11 @@ export function Race() {
       const simNow = simRef.current;
       if (!simNow) return;
       const tracked = ["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
+      if (event.code === "Escape" && down) {
+        event.preventDefault();
+        leaveRef.current();
+        return;
+      }
       if (event.code === "KeyM" && down) {
         event.preventDefault();
         audio.resume();
@@ -547,6 +553,26 @@ export function Race() {
     }
   }
 
+  function leaveRace() {
+    netRef.current?.close();
+    netRef.current = null;
+    const sim = simRef.current;
+    if (sim) {
+      sim.running = false;
+      sim.keys.clear();
+      sim.touch.clear();
+      sim.steer = 0;
+      sim.stick = 0;
+      sim.gas = 0;
+      sim.pedal = 0;
+      sim.banner = "";
+    }
+    armRef.current = false;
+    setSeat("pick");
+    setPhase("menu");
+  }
+  leaveRef.current = leaveRace;
+
   async function begin(code: string, course: string) {
     const sim = simRef.current;
     if (!sim || sim.running || armRef.current) return;
@@ -610,7 +636,7 @@ export function Race() {
 
   return (
     <div
-      className={`race-root ${hands === "tilt" ? "is-tilt" : "is-stick"}`}
+      className={`race-root ${hands === "tilt" ? "is-tilt" : "is-stick"} ${phase === "menu" ? "is-menu" : ""}`}
       onPointerDown={lookDown}
       onPointerMove={lookMove}
       onPointerUp={lookUp}
@@ -644,6 +670,16 @@ export function Race() {
           <span className="race-meter" ref={clockRef}>
             0:00.00
           </span>
+          {phase === "live" ? (
+            <button
+              type="button"
+              className="race-pits"
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={leaveRace}
+            >
+              Pits
+            </button>
+          ) : null}
         </div>
       </header>
       <p ref={bannerRef} className="race-banner" />
@@ -672,12 +708,11 @@ export function Race() {
           <p className="race-kicker">Pit lane</p>
           {seat === "pick" ? (
             <>
-              <h2>Pick a course. Open a room, or just go.</h2>
-              <label>
+              <h2>Pick a course.</h2>
+              <label className="pit-name">
                 Name
                 <input ref={nameRef} name="name" defaultValue="You" maxLength={16} autoComplete="nickname" />
               </label>
-              <p className="race-kicker">Course</p>
               <div className="course-row">
                 {COURSES.map((item) => (
                   <button
@@ -687,14 +722,12 @@ export function Race() {
                     onClick={() => setCourseId(item.id)}
                   >
                     {item.name}
-                    <span>{item.laps} laps</span>
                   </button>
                 ))}
               </div>
-              <p className="race-kicker">Rooms</p>
-              <div className="room-list">
+              <div className="room-line">
                 {rooms.length === 0 ? <p className="race-note">{boardNote}</p> : null}
-                {rooms.map((room) => (
+                {rooms.slice(0, 2).map((room) => (
                   <button
                     key={room.id}
                     type="button"
@@ -717,13 +750,13 @@ export function Race() {
               <div className="race-actions">
                 <button type="button" className="race-ghost" onClick={() => void useCamera()}>
                   <Camera aria-hidden="true" />
-                  {camOn ? "Face live" : "Use my face"}
+                  {camOn ? "Face live" : "Face"}
                 </button>
                 <button type="button" className="race-ghost" onClick={createRoom}>
                   New room
                 </button>
                 <button type="submit" className="race-go">
-                  Race the field
+                  Race
                 </button>
               </div>
             </>
@@ -759,7 +792,6 @@ export function Race() {
             </>
           ) : null}
           {camError ? <p className="race-note">{camError}</p> : null}
-          <p className="race-keys">Keyboard: W gas, S brake, A left, D right, M mute. Phone: Motion tilts to steer, with Go and Back. Stick ignores the phone. Drag the picture to look. Landscape is best.</p>
         </form>
       ) : null}
       <div
