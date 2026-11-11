@@ -1,6 +1,6 @@
 import { bumpBodies } from "./contact";
 import { duneHeight, waterAt } from "./terrain";
-import { courseCount, courseIndex, courseName, guardRails, halfWidth, lapCount, leftNormal, nearestU, pointAt, setCourse, setCourseById } from "./track";
+import { courseCount, courseIndex, courseName, GATES, gateAnchor, gateU, guardRails, halfWidth, lapCount, leftNormal, nearestU, pointAt, setCourse, setCourseById } from "./track";
 
 export type Kart = {
   id: string;
@@ -351,18 +351,16 @@ function penalize(kart: Kart, dt: number, cap: number) {
   kart.speed = kart.vx * Math.sin(kart.yaw) + kart.vy * Math.cos(kart.yaw);
 }
 
-const GATES = 8;
-
 function passGates(kart: Kart) {
   if (kart.finishedAt != null) return false;
   const u = ((kart.travel % 1) + 1) % 1;
-  const target = kart.gate / GATES;
+  const target = gateU(kart.gate);
   let ahead = u - target;
   if (ahead > 0.5) ahead -= 1;
   if (ahead < -0.5) ahead += 1;
   if (ahead < 0 || ahead > 0.08) return false;
-  const sample = pointAt(target);
-  if (Math.hypot(kart.x - sample.x, kart.y - sample.y) > halfWidth() * 2.5) return false;
+  const post = gateAnchor(kart.gate);
+  if (Math.hypot(kart.x - post.x, kart.y - post.y) > halfWidth() + 12) return false;
   kart.gate = (kart.gate + 1) % GATES;
   if (kart.gate !== 0) return false;
   kart.laps += 1;

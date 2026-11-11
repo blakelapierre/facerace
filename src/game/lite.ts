@@ -1,5 +1,5 @@
 import { duneHeight } from "./terrain";
-import { halfWidth, leftNormal, pointAt, setCourseById, trackRibbon } from "./track";
+import { gateAnchor, halfWidth, setCourseById, trackRibbon } from "./track";
 
 type Frame = {
   bodies: { x: number; y: number; z?: number; yaw?: number; pitch?: number; roll?: number; flame?: number; seed?: number; color: [number, number, number] }[];
@@ -8,6 +8,8 @@ type Frame = {
   course?: string;
   skids?: { x: number; y: number; x2: number; y2: number }[];
   rails?: { x: number; y: number; x2: number; y2: number; hp: number }[];
+  time?: number;
+  nextGate?: number;
 };
 
 const VERT = `#version 300 es
@@ -38,7 +40,9 @@ uniform vec4 uLean[12];
 uniform vec4 uSkid[40];
 uniform int uSkids;
 uniform int uKarts;
-uniform vec4 uGate[8];
+uniform vec4 uGate[4];
+uniform float uTime;
+uniform int uNext;
 uniform vec4 uRail[16];
 uniform float uHp[16];
 uniform int uRails;
@@ -215,6 +219,20 @@ void beam(vec3 ro, vec3 rd, vec3 pa, vec3 pb, float ra, vec3 albedo, vec3 sun, i
   hit = true;
 }
 
+void pillar(vec3 ro, vec3 rd, vec2 base, float tall, vec2 wind, vec3 albedo, vec3 sun, inout float best, inout vec3 rgb, inout bool hit) {
+  float h0 = heightAt(base);
+  vec3 prev = vec3(base, h0 + 0.12);
+  for (int s = 0; s < 3; s++) {
+    float f = float(s + 1) / 3.0;
+    vec2 p = base + wind * (f * f);
+    vec3 cur = vec3(p, h0 + tall * f);
+    float pulse = 0.94 + 0.06 * sin(uTime * 2.6 + f * 5.0 + base.x);
+    beam(ro, rd, prev, cur, (0.46 - f * 0.08) * pulse, albedo, sun, best, rgb, hit);
+    prev = cur;
+  }
+  ball(ro, rd, prev + vec3(wind * 0.08, 0.32), 0.52, albedo, -1.0, vec3(0.0, 1.0, 0.0), sun, best, rgb, hit);
+}
+
 void main() {
   vec2 ndc = vUv * 2.0 - 1.0;
   float tanHalf = tan(uFov * 0.5);
@@ -246,14 +264,14 @@ void main() {
       ball(uCam, rd, placed(pos, fwd, side, up, vec3(0.0, -0.85, 0.02)), 0.16, vec3(1.0, 0.45, 0.08), -1.0, fwd, sun, best, rgb, hit);
     }
   }
-  for (int g = 0; g < 8; g++) {
-    vec2 c = uGate[g].xy;
-    vec2 nrm = uGate[g].zw;
-    vec2 lp = c + nrm * (uRoad + 0.2);
-    vec2 rp = c - nrm * (uRoad + 0.2);
-    vec3 post = g == 0 ? vec3(0.93, 0.2, 0.14) : vec3(0.95, 0.82, 0.28);
-    ball(uCam, rd, vec3(lp, heightAt(lp) + 1.15), 0.34, post, -1.0, uFwd, sun, best, rgb, hit);
-    ball(uCam, rd, vec3(rp, heightAt(rp) + 1.15), 0.34, post, -1.0, uFwd, sun, best, rgb, hit);
+  for (int g = 0; g < 4; g++) {
+    vec2 base = uGate[g].xy;
+    float gust = 0.65 + 0.35 * sin(uTime * 1.7 + float(g) * 1.3);
+    vec2 wind = vec2(sin(uTime * 0.37), cos(uTime * 0.29 + 1.2)) * gust;
+    bool next = g == uNext;
+    float lean = next ? 0.95 : 0.72;
+    vec3 cloth = next ? vec3(0.98, 0.82, 0.16) : vec3(0.92, 0.32, 0.16);
+    pillar(uCam, rd, base, next ? 4.6 : 3.3, wind * lean, cloth, sun, best, rgb, hit);
   }
   for (int i = 0; i < 16; i++) {
     if (i >= uRails) break;
@@ -327,18 +345,16 @@ void main() {
       albedo = asphalt;
       if (road < 0.18) albedo = vec3(0.86, 0.74, 0.22);
       if (road > uRoad - 0.55) albedo = mix(vec3(0.92, 0.92, 0.88), vec3(0.78, 0.16, 0.11), step(0.5, fract((p.x + p.y) * 0.35)));
-      for (int g = 0; g < 8; g++) {
-        vec2 rel = p.xy - uGate[g].xy;
-        vec2 nrm = uGate[g].zw;
-        float across = dot(rel, nrm);
-        float along = abs(dot(rel, vec2(-nrm.y, nrm.x)));
-        if (along < 0.42 && abs(across) < uRoad) {
-          float check = step(0.5, fract(across * 0.38));
-          albedo = mix(vec3(0.95, 0.93, 0.86), vec3(0.1, 0.1, 0.11), check);
-        }
-      }
     } else {
       albedo *= 0.94 + 0.06 * sin(p.x * 0.7) * cos(p.y * 0.6);
+    }
+    for (int g = 0; g < 4; g++) {
+      float d = length(p.xy - uGate[g].xy);
+      float ring = 1.0 - smoothstep(0.05, 0.28, abs(d - 1.85));
+      if (ring > 0.0) {
+        vec3 mark = g == uNext ? vec3(0.98, 0.82, 0.18) : vec3(0.86, 0.28, 0.12);
+        albedo = mix(albedo, mark, ring * (g == uNext ? 0.92 : 0.55));
+      }
     }
     float shade = 1.0;
     for (int i = 0; i < 12; i++) {
@@ -416,7 +432,7 @@ export function createLitePainter(canvas: OffscreenCanvas) {
   const slots = new Float32Array(12);
   const lean = new Float32Array(12 * 4);
   const skid = new Float32Array(40 * 4);
-  const gates = new Float32Array(8 * 4);
+  const gates = new Float32Array(4 * 4);
   const rail = new Float32Array(16 * 4);
   const railHp = new Float32Array(16);
   const atlas = new Uint8Array(ATLAS_W * ATLAS_H * 4);
@@ -457,16 +473,25 @@ export function createLitePainter(canvas: OffscreenCanvas) {
       track[i * 4 + 3] = ribbon[j * 4 + 1]!;
     }
     road = halfWidth();
-    for (let i = 0; i < 8; i++) {
-      const gate = pointAt(i / 8);
-      const [lx, ly] = leftNormal(gate);
+    gates.fill(0);
+    for (let i = 0; i < 4; i++) {
+      const gate = gateAnchor(i);
       gates[i * 4] = gate.x;
       gates[i * 4 + 1] = gate.y;
-      gates[i * 4 + 2] = lx;
-      gates[i * 4 + 3] = ly;
     }
   };
   loadCourse();
+  const scratch = gl.createTexture();
+  const scratchFbo = gl.createFramebuffer();
+  let bufW = 0;
+  let bufH = 0;
+  if (scratch) {
+    gl.bindTexture(gl.TEXTURE_2D, scratch);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  }
   return {
     setFace(seed: number, face: { width: number; height: number; data: Uint8Array }) {
       let stamp = 0;
@@ -496,13 +521,31 @@ export function createLitePainter(canvas: OffscreenCanvas) {
       }
       faceDirty = true;
     },
-    paint(frame: Frame) {
+    paint(frame: Frame, pixels?: { w: number; h: number }) {
       loadCourse(frame.course);
       if (faceDirty && tex) {
         gl.bindTexture(gl.TEXTURE_2D, tex);
         gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
         gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, ATLAS_W, ATLAS_H, gl.RGBA, gl.UNSIGNED_BYTE, atlas);
         faceDirty = false;
+      }
+      const rw = Math.max(2, pixels?.w || canvas.width);
+      const rh = Math.max(2, pixels?.h || canvas.height);
+      const shrink = Boolean(scratch && scratchFbo) && (rw < canvas.width - 8 || rh < canvas.height - 8);
+      if (shrink && scratch && scratchFbo) {
+        if (rw !== bufW || rh !== bufH) {
+          bufW = rw;
+          bufH = rh;
+          gl.bindTexture(gl.TEXTURE_2D, scratch);
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, rw, rh, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+          gl.bindFramebuffer(gl.FRAMEBUFFER, scratchFbo);
+          gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, scratch, 0);
+        }
+        gl.bindFramebuffer(gl.FRAMEBUFFER, scratchFbo);
+        gl.viewport(0, 0, rw, rh);
+      } else {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.viewport(0, 0, canvas.width, canvas.height);
       }
       const fwd = frame.camera.dir;
       const rx = fwd[1];
@@ -533,7 +576,6 @@ export function createLitePainter(canvas: OffscreenCanvas) {
         lean[i * 4 + 1] = body.roll ?? 0;
         lean[i * 4 + 2] = body.flame ?? 0;
       }
-      gl.viewport(0, 0, canvas.width, canvas.height);
       gl.useProgram(program);
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, tex);
@@ -546,7 +588,11 @@ export function createLitePainter(canvas: OffscreenCanvas) {
       gl.uniform3f(loc("uUp"), up[0], up[1], up[2]);
       gl.uniform3f(loc("uSun"), frame.sun[0], frame.sun[1], frame.sun[2]);
       gl.uniform1f(loc("uFov"), (68 * Math.PI) / 180);
-      gl.uniform1f(loc("uAspect"), canvas.width / Math.max(1, canvas.height));
+      const aspectW = shrink ? rw : canvas.width;
+      const aspectH = shrink ? rh : canvas.height;
+      gl.uniform1f(loc("uAspect"), aspectW / Math.max(1, aspectH));
+      gl.uniform1f(loc("uTime"), frame.time ?? 0);
+      gl.uniform1i(loc("uNext"), frame.nextGate ?? 0);
       gl.uniform1f(loc("uRoad"), road);
       gl.uniform4fv(loc("uTrack"), track);
       gl.uniform4fv(loc("uGate"), gates);
@@ -584,6 +630,12 @@ export function createLitePainter(canvas: OffscreenCanvas) {
       gl.uniform1i(loc("uFace"), 0);
       gl.uniform1i(loc("uKarts"), n);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
+      if (shrink && scratchFbo) {
+        gl.bindFramebuffer(gl.READ_FRAMEBUFFER, scratchFbo);
+        gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
+        gl.blitFramebuffer(0, 0, rw, rh, 0, 0, canvas.width, canvas.height, gl.COLOR_BUFFER_BIT, gl.LINEAR);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      }
       gl.finish();
     },
   };

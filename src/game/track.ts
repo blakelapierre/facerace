@@ -309,6 +309,31 @@ export function trackRibbon(count = 160) {
   return data;
 }
 
+/** Four stations a lap, set halfway between the old eighths so none sits on the grid. */
+export const GATES = 4;
+
+export function gateU(index: number) {
+  const g = ((index % GATES) + GATES) % GATES;
+  return (g + 0.5) / GATES;
+}
+
+/** Checkpoint base, just off the asphalt so the racing line stays clear. */
+export function gateAnchor(index: number) {
+  const g = ((index % GATES) + GATES) % GATES;
+  const p = pointAt(gateU(g));
+  const [lx, ly] = leftNormal(p);
+  const side = g % 2 === 0 ? 1 : -1;
+  const off = halfWidth() + 1.85;
+  return { x: p.x + lx * side * off, y: p.y + ly * side * off };
+}
+
+/** Lean of an inflatable pillar. The same numbers drive the picture and the marker. */
+export function gateSway(index: number, time: number) {
+  const g = ((index % GATES) + GATES) % GATES;
+  const gust = 0.65 + 0.35 * Math.sin(time * 1.7 + g * 1.3);
+  return { wx: Math.sin(time * 0.37) * gust, wy: Math.cos(time * 0.29 + 1.2) * gust };
+}
+
 export type RailSeg = { x: number; y: number; x2: number; y2: number };
 
 const RAIL_MAX = 16;

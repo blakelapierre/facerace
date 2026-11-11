@@ -1,6 +1,6 @@
 # FaceRace
 
-Race your face around a raytraced stadium. Five other faces start ahead of you. Three laps count only when you drive the checkpoints. Grass only trims you to about three quarters speed, so you can get back on the road. Sand, rock, and water are slower still. Sharp corners have guardrails. A hard hit bends a section until it breaks, and a high jump can clear one.
+Race your face around a raytraced stadium. Five other faces start ahead of you. Three laps count only when you pass the checkpoints. Grass only trims you to about three quarters speed, so you can get back on the road. Sand, rock, and water are slower still. Sharp corners have guardrails. A hard hit bends a section until it breaks, and a high jump can clear one. Four inflatable checkpoints stand just off the racing line and lean in the wind. The corner map and a marker on the picture point at the next one. The picture sheds resolution when a frame runs long, and climbs back as soon as the device keeps up.
 
 **Play it:** [blakelapierre.github.io/facerace](https://blakelapierre.github.io/facerace/)
 

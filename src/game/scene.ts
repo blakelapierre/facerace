@@ -1,6 +1,6 @@
 import type { FaceImage } from "./faces";
 import { duneHeight } from "./terrain";
-import { course, halfWidth, leftNormal, pointAt, trackRibbon } from "./track";
+import { course, GATES, gateAnchor, gateSway, halfWidth, leftNormal, pointAt, trackRibbon } from "./track";
 
 type V3 = [number, number, number];
 
@@ -216,6 +216,8 @@ export function buildPicture(
   sun: V3 = [0.45, 0.22, 0.86],
   rain = 0,
   rails: { x: number; y: number; x2: number; y2: number; hp: number }[] = [],
+  time = 0,
+  nextGate = 0,
 ): Picture {
   const faces: SceneObject[] = [];
   const rest: SceneObject[] = [];
@@ -250,6 +252,44 @@ export function buildPicture(
       reflectivity: 0.16,
     });
   }
+  const balloons: SceneObject[] = [];
+  for (let g = 0; g < GATES; g++) {
+    const post = gateAnchor(g);
+    const sway = gateSway(g, time);
+    const next = g === ((nextGate % GATES) + GATES) % GATES;
+    const lean = next ? 0.95 : 0.72;
+    const tall = next ? 4.6 : 3.3;
+    const cloth = next ? [0.98, 0.82, 0.16, 1] : [0.92, 0.32, 0.16, 1];
+    const z = duneHeight(post.x, post.y);
+    let ax = post.x;
+    let ay = post.y;
+    let az = z + 0.12;
+    for (let s = 0; s < 3; s++) {
+      const f = (s + 1) / 3;
+      const bx = post.x + sway.wx * lean * f * f;
+      const by = post.y + sway.wy * lean * f * f;
+      const bz = z + tall * f;
+      balloons.push({
+        type: "shape",
+        kind: "capsule",
+        a: [ax, ay, az],
+        b: [bx, by, bz],
+        r: (0.42 - f * 0.06) * (next ? 1.05 : 0.9),
+        color: cloth,
+        reflectivity: 0.2,
+      });
+      ax = bx;
+      ay = by;
+      az = bz;
+    }
+    balloons.push({
+      type: "sphere",
+      origin: [ax + sway.wx * 0.08, ay + sway.wy * 0.08, az + 0.32],
+      radius: next ? 0.58 : 0.46,
+      color: cloth,
+      reflectivity: 0.22,
+    });
+  }
   return {
     camera: {
       origin: [camera.x, camera.y, camera.z],
@@ -261,7 +301,7 @@ export function buildPicture(
     },
     miss: [0.45, 0.62, 0.82, 1],
     sun,
-    objects: [...faces, ...rest, ...trackObjects(), ...bars],
+    objects: [...faces, ...rest, ...trackObjects(), ...bars, ...balloons],
     track: { half: halfWidth(), count: 160, samples: trackRibbon(160) },
     rain,
     fovea: {

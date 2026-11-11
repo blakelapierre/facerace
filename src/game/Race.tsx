@@ -5,8 +5,8 @@ import { paintPortrait } from "./portrait";
 import { createSim, installProbe, lapOf, parkHuman, parkOn, placeOf, stepSim, type Sim } from "./sim";
 import { chaseCamera, raceSun } from "./scene";
 import { createRaceAudio, hearAt, type RaceAudio } from "./sound";
-import { rainAt } from "./terrain";
-import { COURSES, course, halfWidth, lapCount, pointAt } from "./track";
+import { duneHeight, rainAt } from "./terrain";
+import { COURSES, GATES, course, gateAnchor, gateSway, halfWidth, lapCount, pointAt } from "./track";
 import { freshCode, openBoard, type ListedRoom, type MarketListing } from "./lobby";
 import type { RaceNet, RoomPerson } from "./net";
 import { openWallet, shortAddress, writePurse, type Wallet } from "./wallet";
@@ -136,15 +136,43 @@ function drawMap(canvas: HTMLCanvasElement | null, sim: Sim, remotes: { x: numbe
     ctx.lineWidth = 1.2 + rail.hp * 1.6;
     ctx.stroke();
   }
-  const u = ((you.travel % 1) + 1) % 1;
-  const nextGate = (Math.floor(u * 8 + 1e-4) + 1) / 8;
-  const gate = pointAt(nextGate);
-  const [gx, gy] = to(gate.x, gate.y);
-  ctx.fillStyle = "#f4efe4";
-  ctx.fillRect(gx - 3.5, gy - 3.5, 7, 7);
-  ctx.strokeStyle = "#1a120c";
-  ctx.lineWidth = 1.2;
-  ctx.strokeRect(gx - 3.5, gy - 3.5, 7, 7);
+  const clamp = (x: number, y: number) => {
+    let px = w / 2 + (x - you.x) * scale;
+    let py = h / 2 - (y - you.y) * scale;
+    const pad = 10;
+    const on = px > pad && px < w - pad && py > pad && py < h - pad;
+    if (!on) {
+      const dx = px - w / 2;
+      const dy = py - h / 2;
+      const reach = Math.min(w, h) * 0.42;
+      const len = Math.hypot(dx, dy) || 1;
+      px = w / 2 + (dx / len) * reach;
+      py = h / 2 + (dy / len) * reach;
+    }
+    return { px, py, on };
+  };
+  const next = ((you.gate % GATES) + GATES) % GATES;
+  for (let g = 0; g < GATES; g++) {
+    const post = gateAnchor(g);
+    const spot = clamp(post.x, post.y);
+    const here = g === next;
+    ctx.beginPath();
+    ctx.arc(spot.px, spot.py, here ? 6.2 : 3.1, 0, Math.PI * 2);
+    ctx.fillStyle = here ? "#f4c14e" : "rgba(227, 106, 45, 0.9)";
+    ctx.fill();
+    if (here) {
+      ctx.strokeStyle = "#1a120c";
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+      const [px, py] = to(you.x, you.y);
+      ctx.beginPath();
+      ctx.moveTo(px, py);
+      ctx.lineTo(spot.px, spot.py);
+      ctx.strokeStyle = "rgba(244, 193, 78, 0.85)";
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+    }
+  }
   const dot = (x: number, y: number, color: string, radius = 3.4) => {
     const [px, py] = to(x, y);
     ctx.fillStyle = color;
@@ -211,6 +239,48 @@ function projectHead(
   const ndcY = (vx * up[0]! + vy * up[1]! + vz * up[2]!) / (depth * BUBBLE_TAN);
   if (ndcX < -1.2 || ndcX > 1.2 || ndcY < -1.15 || ndcY > 1.25) return null;
   return { x: (ndcX * 0.5 + 0.5) * width, y: (0.5 - ndcY * 0.5) * height };
+}
+
+function aimBeacon(
+  cam: { x: number; y: number; z: number; dir: [number, number, number] },
+  point: { x: number; y: number; z: number },
+  width: number,
+  height: number,
+) {
+  const fwd = cam.dir;
+  const rx = fwd[1];
+  const ry = -fwd[0];
+  const rlen = Math.hypot(rx, ry) || 1;
+  const right = [rx / rlen, ry / rlen, 0];
+  const up = [right[1]! * fwd[2] - right[2]! * fwd[1], right[2]! * fwd[0] - right[0]! * fwd[2], right[0]! * fwd[1] - right[1]! * fwd[0]];
+  const vx = point.x - cam.x;
+  const vy = point.y - cam.y;
+  const vz = point.z - cam.z;
+  const depth = vx * fwd[0] + vy * fwd[1] + vz * fwd[2];
+  const aspect = width / Math.max(1, height);
+  const safe = Math.max(0.35, Math.abs(depth));
+  let ndcX = (vx * right[0]! + vy * right[1]! + vz * right[2]!) / (safe * BUBBLE_TAN * aspect);
+  let ndcY = (vx * up[0]! + vy * up[1]! + vz * up[2]!) / (safe * BUBBLE_TAN);
+  if (depth < 0.4) {
+    ndcX = -ndcX;
+    ndcY = -ndcY;
+  }
+  let x = (ndcX * 0.5 + 0.5) * width;
+  let y = (0.5 - ndcY * 0.5) * height;
+  const pad = 42;
+  const on = depth >= 0.4 && x > pad && x < width - pad && y > 78 && y < height - pad;
+  if (!on) {
+    const cx = width / 2;
+    const cy = height / 2;
+    const dx = x - cx;
+    const dy = y - cy;
+    const ax = Math.abs(dx) / Math.max(1, width / 2 - pad);
+    const ay = Math.abs(dy) / Math.max(1, height / 2 - pad);
+    const m = Math.max(ax, ay, 0.001);
+    x = cx + dx / m;
+    y = cy + dy / m;
+  }
+  return { x, y, on, angle: Math.atan2(y - height / 2, x - width / 2) };
 }
 
 function drawThoughts(
@@ -306,7 +376,7 @@ const COURSE_HINT: Record<string, string> = {
 };
 
 const DESK_HELP = {
-  race: "Race the computer, or open a room so friends can join. Drive through every yellow checkpoint or the lap does not count. Sharp corners have rails. A hard hit bends that section, then breaks it.",
+  race: "Race the computer, or open a room so friends can join. Four blow-up checkpoints sit just off the road. Follow the gold one — the map and the marker point at it. Sharp corners have rails. A hard hit bends that section, then breaks it.",
   yard: "Hire a mechanic and they build you a kart. Wings hold a jump once you leave the ground. A rudder is how you steer in the air. Wins make that mechanic better.",
   purse: "A purse is a race against other people, no bots. Everyone pays the stake. The winner takes the pot.",
   wallet: "This address lives in this browser. Mining earns chips. Give someone the address if you want them to pay you.",
@@ -339,6 +409,7 @@ export function Race() {
   const partsRef = useRef<HTMLSpanElement>(null);
   const mapRef = useRef<HTMLCanvasElement>(null);
   const thoughtRef = useRef<HTMLDivElement>(null);
+  const gateRef = useRef<HTMLDivElement>(null);
   const thoughtNodes = useRef(new Map<string, HTMLDivElement>());
   const portraitRef = useRef<HTMLCanvasElement>(null);
   const kartPortraitRef = useRef<HTMLCanvasElement>(null);
@@ -816,6 +887,8 @@ export function Race() {
         course: course().id,
         skids: current.skids,
         rails: current.rails,
+        time: now / 1000,
+        nextGate: player.gate,
       });
       const bubbles = [
         ...current.karts
@@ -836,6 +909,27 @@ export function Race() {
         })),
       ];
       drawThoughts(thoughtRef.current, thoughtNodes.current, player, bubbles, view);
+      const beacon = gateRef.current;
+      const stage = thoughtRef.current;
+      if (beacon && stage) {
+        if (!current.running || stage.clientWidth < 2) beacon.hidden = true;
+        else {
+          const post = gateAnchor(player.gate);
+          const sway = gateSway(player.gate, now / 1000);
+          const aim = aimBeacon(
+            view,
+            { x: post.x + sway.wx * 0.9, y: post.y + sway.wy * 0.9, z: duneHeight(post.x, post.y) + 4.8 },
+            stage.clientWidth,
+            stage.clientHeight,
+          );
+          beacon.hidden = false;
+          beacon.style.transform = aim.on
+            ? `translate(${aim.x}px, ${aim.y}px) translate(-50%, -130%)`
+            : `translate(${aim.x}px, ${aim.y}px) translate(-50%, -50%)`;
+          const arrow = beacon.querySelector("i");
+          if (arrow instanceof HTMLElement) arrow.style.transform = aim.on ? "" : `rotate(${aim.angle + Math.PI / 2}rad)`;
+        }
+      }
       for (const mark of current.skidOut.splice(0)) {
         netRef.current?.say(JSON.stringify({ t: "skid", x: mark.x, y: mark.y, x2: mark.x2, y2: mark.y2 }));
       }
@@ -1668,7 +1762,12 @@ export function Race() {
       onPointerCancel={lookUp}
     >
       <canvas ref={canvasRef} className="race-canvas" />
-      <div ref={thoughtRef} className="thoughts" />
+      <div ref={thoughtRef} className="thoughts">
+        <div ref={gateRef} className="gate-beacon" hidden>
+          <span>Next</span>
+          <i />
+        </div>
+      </div>
       <canvas ref={mapRef} className="race-map" width={180} height={180} aria-hidden="true" />
       <video ref={videoRef} className="race-video" playsInline muted />
       <div className="race-sideways">

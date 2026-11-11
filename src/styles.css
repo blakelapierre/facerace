@@ -658,7 +658,8 @@
 }
 
 .race-root.is-menu .race-map,
-.race-root.is-menu .thoughts {
+.race-root.is-menu .thoughts,
+.race-root.is-menu .gate-beacon {
   display: none;
 }
 
@@ -695,6 +696,43 @@
   left: 46%;
   border-radius: 50%;
   background: rgba(255, 248, 236, 0.5);
+}
+
+.gate-beacon {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.12rem;
+  pointer-events: none;
+  color: #1a120c;
+}
+
+.gate-beacon span {
+  background: #f4c14e;
+  border-radius: 999px;
+  padding: 0.12rem 0.45rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  box-shadow: 0 0 14px rgba(244, 193, 78, 0.85);
+}
+
+.gate-beacon[hidden] {
+  display: none;
+}
+
+.gate-beacon i {
+  width: 0;
+  height: 0;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-top: 11px solid #f4c14e;
+  filter: drop-shadow(0 0 6px rgba(244, 193, 78, 0.95));
 }
 
 .thought i {
