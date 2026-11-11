@@ -53,7 +53,11 @@ const rectData = new Float32Array(RECT_SLOTS * 4);
 const atlasData = new Uint8Array(ATLAS * ATLAS * 4);
 
 function fail(canvas, reason) {
-  canvas.dataset.gpuError = reason;
+  try {
+    if (canvas && canvas.dataset) canvas.dataset.gpuError = reason;
+  } catch {
+    /* OffscreenCanvas has no dataset */
+  }
   return null;
 }
 

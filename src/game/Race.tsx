@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Camera, Flag, Gauge, Users, Volume2, VolumeX } from "lucide-react";
 import { paintFace, type FaceImage } from "./faces";
 import { createSim, installProbe, lapOf, parkOn, placeOf, stepSim, type Sim } from "./sim";
-import { buildPicture, chaseCamera, raceSun, type DrawBody } from "./scene";
+import { chaseCamera, raceSun } from "./scene";
 import { createRaceAudio, hearAt, type RaceAudio } from "./sound";
 import { rainAt } from "./terrain";
 import { COURSES, lapCount } from "./track";
@@ -241,30 +241,20 @@ export function Race() {
       event.preventDefault();
     };
     canvas.parentElement?.addEventListener("selectstart", blockSelect);
-    let painter: {
-      paint: (scene: unknown, w: number, h: number) => boolean;
-      present: (n?: number) => void;
-      setSmoothing?: (on: boolean) => void;
-      busy?: () => boolean;
-      failReason?: () => string;
-    } | null = null;
-    let cpu: { paintFrame: (scene: unknown, w: number, h: number) => Uint8ClampedArray } | null = null;
-    let ctx2d: CanvasRenderingContext2D | null = null;
-    let glFailed = "";
     let alive = true;
+    let paintWorker: Worker | null = null;
+    let paintGen = 0;
 
-    const fit = () => {
+    const fitSize = () => {
       const box = canvas.parentElement?.getBoundingClientRect();
       const cssW = box?.width || window.innerWidth || 960;
       const cssH = box?.height || window.innerHeight || 540;
       const cap = budget.mode === "integrated" ? 720 : budget.mode === "software" ? 480 : 960;
       const scale = Math.min(1, cap / Math.max(1, cssW, cssH));
-      const viewW = Math.max(2, Math.floor(cssW * scale));
-      const viewH = Math.max(2, Math.floor(cssH * scale));
-      if (canvas.width === viewW && canvas.height === viewH) return false;
-      canvas.width = viewW;
-      canvas.height = viewH;
-      return true;
+      return {
+        viewW: Math.max(2, Math.floor(cssW * scale)),
+        viewH: Math.max(2, Math.floor(cssH * scale)),
+      };
     };
 
     const keysDown = (event: KeyboardEvent) => setKey(event, true);
@@ -327,89 +317,54 @@ export function Race() {
     let faceAt = 0;
     let hudAt = 0;
     let raf = 0;
-    let lastPaint = 0;
-    let paintMs = 120;
-    let traceScale = budget.mode === "integrated" ? 0.36 : 0.72;
-    let traceMax = budget.mode === "integrated" ? 1 : 1;
-    let timed = false;
-    let gpuWait = false;
-    let gpuAt = 0;
     let ambAt = 0;
-    let cpuW = 80;
-    let cpuH = 45;
-    let cpuGap = 800;
-    let scratch: HTMLCanvasElement | null = null;
+    let viewW = 960;
+    let viewH = 540;
 
     const tune = budget.mode === "integrated" ? { spheres: 80, boxes: 8, shapes: 64 } : undefined;
-    const boot = async () => {
-      const frame = await import("@/vendor/meridian/engine/frame.js");
-      cpu = frame;
-      if (!alive) return;
-      const make = () => {
-        fit();
-        if (budget.mode === "software") {
-          glFailed = "cpu picture";
-          ctx2d = canvas.getContext("2d");
-          painter = null;
+    const boot = () => {
+      const size = fitSize();
+      viewW = size.viewW;
+      viewH = size.viewH;
+      canvas.width = viewW;
+      canvas.height = viewH;
+      const ctx2d = canvas.getContext("2d");
+      const worker = new Worker(new URL("./paint.worker.ts", import.meta.url), { type: "module" });
+      paintWorker = worker;
+      const mine = ++paintGen;
+      worker.onmessage = (event: MessageEvent<{ type?: string; bitmap?: ImageBitmap }>) => {
+        if (mine !== paintGen) {
+          event.data.bitmap?.close();
           return;
         }
-        void import("@/vendor/meridian/render/gpu.js").then((gpu) => {
-          if (!alive) return;
-          painter = gpu.createGpuPainter(canvas, tune);
-          if (!painter) {
-            glFailed = canvas.dataset.gpuError || "no WebGL2";
-            ctx2d = canvas.getContext("2d");
-          } else painter.setSmoothing?.(true);
-        });
+        const bitmap = event.data.bitmap;
+        if (!bitmap || !ctx2d) return;
+        ctx2d.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+        bitmap.close();
       };
-      if (budget.mode !== "discrete") await new Promise((resolve) => setTimeout(resolve, 300));
-      if (!alive) return;
-      make();
+      worker.postMessage({ cmd: "init", mode: budget.mode, tune, viewW, viewH });
+      let resizeWait = 0;
       const onResize = () => {
-        if (!alive) return;
-        window.setTimeout(() => {
-          if (!alive || !fit()) return;
-          if (budget.mode === "software") {
-            ctx2d = canvas.getContext("2d");
-            return;
-          }
-          traceScale = budget.mode === "integrated" ? 0.36 : 0.72;
-          traceMax = 1;
-          timed = false;
-          void import("@/vendor/meridian/render/gpu.js").then((gpu) => {
-            if (!alive) return;
-            painter = gpu.createGpuPainter(canvas, tune);
-            painter?.setSmoothing?.(true);
-            gpuWait = false;
-          });
-        }, budget.mode === "integrated" ? 600 : 0);
+        if (!alive || mine !== paintGen) return;
+        window.clearTimeout(resizeWait);
+        resizeWait = window.setTimeout(() => {
+          const next = fitSize();
+          if (next.viewW === viewW && next.viewH === viewH) return;
+          viewW = next.viewW;
+          viewH = next.viewH;
+          canvas.width = viewW;
+          canvas.height = viewH;
+          worker.postMessage({ cmd: "resize", viewW, viewH });
+        }, 400);
       };
       window.addEventListener("resize", onResize);
-      const lost = (event: Event) => {
-        event.preventDefault();
-        painter = null;
-        gpuWait = false;
-        traceScale = budget.mode === "integrated" ? 0.36 : 0.72;
-        timed = false;
-      };
-      const restored = () => {
-        if (budget.mode === "software") return;
-        void import("@/vendor/meridian/render/gpu.js").then((gpu) => {
-          if (!alive) return;
-          painter = gpu.createGpuPainter(canvas, tune);
-          painter?.setSmoothing?.(true);
-          gpuWait = false;
-        });
-      };
-      canvas.addEventListener("webglcontextlost", lost);
-      canvas.addEventListener("webglcontextrestored", restored);
       return () => {
         window.removeEventListener("resize", onResize);
-        canvas.removeEventListener("webglcontextlost", lost);
-        canvas.removeEventListener("webglcontextrestored", restored);
+        worker.postMessage({ cmd: "stop" });
+        worker.terminate();
       };
     };
-    const bootDone = boot();
+    const bootDone = Promise.resolve(boot());
 
     const frameLoop = (now: number) => {
       if (!alive) return;
@@ -432,7 +387,9 @@ export function Race() {
       const video = videoRef.current;
       if (video && video.readyState >= 2 && now - faceAt > 250) {
         faceAt = now;
-        faceRef.current = paintFace(player.seed, video);
+        const face = paintFace(player.seed, video);
+        faceRef.current = face;
+        paintWorker?.postMessage({ cmd: "face", seed: player.seed, width: face.width, height: face.height, data: face.data }, [face.data.buffer]);
       }
       const orbit = orbitRef.current;
       if (!lookingRef.current) {
@@ -489,77 +446,32 @@ export function Race() {
       }
 
       const remotes = netRef.current?.racers() ?? [];
-      const bodies: DrawBody[] = [
-        ...current.karts.map((kart) => ({
-          x: kart.x,
-          y: kart.y,
-          yaw: kart.yaw,
-          color: kart.color,
-          name: kart.name,
-          face: kart.ai ? (botFaces.current.get(kart.id) ?? null) : faceRef.current,
-        })),
-        ...remotes.map((remote) => ({
-          x: remote.x,
-          y: remote.y,
-          yaw: remote.yaw,
-          color: remote.color,
-          name: remote.name,
-          face: remote.face,
-        })),
-      ];
-      const boxW = canvas.width;
-      const boxH = canvas.height;
       const settled = !lookingRef.current && (Math.abs(player.speed) < 1.2 || !current.running);
-      if (gpuWait && painter && !painter.busy?.()) {
-        paintMs = Math.max(8, performance.now() - gpuAt);
-        gpuWait = false;
-        timed = true;
-      }
-      if (painter && !gpuWait && !painter.busy?.()) {
-        if (timed) {
-          if (budget.mode === "integrated") {
-            if (paintMs < 32) traceScale = Math.min(traceMax, traceScale * 1.06);
-            else if (paintMs > 50) {
-              traceScale = Math.max(0.22, traceScale * 0.8);
-              traceMax = traceScale;
-            }
-          } else if (paintMs < (settled ? 110 : 80)) traceScale = Math.min(1, traceScale * 1.12);
-          else if (paintMs > (settled ? 180 : 150)) traceScale = Math.max(0.58, traceScale * 0.84);
-        }
-        const floorW = budget.mode === "integrated" ? 160 : 320;
-        const traceW = Math.max(floorW, Math.min(boxW, Math.round((boxW * traceScale) / 4) * 4));
-        const traceH = Math.max(90, Math.min(boxH, Math.round((traceW * boxH) / Math.max(1, boxW) / 4) * 4));
-        const picture = buildPicture(bodies, view, traceW, traceH, settled, raceSun(weatherRef.current), rainAt(weatherRef.current));
-        gpuAt = performance.now();
-        const ok = painter.paint(picture, traceW, traceH);
-        if (ok) {
-          painter.present(1);
-          gpuWait = true;
-          lastPaint = now;
-        } else glFailed = painter.failReason?.() || "picture failed";
-      } else if (!painter && glFailed && cpu && ctx2d && now - lastPaint > cpuGap) {
-        lastPaint = now;
-        const started = performance.now();
-        const picture = buildPicture(bodies, view, cpuW, cpuH, true, raceSun(weatherRef.current), rainAt(weatherRef.current));
-        const pixels = cpu.paintFrame(picture, cpuW, cpuH);
-        const image = new ImageData(new Uint8ClampedArray(pixels), cpuW, cpuH);
-        if (!scratch) scratch = document.createElement("canvas");
-        scratch.width = cpuW;
-        scratch.height = cpuH;
-        scratch.getContext("2d")?.putImageData(image, 0, 0);
-        ctx2d.imageSmoothingEnabled = true;
-        ctx2d.drawImage(scratch, 0, 0, canvas.width, canvas.height);
-        const spent = performance.now() - started;
-        if (spent > 80) {
-          cpuW = Math.max(64, cpuW - 16);
-          cpuH = Math.max(36, Math.round((cpuW * boxH) / Math.max(1, boxW) / 2) * 2);
-          cpuGap = 520;
-        } else if (spent < 36 && cpuW < 96) {
-          cpuW += 16;
-          cpuH = Math.max(36, Math.round((cpuW * boxH) / Math.max(1, boxW) / 2) * 2);
-          cpuGap = 240;
-        }
-      }
+      paintWorker?.postMessage({
+        cmd: "frame",
+        bodies: [
+          ...current.karts.map((kart) => ({
+            x: kart.x,
+            y: kart.y,
+            yaw: kart.yaw,
+            color: kart.color,
+            seed: kart.seed,
+            name: kart.name,
+          })),
+          ...remotes.map((remote) => ({
+            x: remote.x,
+            y: remote.y,
+            yaw: remote.yaw,
+            color: remote.color,
+            seed: remote.name.split("").reduce((sum, char) => sum + char.charCodeAt(0), 3),
+            name: remote.name,
+          })),
+        ],
+        camera: view,
+        still: settled,
+        rain: rainAt(weatherRef.current),
+        sun: raceSun(weatherRef.current),
+      });
       netRef.current?.tick(
         {
           x: player.x,

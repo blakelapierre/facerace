@@ -76,11 +76,20 @@ function paintProcedural(ctx: CanvasRenderingContext2D, seed: number) {
   }
 }
 
-export function paintFace(seed: number, source?: CanvasImageSource | null): FaceImage {
+function makeFaceCanvas() {
+  if (typeof document === "undefined") {
+    const canvas = new OffscreenCanvas(SIZE, SIZE);
+    const ctx = canvas.getContext("2d", { willReadFrequently: true }) as OffscreenCanvasRenderingContext2D | null;
+    return { canvas, ctx };
+  }
   const canvas = document.createElement("canvas");
   canvas.width = SIZE;
   canvas.height = SIZE;
-  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  return { canvas, ctx: canvas.getContext("2d", { willReadFrequently: true }) };
+}
+
+export function paintFace(seed: number, source?: CanvasImageSource | null): FaceImage {
+  const { canvas, ctx } = makeFaceCanvas();
   if (!ctx) return { width: SIZE, height: SIZE, data: new Uint8Array(SIZE * SIZE * 4), url: "" };
   if (source) {
     ctx.save();
@@ -92,12 +101,12 @@ export function paintFace(seed: number, source?: CanvasImageSource | null): Face
     ctx.lineWidth = 6;
     ctx.strokeRect(3, 3, SIZE - 6, SIZE - 6);
   } else {
-    paintProcedural(ctx, seed);
+    paintProcedural(ctx as CanvasRenderingContext2D, seed);
   }
   const image = ctx.getImageData(0, 0, SIZE, SIZE);
   let url = "";
   try {
-    url = canvas.toDataURL("image/jpeg", 0.72);
+    if ("toDataURL" in canvas) url = canvas.toDataURL("image/jpeg", 0.72);
   } catch {
     url = "";
   }
