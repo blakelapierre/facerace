@@ -113,10 +113,20 @@ export function paintFace(seed: number, source?: CanvasImageSource | null): Face
   return { width: SIZE, height: SIZE, data: new Uint8Array(image.data), url };
 }
 
+/** Load a saved face without mirroring or adding another frame. */
 export function faceFromUrl(url: string): Promise<FaceImage | null> {
   return new Promise((resolve) => {
     const img = new Image();
-    img.onload = () => resolve(paintFace(1, img));
+    img.onload = () => {
+      const { canvas, ctx } = makeFaceCanvas();
+      if (!ctx) {
+        resolve(null);
+        return;
+      }
+      ctx.drawImage(img, 0, 0, SIZE, SIZE);
+      const image = ctx.getImageData(0, 0, SIZE, SIZE);
+      resolve({ width: SIZE, height: SIZE, data: new Uint8Array(image.data), url });
+    };
     img.onerror = () => resolve(null);
     img.src = url;
   });

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Camera, Flag, Gauge, Users, Volume2, VolumeX } from "lucide-react";
-import { paintFace, type FaceImage } from "./faces";
+import { faceFromUrl, paintFace, type FaceImage } from "./faces";
 import { paintPortrait } from "./portrait";
 import { createSim, installProbe, lapOf, parkHuman, parkOn, placeOf, stepSim, type Sim } from "./sim";
 import { chaseCamera, raceSun } from "./scene";
@@ -114,6 +114,107 @@ function drawMap(canvas: HTMLCanvasElement | null, sim: Sim, remotes: { x: numbe
   dot(you.x, you.y, "#f4c14e", 4.4);
 }
 
+const BUBBLE_TAN = Math.tan(((68 * Math.PI) / 180) * 0.5);
+
+function savedName() {
+  try {
+    const name = localStorage.getItem("facerace-name")?.trim().slice(0, 16);
+    if (name) return name;
+  } catch {
+    /* private mode */
+  }
+  return "You";
+}
+
+function rememberName(name: string) {
+  try {
+    localStorage.setItem("facerace-name", name.trim().slice(0, 16) || "You");
+  } catch {
+    /* private mode */
+  }
+}
+
+function rememberFace(url: string) {
+  if (!url.startsWith("data:image")) return;
+  try {
+    localStorage.setItem("facerace-face", url);
+  } catch {
+    /* private mode */
+  }
+}
+
+function projectHead(
+  cam: { x: number; y: number; z: number; dir: [number, number, number] },
+  point: { x: number; y: number; z: number },
+  width: number,
+  height: number,
+) {
+  const fwd = cam.dir;
+  const rx = fwd[1];
+  const ry = -fwd[0];
+  const rlen = Math.hypot(rx, ry) || 1;
+  const right = [rx / rlen, ry / rlen, 0];
+  const up = [right[1]! * fwd[2] - right[2]! * fwd[1], right[2]! * fwd[0] - right[0]! * fwd[2], right[0]! * fwd[1] - right[1]! * fwd[0]];
+  const vx = point.x - cam.x;
+  const vy = point.y - cam.y;
+  const vz = point.z - cam.z;
+  const depth = vx * fwd[0] + vy * fwd[1] + vz * fwd[2];
+  if (depth < 0.35) return null;
+  const aspect = width / Math.max(1, height);
+  const ndcX = (vx * right[0]! + vy * right[1]! + vz * right[2]!) / (depth * BUBBLE_TAN * aspect);
+  const ndcY = (vx * up[0]! + vy * up[1]! + vz * up[2]!) / (depth * BUBBLE_TAN);
+  if (ndcX < -1.2 || ndcX > 1.2 || ndcY < -1.15 || ndcY > 1.25) return null;
+  return { x: (ndcX * 0.5 + 0.5) * width, y: (0.5 - ndcY * 0.5) * height };
+}
+
+function drawThoughts(
+  root: HTMLElement | null,
+  nodes: Map<string, HTMLDivElement>,
+  player: { x: number; y: number; z: number },
+  spots: { key: string; url: string; x: number; y: number; z: number }[],
+  cam: { x: number; y: number; z: number; dir: [number, number, number] },
+) {
+  if (!root) return;
+  const width = root.clientWidth;
+  const height = root.clientHeight;
+  const seen = new Set<string>();
+  for (const spot of spots) {
+    if (!spot.url) continue;
+    const dist = Math.hypot(spot.x - player.x, spot.y - player.y, spot.z - player.z);
+    if (dist > 52) continue;
+    const near = Math.min(1, Math.max(0, (dist - 3.2) / 36));
+    const placed = projectHead(cam, { x: spot.x, y: spot.y, z: spot.z + 0.92 }, width, height);
+    if (!placed) continue;
+    seen.add(spot.key);
+    let node = nodes.get(spot.key);
+    if (!node) {
+      node = document.createElement("div");
+      node.className = "thought";
+      const img = document.createElement("img");
+      img.alt = "";
+      img.draggable = false;
+      const mid = document.createElement("i");
+      const tip = document.createElement("b");
+      node.append(img, mid, tip);
+      nodes.set(spot.key, node);
+      root.append(node);
+    }
+    const img = node.firstElementChild as HTMLImageElement;
+    if (img.getAttribute("src") !== spot.url) img.src = spot.url;
+    const size = 58 - near * 38;
+    node.style.transform = `translate(${placed.x}px, ${placed.y}px) translate(-50%, -118%)`;
+    node.style.width = `${size}px`;
+    node.style.height = `${size}px`;
+    node.style.opacity = String(0.58 - near * 0.26);
+    node.style.zIndex = String(800 - Math.round(dist * 8));
+  }
+  for (const [key, node] of nodes) {
+    if (seen.has(key)) continue;
+    node.remove();
+    nodes.delete(key);
+  }
+}
+
 /** Software GL gets a tiny CPU picture. Intel integrated gets a smaller raytracer on the GPU. */
 function pictureBudget() {
   const probe = document.createElement("canvas");
@@ -158,6 +259,8 @@ export function Race() {
   const clockRef = useRef<HTMLSpanElement>(null);
   const noxRef = useRef<HTMLSpanElement>(null);
   const mapRef = useRef<HTMLCanvasElement>(null);
+  const thoughtRef = useRef<HTMLDivElement>(null);
+  const thoughtNodes = useRef(new Map<string, HTMLDivElement>());
   const portraitRef = useRef<HTMLCanvasElement>(null);
   const kartPortraitRef = useRef<HTMLCanvasElement>(null);
   const sendToRef = useRef<HTMLInputElement>(null);
@@ -251,6 +354,20 @@ export function Race() {
       if (kart.ai) botFaces.current.set(kart.id, paintFace(kart.seed));
     }
     faceRef.current = paintFace(7);
+    try {
+      const stored = localStorage.getItem("facerace-face");
+      if (stored?.startsWith("data:image")) {
+        void faceFromUrl(stored).then((img) => {
+          if (img) faceRef.current = img;
+        });
+      } else if (faceRef.current.url) {
+        rememberFace(faceRef.current.url);
+      }
+    } catch {
+      /* private mode */
+    }
+    if (sim.karts[0]) sim.karts[0].name = savedName();
+    if (nameRef.current && nameRef.current.value === "You") nameRef.current.value = savedName();
     const budget = pictureBudget();
 
     let closedBoard = false;
@@ -417,6 +534,8 @@ export function Race() {
     let acc = 0;
     let last = performance.now();
     let faceAt = 0;
+    let faceSavedAt = 0;
+    let sentFace = "";
     let hudAt = 0;
     let raf = 0;
     let ambAt = 0;
@@ -511,7 +630,23 @@ export function Race() {
         faceAt = now;
         const face = paintFace(player.seed, video);
         faceRef.current = face;
+        if (face.url && now - faceSavedAt > 2000) {
+          faceSavedAt = now;
+          rememberFace(face.url);
+        }
         paintWorker?.postMessage({ cmd: "face", seed: player.seed, width: face.width, height: face.height, data: face.data }, [face.data.buffer]);
+        sentFace = face.url;
+      }
+      const heldFace = faceRef.current;
+      if (paintWorker && heldFace?.url && heldFace.url !== sentFace && heldFace.data?.byteLength) {
+        paintWorker.postMessage({
+          cmd: "face",
+          seed: player.seed,
+          width: heldFace.width,
+          height: heldFace.height,
+          data: heldFace.data.slice(),
+        });
+        sentFace = heldFace.url;
       }
       const orbit = orbitRef.current;
       if (!lookingRef.current) {
@@ -602,6 +737,25 @@ export function Race() {
         course: course().id,
         skids: current.skids,
       });
+      const bubbles = [
+        ...current.karts
+          .filter((kart) => kart !== player)
+          .map((kart) => ({
+            key: kart.id,
+            url: botFaces.current.get(kart.id)?.url || "",
+            x: kart.x,
+            y: kart.y,
+            z: kart.z,
+          })),
+        ...remotes.map((remote) => ({
+          key: remote.id,
+          url: remote.face?.url || "",
+          x: remote.x,
+          y: remote.y,
+          z: remote.z,
+        })),
+      ];
+      drawThoughts(thoughtRef.current, thoughtNodes.current, player, bubbles, view);
       for (const mark of current.skidOut.splice(0)) {
         netRef.current?.say(JSON.stringify({ t: "skid", x: mark.x, y: mark.y, x2: mark.x2, y2: mark.y2 }));
       }
@@ -918,6 +1072,7 @@ export function Race() {
       }
     });
     const name = nameRef.current?.value.trim().slice(0, 16) || "You";
+    rememberName(name);
     net.setIdentity(name, faceRef.current?.url || "");
     net.onSkid((mark) => {
       const sim = simRef.current;
@@ -935,6 +1090,7 @@ export function Race() {
     armRef.current = true;
     gunAtRef.current = at;
     const name = nameRef.current?.value.trim().slice(0, 16) || "You";
+    rememberName(name);
     if (humans) parkHuman(sim, courseName, name, slot);
     else parkOn(sim, courseName);
     sim.karts[0]!.name = name;
@@ -1413,6 +1569,7 @@ export function Race() {
       onPointerCancel={lookUp}
     >
       <canvas ref={canvasRef} className="race-canvas" />
+      <div ref={thoughtRef} className="thoughts" />
       <canvas ref={mapRef} className="race-map" width={180} height={180} aria-hidden="true" />
       <video ref={videoRef} className="race-video" playsInline muted />
       <div className="race-sideways">
@@ -1507,7 +1664,14 @@ export function Race() {
                   <h2>Pick a course.</h2>
                   <label className="pit-name">
                     Name
-                    <input ref={nameRef} name="name" defaultValue="You" maxLength={16} autoComplete="nickname" />
+                    <input
+                      ref={nameRef}
+                      name="name"
+                      defaultValue="You"
+                      maxLength={16}
+                      autoComplete="nickname"
+                      onChange={(event) => rememberName(event.target.value)}
+                    />
                   </label>
                   <div className="course-row">
                     {COURSES.map((item) => (
