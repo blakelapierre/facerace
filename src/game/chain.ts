@@ -1,5 +1,6 @@
 import { hashHeader, nextBits, REWARD, workMeets, type Header } from "./work";
 import { cartIdFor, mechanicCost, txTagOf, verifyAsk, verifyTx, type ChainTx } from "./tx";
+import { PURSE_SIZES, PURSE_STAKES, purseKey, purseSpec } from "./yard";
 
 export type Block = Header & { hash: string; tx?: ChainTx | null };
 
@@ -22,11 +23,13 @@ genesis.hash = hashHeader(genesis);
 
 type Cart = { id: string; mechanic: string; owner: string };
 type Listing = { cartId: string; mechanic: string; price: number; seller: string };
+type PurseBook = { epoch: number; seats: string[]; started: number };
 type Books = {
   chips: Map<string, number>;
   nonce: Map<string, number>;
   carts: Cart[];
   listings: Listing[];
+  purses: Map<string, PurseBook>;
 };
 
 const byHash = new Map<string, Block>();
@@ -106,14 +109,23 @@ function chainBlocks() {
 }
 
 function blank(): Books {
-  return { chips: new Map(), nonce: new Map(), carts: [], listings: [] };
+  return { chips: new Map(), nonce: new Map(), carts: [], listings: [], purses: new Map() };
 }
 
 function chipsOf(books: Books, address: string) {
   return books.chips.get(address) ?? FAUCET;
 }
 
-function applyTx(books: Books, tx: ChainTx, asked: boolean): string {
+function purseOf(books: Books, key: string) {
+  let purse = books.purses.get(key);
+  if (!purse) {
+    purse = { epoch: 0, seats: [], started: 0 };
+    books.purses.set(key, purse);
+  }
+  return purse;
+}
+
+function applyTx(books: Books, tx: ChainTx, asked: boolean, blockTime = 0): string {
   const nonce = books.nonce.get(tx.from) ?? 0;
   if (tx.nonce !== nonce + 1) return "Out of order.";
   if (tx.kind === "hire") {
@@ -142,6 +154,25 @@ function applyTx(books: Books, tx: ChainTx, asked: boolean): string {
   } else if (tx.kind === "drop") {
     if (!books.listings.some((item) => item.cartId === tx.cartId && item.seller === tx.from)) return "No chain listing.";
     books.listings = books.listings.filter((item) => item.cartId !== tx.cartId);
+  } else if (tx.kind === "seat" || tx.kind === "claim") {
+    const spec = purseSpec(tx.cartId);
+    if (!spec) return "That purse is not open.";
+    const purse = purseOf(books, tx.cartId);
+    if (tx.askNonce !== purse.epoch) return "That purse already left.";
+    if (tx.kind === "seat") {
+      if (tx.price !== spec.stake) return "Wrong stake.";
+      if (purse.started) return "That purse already left.";
+      if (purse.seats.includes(tx.from)) return "You already have a seat.";
+      if (chipsOf(books, tx.from) < tx.price) return "Not enough chips.";
+      books.chips.set(tx.from, chipsOf(books, tx.from) - tx.price);
+      purse.seats.push(tx.from);
+      if (purse.seats.length >= spec.size && blockTime > 0) purse.started = blockTime;
+    } else {
+      if (!purse.started || !purse.seats.includes(tx.from)) return "Nothing to claim.";
+      if (tx.price !== spec.pot) return "Bad pot.";
+      books.chips.set(tx.from, chipsOf(books, tx.from) + spec.pot);
+      books.purses.set(tx.cartId, { epoch: purse.epoch + 1, seats: [], started: 0 });
+    }
   } else return "Unknown transaction.";
   books.nonce.set(tx.from, tx.nonce);
   return "";
@@ -151,7 +182,7 @@ function replay(extra: ChainTx[] = []): Books {
   const books = blank();
   for (const block of chainBlocks()) {
     if (block.height > 0) books.chips.set(block.miner, chipsOf(books, block.miner) + REWARD);
-    if (block.tx) applyTx(books, block.tx, Boolean(block.tx.ask));
+    if (block.tx) applyTx(books, block.tx, Boolean(block.tx.ask), block.time);
   }
   for (const tx of extra) applyTx(books, tx, Boolean(tx.ask));
   return books;
@@ -197,6 +228,30 @@ export function holdings(address: string): Holdings {
   };
 }
 
+export type OpenPurse = {
+  key: string;
+  size: number;
+  stakeId: "s" | "h";
+  stake: number;
+  epoch: number;
+  seats: string[];
+  started: number;
+};
+
+export function purseTable(): OpenPurse[] {
+  boot();
+  const books = replay(pending);
+  const out: OpenPurse[] = [];
+  for (const size of PURSE_SIZES) {
+    for (const stake of PURSE_STAKES) {
+      const key = purseKey(size, stake.id);
+      const purse = books.purses.get(key) ?? { epoch: 0, seats: [], started: 0 };
+      out.push({ key, size, stakeId: stake.id, stake: stake.stake, epoch: purse.epoch, seats: [...purse.seats], started: purse.started });
+    }
+  }
+  return out;
+}
+
 export function chainLists() {
   boot();
   return replay().listings;
@@ -232,6 +287,7 @@ function structuredCloneBooks(books: Books): Books {
     nonce: new Map(books.nonce),
     carts: books.carts.map((item) => ({ ...item })),
     listings: books.listings.map((item) => ({ ...item })),
+    purses: new Map([...books.purses].map(([key, purse]) => [key, { epoch: purse.epoch, seats: [...purse.seats], started: purse.started }])),
   };
 }
 
@@ -287,7 +343,7 @@ function replayUntil(hash: string) {
   const books = blank();
   for (const block of chainBlocks()) {
     if (block.height > 0) books.chips.set(block.miner, chipsOf(books, block.miner) + REWARD);
-    if (block.tx) applyTx(books, block.tx, Boolean(block.tx.ask));
+    if (block.tx) applyTx(books, block.tx, Boolean(block.tx.ask), block.time);
     if (block.hash === hash) break;
   }
   return books;

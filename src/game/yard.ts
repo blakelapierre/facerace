@@ -45,10 +45,25 @@ export const STOCK: Mechanic = {
   color: [0.91, 0.64, 0.13],
 };
 
-export const HEATS: Heat[] = [
-  { id: "dusk", name: "Dusk", stake: 5, purse: 12 },
-  { id: "night", name: "Night", stake: 10, purse: 26 },
+export const PURSE_SIZES = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+
+export const PURSE_STAKES = [
+  { id: "s" as const, name: "Small", stake: 4 },
+  { id: "h" as const, name: "High", stake: 20 },
 ];
+
+export function purseKey(size: number, stake: "s" | "h") {
+  return `${size}-${stake}`;
+}
+
+export function purseSpec(key: string) {
+  const match = /^([2-9]|1[0-2])-(s|h)$/.exec(key);
+  if (!match) return null;
+  const size = Number(match[1]);
+  const stakeId = match[2] as "s" | "h";
+  const stake = stakeId === "s" ? 4 : 20;
+  return { size, stakeId, stake, pot: stake * size };
+}
 
 const YARD_KEY = "facerace-yard";
 

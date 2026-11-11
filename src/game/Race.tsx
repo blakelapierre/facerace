@@ -1,32 +1,33 @@
 import { useEffect, useRef, useState } from "react";
 import { Camera, Flag, Gauge, Users, Volume2, VolumeX } from "lucide-react";
 import { paintFace, type FaceImage } from "./faces";
-import { createSim, installProbe, lapOf, parkOn, placeOf, stepSim, type Sim } from "./sim";
+import { createSim, installProbe, lapOf, parkHuman, parkOn, placeOf, stepSim, type Sim } from "./sim";
 import { chaseCamera, raceSun } from "./scene";
 import { createRaceAudio, hearAt, type RaceAudio } from "./sound";
 import { rainAt } from "./terrain";
 import { COURSES, course, lapCount } from "./track";
 import { freshCode, openBoard, type ListedRoom, type MarketListing } from "./lobby";
-import type { RaceNet } from "./net";
+import type { RaceNet, RoomPerson } from "./net";
 import { openWallet, shortAddress, writePurse, type Wallet } from "./wallet";
 import { startMiner, type MineStatus } from "./miner";
-import { addSide, holdings, submitTx, watchChain, type Holdings } from "./chain";
+import { holdings, purseTable, submitTx, watchChain, type Holdings, type OpenPurse } from "./chain";
 import { cartIdFor, signTx } from "./tx";
 import {
-  HEATS,
   MECHANICS,
+  PURSE_SIZES,
+  PURSE_STAKES,
   listingIsReal,
   loadOffers,
   loadYard,
   mechanicById,
   pullOffer,
+  purseKey,
   putOffer,
   selectCart,
   signListing,
   specOf,
   writeOffers,
   writeYard,
-  type Heat,
   type Offer,
   type Yard,
 } from "./yard";
@@ -121,17 +122,20 @@ export function Race() {
   const lookingRef = useRef(false);
   const lookPoint = useRef<{ id: number; x: number; y: number } | null>(null);
   const audioRef = useRef<RaceAudio | null>(null);
-  const boardRef = useRef<{ announce: (card: { code: string; course: string; host: string; live: boolean }) => void; post: (catalog: string) => void; close: () => void } | null>(null);
+  const boardRef = useRef<{ announce: (card: { code: string; course: string; host: string; live: boolean; gun?: number }) => void; post: (catalog: string) => void; close: () => void } | null>(null);
   const walletRef = useRef<Wallet | null>(null);
   const yardRef = useRef<Yard>(loadYard());
   const offerRef = useRef<Offer[]>(loadOffers());
-  const heatRef = useRef<(Heat & { paid: boolean }) | null>(null);
+  const netCodeRef = useRef("");
+  const gunAtRef = useRef(0);
+  const purseRef = useRef<(OpenPurse & { paid: boolean }) | null>(null);
+  const racedRef = useRef(new Set<string>());
   const minerRef = useRef<{ setPower: (power: number) => void; stop: () => void } | null>(null);
   const weatherRef = useRef(12);
   const armRef = useRef(false);
   const leaveRef = useRef<() => void>(() => {});
   const [phase, setPhase] = useState<"menu" | "live">("menu");
-  const [seat, setSeat] = useState<"pick" | "host" | "wait">("pick");
+  const [seat, setSeat] = useState<"pick" | "host" | "wait" | "purse">("pick");
   const [courseId, setCourseId] = useState(COURSES[0]!.id);
   const [rooms, setRooms] = useState<ListedRoom[]>([]);
   const [boardNote, setBoardNote] = useState("Looking for rooms…");
@@ -144,6 +148,10 @@ export function Race() {
   const [desk, setDesk] = useState<"race" | "yard" | "purse" | "wallet">("race");
   const [listings, setListings] = useState<MarketListing[]>([]);
   const [yardNote, setYardNote] = useState("");
+  const [lobby, setLobby] = useState<RoomPerson[]>([]);
+  const [purses, setPurses] = useState<OpenPurse[]>([]);
+  const [sizePick, setSizePick] = useState(4);
+  const [stakePick, setStakePick] = useState<"s" | "h">("s");
   const [mine, setMine] = useState<MineStatus>({ height: 0, rate: "0 H/s", power: 10, gpu: false, load: 0, mined: 0, detail: "" });
   const [camOn, setCamOn] = useState(false);
   const [camError, setCamError] = useState("");
@@ -207,6 +215,7 @@ export function Race() {
         setYard(nextYard);
         setOffers(offerRef.current);
         setBook(held);
+        setPurses(purseTable());
       };
       syncRef.current = sync;
       sync();
@@ -249,7 +258,7 @@ export function Race() {
       const box = canvas.parentElement?.getBoundingClientRect();
       const cssW = box?.width || window.innerWidth || 960;
       const cssH = box?.height || window.innerHeight || 540;
-      const cap = budget.mode === "integrated" ? 720 : budget.mode === "software" ? 480 : 960;
+      const cap = budget.mode === "integrated" ? 960 : budget.mode === "software" ? 480 : 960;
       const scale = Math.min(1, cap / Math.max(1, cssW, cssH));
       return {
         viewW: Math.max(2, Math.floor(cssW * scale)),
@@ -374,10 +383,30 @@ export function Race() {
       weatherRef.current += dt;
       const current = simRef.current;
       if (!current) return;
+      const gun = gunAtRef.current;
+      if (gun && !current.running) {
+        const left = gun - Date.now();
+        current.banner = left > 0 ? `Flag in ${(left / 1000).toFixed(1)}` : "Go";
+        if (left <= 0) {
+          current.running = true;
+          audioRef.current?.cue("horn", 1, 0);
+        }
+      }
+      const remotes = netRef.current?.racers() ?? [];
+      const peers = remotes.map((remote) => ({
+        x: remote.x,
+        y: remote.y,
+        z: remote.z,
+        vx: remote.vx,
+        vy: remote.vy,
+        vz: remote.vz,
+        radius: 0.82,
+        mass: 4,
+      }));
       acc += dt;
       let guard = 0;
       while (acc >= 1 / 60 && guard < 5) {
-        stepSim(current, 1 / 60);
+        stepSim(current, 1 / 60, peers);
         acc -= 1 / 60;
         guard += 1;
       }
@@ -445,7 +474,6 @@ export function Race() {
         audio.ambient(now / 1000, player, current.running);
       }
 
-      const remotes = netRef.current?.racers() ?? [];
       const settled = !lookingRef.current && (Math.abs(player.speed) < 1.2 || !current.running);
       paintWorker?.postMessage({
         cmd: "frame",
@@ -453,6 +481,7 @@ export function Race() {
           ...current.karts.map((kart) => ({
             x: kart.x,
             y: kart.y,
+            z: kart.z,
             yaw: kart.yaw,
             color: kart.color,
             seed: kart.seed,
@@ -461,6 +490,7 @@ export function Race() {
           ...remotes.map((remote) => ({
             x: remote.x,
             y: remote.y,
+            z: remote.z,
             yaw: remote.yaw,
             color: remote.color,
             seed: remote.name.split("").reduce((sum, char) => sum + char.charCodeAt(0), 3),
@@ -477,11 +507,18 @@ export function Race() {
         {
           x: player.x,
           y: player.y,
+          z: player.z,
+          vx: player.vx,
+          vy: player.vy,
+          vz: player.vz,
           yaw: player.yaw,
           speed: player.speed,
           yawRate,
+          air: player.air,
           name: player.name,
           faceUrl: faceRef.current?.url || "",
+          travel: player.travel,
+          done: player.finishedAt != null,
         },
         current.time,
       );
@@ -490,14 +527,33 @@ export function Race() {
         if (speedRef.current) speedRef.current.textContent = String(Math.round(Math.abs(player.speed) * 8));
         if (lapRef.current) lapRef.current.textContent = `${lapOf(player)} / ${lapCount()}`;
         if (placeRef.current) placeRef.current.textContent = ordinal(placeOf(current, player));
-        const heat = heatRef.current;
-        if (heat && !heat.paid && player.finishedAt != null && placeOf(current, player) === 1) {
-          heat.paid = true;
-          const purse = walletRef.current;
-          if (purse) {
-            addSide(purse.address, heat.purse);
-            syncRef.current();
-            current.banner = `Won ${heat.purse}`;
+        const race = purseRef.current;
+        if (race && !race.paid && player.finishedAt != null) {
+          const beaten = (netRef.current?.people() ?? []).some((person) => person.done);
+          if (!beaten) {
+            race.paid = true;
+            const pot = race.stake * race.size;
+            const purse = walletRef.current;
+            if (purse) {
+              void (async () => {
+                const held = holdings(purse.address);
+                const tx = await signTx(purse, {
+                  kind: "claim",
+                  nonce: held.nonce + 1,
+                  mechanic: "stock",
+                  cartId: race.key,
+                  seller: purse.address,
+                  price: pot,
+                  ask: "",
+                  askNonce: race.epoch,
+                  sx: "",
+                  sy: "",
+                });
+                const err = await submitTx(tx);
+                current.banner = err || `Won ${pot}`;
+                syncRef.current();
+              })();
+            }
           }
         }
         if (clockRef.current) {
@@ -662,17 +718,53 @@ export function Race() {
       sim.banner = "";
     }
     armRef.current = false;
+    gunAtRef.current = 0;
+    netCodeRef.current = "";
+    purseRef.current = null;
+    setLobby([]);
     setSeat("pick");
     setPhase("menu");
   }
   leaveRef.current = leaveRace;
 
-  async function begin(code: string, course: string) {
+  async function ensureNet(code: string) {
+    if (!code) return null;
+    if (netRef.current && netCodeRef.current === code) return netRef.current;
+    netRef.current?.close();
+    netCodeRef.current = code;
+    const { createRaceNet } = await import("./net");
+    const net = await createRaceNet(code, (line) => {
+      if (statusRef.current) statusRef.current.textContent = line;
+    });
+    if (netCodeRef.current !== code) {
+      net.close();
+      return null;
+    }
+    net.onSay((_from, text) => {
+      try {
+        const msg = JSON.parse(text) as { t?: string; at?: number; course?: string };
+        if (msg.t === "gun" && msg.at) {
+          const ids = [...net.people().map((person) => person.id), net.id()].sort();
+          void launch(msg.course || courseId, code, msg.at, true, Math.max(0, ids.indexOf(net.id())));
+        }
+      } catch {
+        /* not a race message */
+      }
+    });
+    const name = nameRef.current?.value.trim().slice(0, 16) || "You";
+    net.setIdentity(name, faceRef.current?.url || "");
+    netRef.current = net;
+    return net;
+  }
+
+  async function launch(courseName: string, code: string, at: number, humans: boolean, slot = 0) {
     const sim = simRef.current;
     if (!sim || sim.running || armRef.current) return;
     armRef.current = true;
+    gunAtRef.current = at;
     const name = nameRef.current?.value.trim().slice(0, 16) || "You";
-    parkOn(sim, course);
+    if (humans) parkHuman(sim, courseName, name, slot);
+    else parkOn(sim, courseName);
     sim.karts[0]!.name = name;
     const built = specOf(yardRef.current);
     sim.cart = { speed: built.speed, turn: built.turn, grip: built.grip, color: built.color };
@@ -694,25 +786,24 @@ export function Race() {
         /* desktop, or the browser refused */
       }
     }
-    sim.running = true;
+    if (Date.now() >= at) {
+      sim.running = true;
+      audioRef.current?.cue("horn", 1, 0);
+    } else sim.banner = "Hold for the flag";
     setPhase("live");
     setSeat("pick");
     audioRef.current?.resume();
-    audioRef.current?.cue("horn", 1, 0);
     if (!code) {
       if (statusRef.current) statusRef.current.textContent = "Solo heat";
       return;
     }
-    boardRef.current?.announce({ code, course, host: name, live: true });
-    const { createRaceNet } = await import("./net");
-    const net = await createRaceNet(code, (line) => {
-      if (statusRef.current) statusRef.current.textContent = line;
-    });
-    if (!simRef.current?.running) {
-      net.close();
-      return;
-    }
-    netRef.current = net;
+    boardRef.current?.announce({ code, course: courseName, host: name, live: true, gun: at });
+    await ensureNet(code);
+    netRef.current?.setIdentity(name, faceRef.current?.url || "");
+  }
+
+  function begin(code: string, courseName: string) {
+    void launch(courseName, code, Date.now(), false);
   }
 
   function createRoom() {
@@ -722,6 +813,16 @@ export function Race() {
     setSeat("host");
     boardRef.current?.announce({ code, course: courseId, host: name, live: false });
     if (statusRef.current) statusRef.current.textContent = "Room posted";
+    void ensureNet(code);
+  }
+
+  function startTogether() {
+    const at = lobby.length ? Date.now() + 3000 : Date.now();
+    if (lobby.length && netRef.current) {
+      netRef.current.say(JSON.stringify({ t: "gun", at, course: courseId }));
+      return;
+    }
+    void launch(courseId, roomCode, Date.now(), false);
   }
 
   async function hireMechanic(id: string) {
@@ -886,26 +987,79 @@ export function Race() {
     syncRef.current();
   }
 
-  function enterHeat(heat: Heat) {
+  async function sitPurse(size: number, stakeId: "s" | "h") {
     const purse = walletRef.current;
     if (!purse) return;
-    if (holdings(purse.address).chips < heat.stake) {
-      setYardNote("Not enough chips for that heat.");
+    const row = purseTable().find((item) => item.key === purseKey(size, stakeId));
+    if (!row) return;
+    if (row.started && !row.seats.includes(purse.address)) {
+      setYardNote("That flag already dropped.");
       return;
     }
-    addSide(purse.address, -heat.stake);
+    if (!row.seats.includes(purse.address)) {
+      if (holdings(purse.address).chips < row.stake) {
+        setYardNote("Not enough chips for that stake.");
+        return;
+      }
+      const held = holdings(purse.address);
+      const tx = await signTx(purse, {
+        kind: "seat",
+        nonce: held.nonce + 1,
+        mechanic: "stock",
+        cartId: row.key,
+        seller: purse.address,
+        price: row.stake,
+        ask: "",
+        askNonce: row.epoch,
+        sx: "",
+        sy: "",
+      });
+      const err = await submitTx(tx);
+      if (err) {
+        setYardNote(err);
+        return;
+      }
+      setYardNote(`${row.size} karts · ${row.stake} stake. The flag drops when the purse is full and the block lands.`);
+    }
+    const code = `purse-${row.key}-${row.epoch}`;
+    setRoomCode(code);
+    setCourseId("stadium");
+    setSeat("purse");
+    purseRef.current = { ...row, paid: false };
+    void ensureNet(code);
     syncRef.current();
-    setYardNote(`${heat.name} heat. Win pays ${heat.purse}.`);
-    heatRef.current = { ...heat, paid: false };
-    void begin("", courseId);
   }
 
   useEffect(() => {
-    if (phase === "live" || seat !== "wait") return;
-    const hit = rooms.find((room) => room.code === roomCode && room.live);
+    if (phase === "live" || (seat !== "host" && seat !== "wait" && seat !== "purse") || !roomCode) return;
+    void ensureNet(roomCode);
+    const timer = window.setInterval(() => {
+      setLobby(netRef.current?.people() ?? []);
+    }, 700);
+    return () => window.clearInterval(timer);
+  }, [seat, roomCode, phase]);
+
+  useEffect(() => {
+    if (phase !== "menu" || seat !== "wait") return;
+    const hit = rooms.find((room) => room.code === roomCode && room.gun);
     if (!hit) return;
-    void begin(hit.code, hit.course);
-  });
+    const ids = [...lobby.map((person) => person.id), netRef.current?.id() || ""].filter(Boolean).sort();
+    const me = netRef.current?.id() || "";
+    void launch(hit.course, hit.code, hit.gun, true, Math.max(0, ids.indexOf(me)));
+  }, [rooms, seat, phase, roomCode, lobby]);
+
+  useEffect(() => {
+    if (!wallet || phase !== "menu") return;
+    const mine = purses.find((row) => row.started > 0 && row.seats.includes(wallet.address));
+    if (!mine) return;
+    const token = `${mine.key}:${mine.epoch}`;
+    if (racedRef.current.has(token)) return;
+    racedRef.current.add(token);
+    const at = Math.max(mine.started * 1000 + 4000, Date.now() + 1200);
+    const slot = [...mine.seats].sort().indexOf(wallet.address);
+    purseRef.current = { ...mine, paid: false };
+    void launch("stadium", `purse-${mine.key}-${mine.epoch}`, at, true, Math.max(0, slot));
+  }, [purses, wallet, phase]);
 
   return (
     <div
@@ -974,7 +1128,7 @@ export function Race() {
           className="race-card"
           onSubmit={(event) => {
             event.preventDefault();
-            if (seat === "host") void begin(roomCode, courseId);
+            if (seat === "host") startTogether();
             else void begin("", courseId);
           }}
         >
@@ -1025,8 +1179,8 @@ export function Race() {
                         onClick={() => {
                           setRoomCode(room.code);
                           setCourseId(room.course);
-                          setSeat(room.live ? "pick" : "wait");
-                          if (room.live) void begin(room.code, room.course);
+                          setSeat("wait");
+                          if (room.live && !room.gun) void begin(room.code, room.course);
                         }}
                       >
                         <strong>{room.host}</strong>
@@ -1155,12 +1309,42 @@ export function Race() {
                         </button>
                       ))}
                   </div>
-                  <div className="race-actions">
-                    {HEATS.map((heat) => (
-                      <button key={heat.id} type="button" className="race-ghost" onClick={() => enterHeat(heat)}>
-                        {heat.name} {heat.stake}
+                  {purses.filter((row) => row.seats.length > 0 && !row.started).length === 0 ? (
+                    <p className="race-note">No purses are waiting. Sit to open one. One purse per size and stake.</p>
+                  ) : (
+                    <div className="room-line purse-list">
+                      {purses
+                        .filter((row) => row.seats.length > 0 && !row.started)
+                        .map((row) => (
+                          <button key={row.key} type="button" className="room-row" onClick={() => void sitPurse(row.size, row.stakeId)}>
+                            <strong>
+                              {row.size} karts · {row.stakeId === "s" ? "Small" : "High"}
+                            </strong>
+                            <span>
+                              {row.seats.length}/{row.size} waiting · stake {row.stake} · pot {row.stake * row.size}
+                            </span>
+                          </button>
+                        ))}
+                    </div>
+                  )}
+                  <div className="course-row">
+                    {PURSE_SIZES.map((size) => (
+                      <button key={size} type="button" className={`course-chip ${sizePick === size ? "is-on" : ""}`} onClick={() => setSizePick(size)}>
+                        {size}
                       </button>
                     ))}
+                  </div>
+                  <div className="course-row">
+                    {PURSE_STAKES.map((stake) => (
+                      <button key={stake.id} type="button" className={`course-chip ${stakePick === stake.id ? "is-on" : ""}`} onClick={() => setStakePick(stake.id)}>
+                        {stake.name} {stake.stake}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="race-actions">
+                    <button type="button" className="race-go" onClick={() => void sitPurse(sizePick, stakePick)}>
+                      Sit {sizePick} · {stakePick === "s" ? "Small" : "High"}
+                    </button>
                   </div>
                   {yardNote ? <p className="race-note">{yardNote}</p> : null}
                 </>
@@ -1196,10 +1380,22 @@ export function Race() {
           ) : null}
           {seat === "host" ? (
             <>
-              <h2>Room {roomCode} is on the trackers.</h2>
+              <h2>Room {roomCode}</h2>
               <p className="race-note">
-                {COURSES.find((item) => item.id === courseId)?.name} · friends join from the room list, then you start everyone.
+                {COURSES.find((item) => item.id === courseId)?.name} · {lobby.length + 1} here. The flag drops together, three seconds after you start.
               </p>
+              <div className="face-row">
+                <figure>
+                  <span>You</span>
+                  <figcaption>You</figcaption>
+                </figure>
+                {lobby.map((person) => (
+                  <figure key={person.id}>
+                    {person.face?.url ? <img src={person.face.url} alt="" /> : <span>{person.name.slice(0, 1)}</span>}
+                    <figcaption>{person.name}</figcaption>
+                  </figure>
+                ))}
+              </div>
               <div className="race-actions">
                 <button type="button" className="race-ghost" onClick={() => setSeat("pick")}>
                   Back
@@ -1210,16 +1406,29 @@ export function Race() {
               </div>
             </>
           ) : null}
-          {seat === "wait" ? (
+          {seat === "wait" || seat === "purse" ? (
             <>
-              <h2>Waiting for the start.</h2>
-              <p className="race-note">Room {roomCode}. You’ll go when the host starts. If the trackers stay quiet, start anyway.</p>
+              <h2>{seat === "purse" ? "Purse is filling." : "Waiting for the flag."}</h2>
+              <p className="race-note">
+                {seat === "purse"
+                  ? "Humans only. The chain drops the flag when every seat is confirmed."
+                  : `Room ${roomCode}. ${lobby.length + 1} here. You go when the host starts.`}
+              </p>
+              <div className="face-row">
+                <figure>
+                  <span>You</span>
+                  <figcaption>You</figcaption>
+                </figure>
+                {lobby.map((person) => (
+                  <figure key={person.id}>
+                    {person.face?.url ? <img src={person.face.url} alt="" /> : <span>{person.name.slice(0, 1)}</span>}
+                    <figcaption>{person.name}</figcaption>
+                  </figure>
+                ))}
+              </div>
               <div className="race-actions">
-                <button type="button" className="race-ghost" onClick={() => setSeat("pick")}>
+                <button type="button" className="race-ghost" onClick={leaveRace}>
                   Back
-                </button>
-                <button type="button" className="race-go" onClick={() => void begin(roomCode, courseId)}>
-                  Start now
                 </button>
               </div>
             </>

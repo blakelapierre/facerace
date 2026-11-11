@@ -7,6 +7,7 @@ export type ListedRoom = {
   course: string;
   host: string;
   live: boolean;
+  gun: number;
 };
 
 export type MarketListing = {
@@ -36,20 +37,21 @@ export type MarketPay = {
 const BOARD = "facerace/board";
 
 type Board = {
-  announce: (card: { code: string; course: string; host: string; live: boolean }) => void;
+  announce: (card: { code: string; course: string; host: string; live: boolean; gun?: number }) => void;
   post: (catalog: string) => void;
   close: () => void;
 };
 
 function parseCatalog(raw: string): Omit<ListedRoom, "id"> | null {
   if (!raw.includes("|") || raw.startsWith("s|") || raw.startsWith("p|")) return null;
-  const [code, course, host, state] = raw.split("|");
+  const [code, course, host, state, gun] = raw.split("|");
   if (!code || !course) return null;
   return {
     code: code.slice(0, 16),
     course: course.slice(0, 16),
     host: (host || "Racer").slice(0, 16),
     live: state === "live",
+    gun: Number(gun) || 0,
   };
 }
 
@@ -121,7 +123,7 @@ export async function openBoard(
   void pull();
   return {
     announce(card) {
-      room.setCatalog?.(`${card.code}|${card.course}|${card.host}|${card.live ? "live" : "open"}`);
+      room.setCatalog?.(`${card.code}|${card.course}|${card.host}|${card.live ? "live" : "open"}${card.gun ? `|${Math.round(card.gun)}` : ""}`);
     },
     post(catalog) {
       room.setCatalog?.(catalog);

@@ -60,3 +60,54 @@ export function bumpSpheres(
   p2[0] -= nx * push;
   p2[1] -= ny * push;
 }
+
+/** Same impulse in 3D, so a hit can loft a cart off the ground. */
+export function bumpBodies(
+  p1: [number, number, number],
+  p2: [number, number, number],
+  v1: [number, number, number],
+  v2: [number, number, number],
+  r1: number,
+  r2: number,
+  m1 = 1,
+  m2 = 1,
+  ticks = 60,
+) {
+  let dx = p1[0] - p2[0];
+  let dy = p1[1] - p2[1];
+  let dz = p1[2] - p2[2];
+  let dist = Math.hypot(dx, dy, dz);
+  const reach = r1 + r2;
+  if (!(dist < reach)) return;
+  let nx: number;
+  let ny: number;
+  let nz: number;
+  if (!(dist > 1e-8)) {
+    nx = 0;
+    ny = 1;
+    nz = 0;
+    dist = 0;
+  } else {
+    nx = dx / dist;
+    ny = dy / dist;
+    nz = dz / dist;
+  }
+  const vn = (v1[0] - v2[0]) * nx + (v1[1] - v2[1]) * ny + (v1[2] - v2[2]) * nz;
+  const force = contactForce(m1, m2, reach - dist, vn, ticks);
+  if (!(force > 0)) return;
+  const i1 = force / m1 / ticks;
+  const i2 = m2 > 0 ? force / m2 / ticks : 0;
+  v1[0] += nx * i1;
+  v1[1] += ny * i1;
+  v1[2] += nz * i1;
+  v2[0] -= nx * i2;
+  v2[1] -= ny * i2;
+  v2[2] -= nz * i2;
+  const push = (reach - dist) * 0.5 + 1e-4;
+  p1[0] += nx * push;
+  p1[1] += ny * push;
+  p1[2] += nz * push;
+  p2[0] -= nx * push;
+  p2[1] -= ny * push;
+  p2[2] -= nz * push;
+}

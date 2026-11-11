@@ -23,9 +23,15 @@ export type RemoteRacer = {
   name: string;
   x: number;
   y: number;
+  z: number;
+  vx: number;
+  vy: number;
+  vz: number;
   yaw: number;
   face: FaceImage | null;
   color: [number, number, number];
+  travel: number;
+  done: boolean;
 };
 
 type Link = {
@@ -34,26 +40,49 @@ type Link = {
   ctrl: RTCDataChannel;
   snap: RTCDataChannel;
   motion: ReturnType<typeof createSendState>;
-  view: { state: { tick?: number } | null };
+  view: { state: { tick?: number; p?: number[]; v?: number[]; yaw?: number } | null };
   dropped: boolean;
   name: string;
   faceUrl: string;
   faceSent: string;
+  travel: number;
+  done: boolean;
+  whoAt: number;
 };
 
 export type RacePose = {
   x: number;
   y: number;
+  z: number;
+  vx: number;
+  vy: number;
+  vz: number;
   yaw: number;
   speed: number;
   yawRate: number;
+  air?: boolean;
   name: string;
   faceUrl: string;
+  travel?: number;
+  done?: boolean;
+};
+
+export type RoomPerson = {
+  id: string;
+  name: string;
+  face: FaceImage | null;
+  travel: number;
+  done: boolean;
 };
 
 export type RaceNet = {
+  id: () => string;
   tick: (pose: RacePose, simTime: number) => void;
   racers: () => RemoteRacer[];
+  people: () => RoomPerson[];
+  setIdentity: (name: string, faceUrl: string) => void;
+  say: (text: string) => void;
+  onSay: (fn: (from: string, text: string) => void) => () => void;
   close: () => void;
   peers: () => number;
 };
@@ -76,8 +105,10 @@ export async function createRaceNet(
   const links = new Map<string, Link>();
   const opening = new Set<string>();
   const faces = new Map<string, FaceImage | null>();
+  const sayers = new Set<(from: string, text: string) => void>();
   let closed = false;
   let poseTick = 0;
+  let identity = { name: "Racer", faceUrl: "" };
 
   const room = createTorrentRoom({
     me,
@@ -87,8 +118,15 @@ export async function createRaceNet(
   });
 
   const empty: RaceNet = {
+    id: () => me,
     tick: () => {},
     racers: () => [],
+    people: () => [],
+    setIdentity: (name, faceUrl) => {
+      identity = { name, faceUrl };
+    },
+    say: () => {},
+    onSay: () => () => {},
     peers: () => 0,
     close: () => {
       closed = true;
@@ -147,11 +185,15 @@ export async function createRaceNet(
       name: to.slice(0, 6),
       faceUrl: "",
       faceSent: "",
+      travel: 0,
+      done: false,
+      whoAt: 0,
     };
     links.set(to, link);
     ctrl.onopen = () => {
       try {
         ctrl.send(helloMessage("facerace/1", 1.2, 400));
+        ctrl.send(JSON.stringify({ t: "who", name: identity.name, face: identity.faceUrl }));
       } catch {
         /* hello retries with the face packet */
       }
@@ -166,8 +208,8 @@ export async function createRaceNet(
       const hello = readHello(text);
       if (hello) return;
       try {
-        const msg = JSON.parse(text) as { t?: string; name?: string; face?: string };
-        if (msg.t === "face") {
+        const msg = JSON.parse(text) as { t?: string; name?: string; face?: string; travel?: number; done?: boolean };
+        if (msg.t === "who" || msg.t === "face") {
           if (typeof msg.name === "string" && msg.name) link.name = msg.name.slice(0, 16);
           if (typeof msg.face === "string" && msg.face.startsWith("data:image") && msg.face !== link.faceUrl) {
             link.faceUrl = msg.face;
@@ -175,7 +217,14 @@ export async function createRaceNet(
               if (img) faces.set(to, img);
             });
           }
+          return;
         }
+        if (msg.t === "prog") {
+          link.travel = Number(msg.travel) || 0;
+          link.done = Boolean(msg.done);
+          return;
+        }
+        for (const hear of sayers) hear(to, text);
       } catch {
         /* ignore chatter */
       }
@@ -235,7 +284,7 @@ export async function createRaceNet(
       const out: RemoteRacer[] = [];
       const now = performance.now();
       for (const link of links.values()) {
-        const pose = shown(link.view, poseTick, now);
+        const pose = shown(link.view, poseTick, now) as { p: number[]; v?: number[]; yaw: number } | null;
         if (!pose) continue;
         settle(link.view, 1 / 30);
         out.push({
@@ -243,26 +292,70 @@ export async function createRaceNet(
           name: link.name,
           x: pose.p[0],
           y: pose.p[1],
+          z: pose.p[2],
+          vx: pose.v?.[0] ?? 0,
+          vy: pose.v?.[1] ?? 0,
+          vz: pose.v?.[2] ?? 0,
           yaw: pose.yaw,
           face: faces.get(link.id) ?? null,
           color: hashColor(link.id),
+          travel: link.travel,
+          done: link.done,
         });
       }
       return out;
     },
+    people: () =>
+      [...links.values()]
+        .filter((link) => !link.dropped)
+        .map((link) => ({
+          id: link.id,
+          name: link.name,
+          face: faces.get(link.id) ?? null,
+          travel: link.travel,
+          done: link.done,
+        })),
+    id: () => me,
+    setIdentity: (name, faceUrl) => {
+      identity = { name: name.slice(0, 16) || "Racer", faceUrl };
+      for (const link of links.values()) {
+        if (link.ctrl.readyState !== "open") continue;
+        try {
+          link.ctrl.send(JSON.stringify({ t: "who", name: identity.name, face: identity.faceUrl }));
+        } catch {
+          /* next tick */
+        }
+      }
+    },
+    say: (text) => {
+      for (const link of links.values()) {
+        if (link.ctrl.readyState !== "open") continue;
+        try {
+          link.ctrl.send(text);
+        } catch {
+          /* channel closing */
+        }
+      }
+      for (const hear of sayers) hear(me, text);
+    },
+    onSay: (fn) => {
+      sayers.add(fn);
+      return () => sayers.delete(fn);
+    },
     tick: (pose, simTime) => {
       poseTick = Math.floor(simTime * 30);
-      const v: [number, number, number] = [Math.sin(pose.yaw) * pose.speed, Math.cos(pose.yaw) * pose.speed, 0];
+      const airborne = Boolean(pose.air);
+      const v: [number, number, number] = [pose.vx, pose.vy, pose.vz];
       const now = {
         tick: poseTick,
-        p: [pose.x, pose.y, 0.4],
+        p: [pose.x, pose.y, pose.z] as [number, number, number],
         v,
-        a: [0, 0, 0],
+        a: [0, 0, airborne ? -18 : 0] as [number, number, number],
         yaw: pose.yaw,
         yawRate: pose.yawRate,
         pitch: 0,
-        floor: 0,
-        mode: modeOf(v, false),
+        floor: airborne ? pose.z - 4 : pose.z,
+        mode: modeOf(v, airborne),
         wallMs: performance.now(),
       };
       for (const link of links.values()) {
@@ -275,10 +368,18 @@ export async function createRaceNet(
         }
         if (link.ctrl.readyState === "open" && pose.faceUrl && link.faceSent !== pose.faceUrl) {
           try {
-            link.ctrl.send(JSON.stringify({ t: "face", name: pose.name, face: pose.faceUrl }));
+            link.ctrl.send(JSON.stringify({ t: "who", name: pose.name, face: pose.faceUrl }));
             link.faceSent = pose.faceUrl;
           } catch {
             /* reliable channel will retry next pose */
+          }
+        }
+        if (link.ctrl.readyState === "open" && performance.now() - link.whoAt > 400) {
+          link.whoAt = performance.now();
+          try {
+            link.ctrl.send(JSON.stringify({ t: "prog", travel: pose.travel || 0, done: Boolean(pose.done) }));
+          } catch {
+            /* next pose */
           }
         }
       }

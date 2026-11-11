@@ -318,11 +318,11 @@
   min-height: 2.2rem;
 }
 
-.room-line {
+.course-row {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   gap: 0.35rem;
-  min-height: 1.2rem;
+  justify-content: center;
 }
 
 .course-chip,
@@ -370,6 +370,43 @@
 .room-row .row-actions {
   display: flex;
   gap: 0.35rem;
+}
+
+.face-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  justify-content: center;
+}
+
+.face-row figure {
+  margin: 0;
+  width: 3.1rem;
+  text-align: center;
+}
+
+.face-row img,
+.face-row span {
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 50%;
+  object-fit: cover;
+  display: grid;
+  place-items: center;
+  margin: 0 auto;
+  background: #2a241c;
+  color: #f3e6c8;
+  line-height: 2.2rem;
+}
+
+.face-row figcaption {
+  font-size: 0.65rem;
+  color: var(--color-moss);
+}
+
+.purse-list {
+  max-height: 8.5rem;
+  overflow: auto;
 }
 
 .room-row .row-actions button {

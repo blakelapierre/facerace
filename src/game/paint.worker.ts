@@ -10,6 +10,7 @@ type Painter = {
 type BodyMsg = {
   x: number;
   y: number;
+  z?: number;
   yaw: number;
   color: [number, number, number];
   seed: number;
@@ -34,7 +35,7 @@ const scope = self as unknown as {
 
 let canvas: OffscreenCanvas | null = null;
 let painter: Painter | null = null;
-let lite: { paint: (frame: FrameMsg) => void } | null = null;
+let lite: { paint: (frame: FrameMsg) => void; setFace?: (seed: number, face: FaceImage) => void } | null = null;
 let cpu: { paintFrame: (scene: unknown, w: number, h: number) => Uint8ClampedArray } | null = null;
 let ctx2d: OffscreenCanvasRenderingContext2D | null = null;
 let mode = "discrete";
@@ -63,6 +64,10 @@ function faceFor(seed: number) {
 function draw(frame: FrameMsg) {
   if (!canvas) return;
   if (lite) {
+    for (const body of frame.bodies) {
+      const face = body.seed === liveSeed && liveFace ? liveFace : faceFor(body.seed);
+      lite.setFace?.(body.seed, face);
+    }
     lite.paint(frame);
     const bitmap = canvas.transferToImageBitmap();
     scope.postMessage({ type: "bitmap", bitmap }, [bitmap]);
@@ -73,6 +78,7 @@ function draw(frame: FrameMsg) {
   const bodies = frame.bodies.map((body) => ({
     x: body.x,
     y: body.y,
+    z: body.z,
     yaw: body.yaw,
     color: body.color,
     name: body.name,

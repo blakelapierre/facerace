@@ -6,7 +6,7 @@ Race your face around a raytraced stadium. Five other faces start ahead of you. 
 
 WASD or the arrows drive (A is left). M mutes. On a phone, turn it sideways and use the Motion / Stick button. Motion tilts the phone to steer, with Go and Back. Stick ignores the phone and uses the joystick. Drag the picture to look around. **Use my face** paints your webcam onto the helmet. Leave the room as `pit` to meet other people on that code, or clear it to race the bots alone. Your best time stays in this browser.
 
-The circuit is painted onto Meridian’s dunes, mountain, lake, and cinder cone. Summit climbs the mountain and Caldera runs the volcano rim. Rain and fog banks roll through on the same clock. The pit menu posts a room on the public torrent trackers, and Pits (or Escape) brings you back after a race.
+The circuit is painted onto Meridian’s dunes, mountain, lake, and cinder cone. Summit climbs the mountain and Caldera runs the volcano rim. A solo race walks every course, then brings the field back faster and starts again. Rain and fog banks roll through on the same clock. The pit menu posts a room on the public torrent trackers, and Pits (or Escape) brings you back after a race.
 
 This branch (`modern`) replaces the 2014 Angular client. The old game is still on `rewrite2`. The picture is the Meridian raytracer; bumps trade momentum the way the latest nobody raycaster does, instead of sticking the karts together.
 

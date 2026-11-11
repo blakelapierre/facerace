@@ -1,5 +1,4 @@
 import type { FaceImage } from "./faces";
-import type { Kart } from "./sim";
 import { duneHeight } from "./terrain";
 import { course, halfWidth, leftNormal, pointAt, trackRibbon } from "./track";
 
@@ -97,6 +96,7 @@ export function trackObjects(): SceneObject[] {
 export type DrawBody = {
   x: number;
   y: number;
+  z?: number;
   yaw: number;
   color: [number, number, number];
   face: FaceImage | null;
@@ -111,10 +111,10 @@ function kartParts(body: DrawBody, faces: SceneObject[], rest: SceneObject[]) {
   const ry = -Math.sin(yaw);
   const paint = [color[0], color[1], color[2], 1];
   const wheelR = 0.22;
-  const ground = duneHeight(x, y);
+  const cz = body.z ?? duneHeight(x, y) + 0.46;
   faces.push({
     type: "sphere",
-    origin: [x - rx * 0.05, y - ry * 0.05, ground + 1.02],
+    origin: [x - rx * 0.05, y - ry * 0.05, cz + 0.56],
     radius: 0.46,
     color: [1, 1, 1, 1],
     reflectivity: 0.04,
@@ -123,8 +123,8 @@ function kartParts(body: DrawBody, faces: SceneObject[], rest: SceneObject[]) {
   rest.push({
     type: "shape",
     kind: "capsule",
-    a: [x - fx * 0.55, y - fy * 0.55, ground + 0.46],
-    b: [x + fx * 0.85, y + fy * 0.85, ground + 0.52],
+    a: [x - fx * 0.55, y - fy * 0.55, cz],
+    b: [x + fx * 0.85, y + fy * 0.85, cz + 0.06],
     r: 0.32,
     color: paint,
     reflectivity: 0.18,
@@ -132,7 +132,7 @@ function kartParts(body: DrawBody, faces: SceneObject[], rest: SceneObject[]) {
   });
   rest.push({
     type: "sphere",
-    origin: [x + fx * 0.95, y + fy * 0.95, ground + 0.48],
+    origin: [x + fx * 0.95, y + fy * 0.95, cz + 0.02],
     radius: 0.26,
     color: paint,
     reflectivity: 0.2,
@@ -148,7 +148,7 @@ function kartParts(body: DrawBody, faces: SceneObject[], rest: SceneObject[]) {
     const wy = y + fy * f + ry * s;
     rest.push({
       type: "sphere",
-      origin: [wx, wy, duneHeight(wx, wy) + wheelR],
+      origin: [wx, wy, cz - 0.22],
       radius: wheelR,
       color: [0.08, 0.08, 0.09, 1],
       reflectivity: 0.06,
@@ -202,7 +202,7 @@ export function buildPicture(
 }
 
 export function chaseCamera(
-  kart: Pick<Kart, "x" | "y" | "yaw" | "speed">,
+  kart: { x: number; y: number; yaw: number; speed: number; z?: number },
   lookAhead = 7.5,
   orbit: { yaw: number; pitch: number } = { yaw: 0, pitch: 0 },
 ) {
@@ -214,9 +214,9 @@ export function chaseCamera(
   const ty = kart.y + fy * lookAhead;
   const cx = kart.x - fx * back;
   const cy = kart.y - fy * back;
-  const ground = duneHeight(kart.x, kart.y);
-  const aimZ = duneHeight(tx, ty) + 1.15 + orbit.pitch * 2.4;
-  const cz = Math.max(duneHeight(cx, cy) + 1.2, ground + 2.35 - orbit.pitch * 0.35);
+  const ride = kart.z ?? duneHeight(kart.x, kart.y) + 0.46;
+  const aimZ = Math.max(duneHeight(tx, ty) + 0.4, ride + 0.35) + orbit.pitch * 2.4;
+  const cz = Math.max(duneHeight(cx, cy) + 1.15, ride + 2.15 - orbit.pitch * 0.35);
   const dx = tx - cx;
   const dy = ty - cy;
   const dz = aimZ - cz;

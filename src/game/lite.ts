@@ -1,7 +1,8 @@
+import { duneHeight } from "./terrain";
 import { halfWidth, setCourseById, trackRibbon } from "./track";
 
 type Frame = {
-  bodies: { x: number; y: number; color: [number, number, number] }[];
+  bodies: { x: number; y: number; z?: number; yaw?: number; seed?: number; color: [number, number, number] }[];
   camera: { x: number; y: number; z: number; dir: [number, number, number] };
   sun: [number, number, number];
   course?: string;
@@ -27,10 +28,12 @@ uniform vec3 uSun;
 uniform float uFov;
 uniform float uAspect;
 uniform float uRoad;
-uniform vec4 uTrack[48];
-uniform vec4 uPos[8];
-uniform vec3 uTint[8];
+uniform vec4 uTrack[64];
+uniform vec4 uPos[12];
+uniform vec3 uTint[12];
+uniform float uSlot[12];
 uniform int uKarts;
+uniform sampler2D uFace;
 
 float heightAt(vec2 p) {
   float roll = 0.5 * sin(p.x * 0.15) + 0.5 * cos(p.y * 0.13);
@@ -38,27 +41,75 @@ float heightAt(vec2 p) {
   float n = clamp(0.55 * roll + 0.45 * wash, 0.0, 1.0);
   float broad = 0.5 + 0.5 * sin(p.x * 0.021 + 0.6) * cos(p.y * 0.018);
   float h = n * n * 5.4 * (0.78 + 0.22 * broad);
+  float marsh = exp(-((p.x - 36.0) * (p.x - 36.0) + (p.y + 96.0) * (p.y + 96.0)) / 2200.0);
+  h *= 1.0 - marsh * 0.55;
+  float ridge = exp(-(p.x + 24.0) * (p.x + 24.0) / 520.0) * max(0.0, cos(p.y * 0.02));
+  h = clamp(h + ridge * 1.6, 0.0, 5.4);
   float d = length(p - vec2(-40.0, 160.0));
-  float u = d / 104.0;
+  float wobble = 0.92 + 0.08 * sin(p.x * 0.05 + 160.0) * cos(p.y * 0.04);
+  float u = d / (104.0 * wobble);
   if (u < 1.0) {
     float s = 1.0 - u;
     h += 36.0 * s * s * (3.0 - 2.0 * s);
   }
   d = length(p - vec2(-155.0, -55.0));
-  u = d / 72.0;
+  wobble = 0.92 + 0.08 * sin(p.x * 0.05 - 55.0) * cos(p.y * 0.04);
+  u = d / (72.0 * wobble);
   if (u < 1.0) {
     float s = 1.0 - u;
     h += 30.0 * s * s * (3.0 - 2.0 * s);
   }
   if (d < 14.0) h -= (1.0 - d / 14.0) * 12.0;
-  if (length(p - vec2(70.0, 96.0)) < 14.0) h = 2.05;
-  return h;
+  float r = length(p - vec2(70.0, 96.0));
+  float rl = 14.0 * (0.94 + 0.06 * sin(p.x * 0.21));
+  if (r < rl) {
+    float q = r / max(rl, 0.01);
+    h = 2.2 - 0.12 - 1.6 * (1.0 - q * q);
+  }
+  return max(-2.0, h);
 }
 
 float nearest(vec2 p) {
   float best = 200.0;
-  for (int i = 0; i < 48; i++) best = min(best, length(p - uTrack[i].xy));
+  for (int i = 0; i < 64; i++) {
+    vec2 a = uTrack[i].xy;
+    vec2 b = uTrack[i].zw;
+    vec2 ab = b - a;
+    float span = max(dot(ab, ab), 0.0001);
+    float t = clamp(dot(p - a, ab) / span, 0.0, 1.0);
+    best = min(best, length(p - (a + ab * t)));
+  }
   return best;
+}
+
+void ball(vec3 ro, vec3 rd, vec3 center, float radius, vec3 albedo, float faceSlot, vec3 fwd, vec3 sun, inout float best, inout vec3 rgb, inout bool hit) {
+  vec3 oc = ro - center;
+  float b = dot(oc, rd);
+  float c = dot(oc, oc) - radius * radius;
+  float disc = b * b - c;
+  if (disc <= 0.0) return;
+  float t = -b - sqrt(disc);
+  if (t <= 0.2 || t >= best) return;
+  best = t;
+  vec3 n = normalize(ro + rd * t - center);
+  float light = 0.32 + 0.68 * max(dot(n, sun), 0.0);
+  vec3 color = mix(albedo * 0.62, albedo, smoothstep(-0.2, 0.55, n.z)) * light;
+  if (faceSlot >= 0.0) {
+    vec3 side = vec3(fwd.y, -fwd.x, 0.0);
+    float front = dot(n, fwd);
+    if (front > 0.18) {
+      float u = clamp(dot(n, side) * 1.25 + 0.5, 0.02, 0.98);
+      float v = clamp(n.z * 1.2 + 0.4, 0.02, 0.98);
+      float col = mod(faceSlot, 4.0);
+      float row = floor(faceSlot / 4.0);
+      vec2 uv = vec2((col + u) / 4.0, 1.0 - (row + (1.0 - v)) / 3.0);
+      color = texture(uFace, uv).rgb * (0.62 + 0.5 * light);
+    } else {
+      color = vec3(0.18, 0.12, 0.09) * light;
+    }
+  }
+  rgb = color;
+  hit = true;
 }
 
 void main() {
@@ -69,39 +120,45 @@ void main() {
   float best = 400.0;
   vec3 rgb = vec3(0.0);
   bool hit = false;
-  for (int i = 0; i < 8; i++) {
+  for (int i = 0; i < 12; i++) {
     if (i >= uKarts) break;
-    vec3 center = vec3(uPos[i].xy, heightAt(uPos[i].xy) + 0.85);
-    vec3 oc = uCam - center;
-    float b = dot(oc, rd);
-    float c = dot(oc, oc) - 0.9;
-    float disc = b * b - c;
-    if (disc > 0.0) {
-      float t = -b - sqrt(disc);
-      if (t > 0.2 && t < best) {
-        best = t;
-        vec3 n = normalize(uCam + rd * t - center);
-        float light = 0.35 + 0.65 * max(dot(n, sun), 0.0);
-        rgb = uTint[i] * light;
-        hit = true;
-      }
-    }
+    vec3 pos = uPos[i].xyz;
+    float yaw = uPos[i].w;
+    vec3 fwd = vec3(sin(yaw), cos(yaw), 0.0);
+    vec3 side = vec3(fwd.y, -fwd.x, 0.0);
+    vec3 tint = uTint[i];
+    vec3 dark = tint * 0.38;
+    vec3 wheel = vec3(0.07, 0.07, 0.08);
+    ball(uCam, rd, pos, 0.5, tint, -1.0, fwd, sun, best, rgb, hit);
+    ball(uCam, rd, pos + fwd * 0.78 + vec3(0.0, 0.0, 0.05), 0.26, tint, -1.0, fwd, sun, best, rgb, hit);
+    ball(uCam, rd, pos - fwd * 0.52, 0.22, dark, -1.0, fwd, sun, best, rgb, hit);
+    ball(uCam, rd, pos + vec3(0.0, 0.0, 0.58), 0.4, vec3(0.86, 0.72, 0.58), uSlot[i], fwd, sun, best, rgb, hit);
+    ball(uCam, rd, pos + fwd * 0.46 + side * 0.46 + vec3(0.0, 0.0, -0.24), 0.2, wheel, -1.0, fwd, sun, best, rgb, hit);
+    ball(uCam, rd, pos + fwd * 0.46 - side * 0.46 + vec3(0.0, 0.0, -0.24), 0.2, wheel, -1.0, fwd, sun, best, rgb, hit);
+    ball(uCam, rd, pos - fwd * 0.4 + side * 0.46 + vec3(0.0, 0.0, -0.24), 0.2, wheel, -1.0, fwd, sun, best, rgb, hit);
+    ball(uCam, rd, pos - fwd * 0.4 - side * 0.46 + vec3(0.0, 0.0, -0.24), 0.2, wheel, -1.0, fwd, sun, best, rgb, hit);
   }
-  float t = 1.0;
+  float prevT = 0.3;
+  float t = 0.3;
   float ground = -1.0;
-  for (int i = 0; i < 14; i++) {
+  for (int i = 0; i < 42; i++) {
     vec3 p = uCam + rd * t;
-    if (p.z < heightAt(p.xy)) {
+    float h = heightAt(p.xy);
+    if (p.z < h) {
       ground = t;
       break;
     }
-    t += 1.5 + float(i) * 1.35;
-    if (t > 220.0) break;
+    if (rd.z > 0.08 && p.z > h + 28.0) break;
+    float gap = max(p.z - h, 0.0);
+    float step = clamp(gap * 0.5, 0.35, 3.2);
+    prevT = t;
+    t += step;
+    if (t > 190.0) break;
   }
   if (ground > 0.0 && ground < best) {
-    float lo = max(ground - 6.0, 0.2);
+    float lo = prevT;
     float hi = ground;
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < 7; i++) {
       float mid = 0.5 * (lo + hi);
       vec3 p = uCam + rd * mid;
       if (p.z < heightAt(p.xy)) hi = mid;
@@ -110,18 +167,30 @@ void main() {
     vec3 p = uCam + rd * hi;
     float h = heightAt(p.xy);
     float road = nearest(p.xy);
-    vec3 n = normalize(vec3(heightAt(p.xy + vec2(0.8, 0.0)) - h, heightAt(p.xy + vec2(0.0, 0.8)) - h, 0.8));
+    vec3 n = normalize(vec3(heightAt(p.xy + vec2(0.35, 0.0)) - h, heightAt(p.xy + vec2(0.0, 0.35)) - h, 0.35));
     float light = 0.42 + 0.58 * max(dot(n, sun), 0.0);
     vec3 sand = vec3(0.62, 0.48, 0.22);
     vec3 grass = vec3(0.28, 0.38, 0.18);
     vec3 rock = vec3(0.42, 0.36, 0.30);
     vec3 albedo = mix(grass, sand, smoothstep(1.2, 4.5, h));
     if (h > 12.0) albedo = mix(albedo, rock, smoothstep(12.0, 24.0, h));
-    if (length(p.xy - vec2(70.0, 96.0)) < 14.0) albedo = vec3(0.15, 0.32, 0.38);
+    if (length(p.xy - vec2(70.0, 96.0)) < 14.0 && h < 2.4) albedo = vec3(0.15, 0.32, 0.38);
     if (road < uRoad) {
-      albedo = vec3(0.12, 0.12, 0.13);
-      if (road > uRoad - 0.7) albedo = vec3(0.75, 0.22, 0.12);
+      vec3 asphalt = vec3(0.15, 0.15, 0.16);
+      albedo = asphalt;
+      if (road < 0.18) albedo = vec3(0.86, 0.74, 0.22);
+      if (road > uRoad - 0.55) albedo = mix(vec3(0.92, 0.92, 0.88), vec3(0.78, 0.16, 0.11), step(0.5, fract((p.x + p.y) * 0.35)));
+    } else {
+      albedo *= 0.94 + 0.06 * sin(p.x * 0.7) * cos(p.y * 0.6);
     }
+    float shade = 1.0;
+    for (int i = 0; i < 12; i++) {
+      if (i >= uKarts) break;
+      float drop = max(0.0, uPos[i].z - h);
+      float d = length(p.xy - uPos[i].xy);
+      shade *= 1.0 - (1.0 - smoothstep(0.35, 1.5 + drop * 0.45, d)) * (0.42 / (1.0 + drop * 0.25));
+    }
+    albedo *= shade;
     float fog = smoothstep(40.0, 160.0, hi);
     rgb = mix(albedo * light, vec3(0.62, 0.72, 0.82), fog);
     hit = true;
@@ -147,6 +216,11 @@ function compile(gl: WebGL2RenderingContext, type: number, source: string) {
   return shader;
 }
 
+const TILE = 64;
+const COLS = 4;
+const ATLAS_W = 256;
+const ATLAS_H = 192;
+
 export function createLitePainter(canvas: OffscreenCanvas) {
   const gl = canvas.getContext("webgl2", {
     alpha: false,
@@ -168,8 +242,29 @@ export function createLitePainter(canvas: OffscreenCanvas) {
   const buffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
-  const track = new Float32Array(48 * 4);
-  const karts = new Float32Array(8 * 4);
+  const track = new Float32Array(64 * 4);
+  const karts = new Float32Array(12 * 4);
+  const tint = new Float32Array(12 * 3);
+  const slots = new Float32Array(12);
+  const atlas = new Uint8Array(ATLAS_W * ATLAS_H * 4);
+  for (let i = 0; i < atlas.length; i += 4) {
+    atlas[i] = 214;
+    atlas[i + 1] = 170;
+    atlas[i + 2] = 132;
+    atlas[i + 3] = 255;
+  }
+  const tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, ATLAS_W, ATLAS_H, 0, gl.RGBA, gl.UNSIGNED_BYTE, atlas);
+  const faceSlot = new Map<number, number>();
+  const faceStamp = new Map<number, number>();
+  let faceUsed = 0;
+  let faceDirty = false;
   let courseId = "";
   let road = 8;
   const loc = (name: string) => gl.getUniformLocation(program, name);
@@ -178,22 +273,56 @@ export function createLitePainter(canvas: OffscreenCanvas) {
       setCourseById(id);
       courseId = id;
     }
-    const ribbon = trackRibbon(48);
-    track.fill(9999);
-    let step = 0;
-    const count = Math.min(48, ribbon.length / 4);
+    const ribbon = trackRibbon(64);
+    track.fill(0);
+    const count = Math.min(64, ribbon.length / 4);
     for (let i = 0; i < count; i++) {
+      const j = (i + 1) % count;
       track[i * 4] = ribbon[i * 4]!;
       track[i * 4 + 1] = ribbon[i * 4 + 1]!;
-      const j = (i + 1) % count;
-      step = Math.max(step, Math.hypot(ribbon[i * 4]! - ribbon[j * 4]!, ribbon[i * 4 + 1]! - ribbon[j * 4 + 1]!));
+      track[i * 4 + 2] = ribbon[j * 4]!;
+      track[i * 4 + 3] = ribbon[j * 4 + 1]!;
     }
-    road = halfWidth() + step * 0.55;
+    road = halfWidth();
   };
   loadCourse();
   return {
+    setFace(seed: number, face: { width: number; height: number; data: Uint8Array }) {
+      let stamp = 0;
+      const data = face.data;
+      for (let i = 0; i < data.length; i += 997) stamp = (stamp + (data[i] ?? 0)) | 0;
+      if (faceStamp.get(seed) === stamp) return;
+      faceStamp.set(seed, stamp);
+      let slot = faceSlot.get(seed);
+      if (slot == null) {
+        slot = faceUsed % 12;
+        faceUsed += 1;
+        faceSlot.set(seed, slot);
+      }
+      const col = slot % COLS;
+      const row = (slot / COLS) | 0;
+      for (let y = 0; y < TILE; y++) {
+        for (let x = 0; x < TILE; x++) {
+          const sx = Math.min(face.width - 1, ((x + 0.5) * face.width) / TILE) | 0;
+          const sy = Math.min(face.height - 1, ((y + 0.5) * face.height) / TILE) | 0;
+          const si = (sy * face.width + sx) * 4;
+          const di = ((row * TILE + y) * ATLAS_W + (col * TILE + x)) * 4;
+          atlas[di] = data[si] ?? 0;
+          atlas[di + 1] = data[si + 1] ?? 0;
+          atlas[di + 2] = data[si + 2] ?? 0;
+          atlas[di + 3] = 255;
+        }
+      }
+      faceDirty = true;
+    },
     paint(frame: Frame) {
       loadCourse(frame.course);
+      if (faceDirty && tex) {
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, ATLAS_W, ATLAS_H, gl.RGBA, gl.UNSIGNED_BYTE, atlas);
+        faceDirty = false;
+      }
       const fwd = frame.camera.dir;
       const rx = fwd[1];
       const ry = -fwd[0];
@@ -205,18 +334,24 @@ export function createLitePainter(canvas: OffscreenCanvas) {
         right[0] * fwd[1] - right[1] * fwd[0],
       ];
       karts.fill(0);
-      const tint = new Float32Array(8 * 3);
-      const n = Math.min(8, frame.bodies.length);
+      tint.fill(0);
+      slots.fill(0);
+      const n = Math.min(12, frame.bodies.length);
       for (let i = 0; i < n; i++) {
         const body = frame.bodies[i]!;
         karts[i * 4] = body.x;
         karts[i * 4 + 1] = body.y;
+        karts[i * 4 + 2] = body.z ?? duneHeight(body.x, body.y) + 0.46;
+        karts[i * 4 + 3] = body.yaw ?? 0;
         tint[i * 3] = body.color[0];
         tint[i * 3 + 1] = body.color[1];
         tint[i * 3 + 2] = body.color[2];
+        slots[i] = faceSlot.get(body.seed ?? i) ?? 0;
       }
       gl.viewport(0, 0, canvas.width, canvas.height);
       gl.useProgram(program);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, tex);
       gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
       gl.enableVertexAttribArray(0);
       gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
@@ -231,6 +366,8 @@ export function createLitePainter(canvas: OffscreenCanvas) {
       gl.uniform4fv(loc("uTrack"), track);
       gl.uniform4fv(loc("uPos"), karts);
       gl.uniform3fv(loc("uTint"), tint);
+      gl.uniform1fv(loc("uSlot"), slots);
+      gl.uniform1i(loc("uFace"), 0);
       gl.uniform1i(loc("uKarts"), n);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       gl.finish();
