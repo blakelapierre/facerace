@@ -5,7 +5,7 @@ import { createSim, installProbe, lapOf, parkOn, placeOf, stepSim, type Sim } fr
 import { chaseCamera, raceSun } from "./scene";
 import { createRaceAudio, hearAt, type RaceAudio } from "./sound";
 import { rainAt } from "./terrain";
-import { COURSES, lapCount } from "./track";
+import { COURSES, course, lapCount } from "./track";
 import { freshCode, openBoard, type ListedRoom, type MarketListing } from "./lobby";
 import type { RaceNet } from "./net";
 import { openWallet, shortAddress, writePurse, type Wallet } from "./wallet";
@@ -471,6 +471,7 @@ export function Race() {
         still: settled,
         rain: rainAt(weatherRef.current),
         sun: raceSun(weatherRef.current),
+        course: course().id,
       });
       netRef.current?.tick(
         {

@@ -23,6 +23,7 @@ type FrameMsg = {
   still: boolean;
   rain: number;
   sun: [number, number, number];
+  course?: string;
 };
 
 const scope = self as unknown as {
@@ -33,6 +34,7 @@ const scope = self as unknown as {
 
 let canvas: OffscreenCanvas | null = null;
 let painter: Painter | null = null;
+let lite: { paint: (frame: FrameMsg) => void } | null = null;
 let cpu: { paintFrame: (scene: unknown, w: number, h: number) => Uint8ClampedArray } | null = null;
 let ctx2d: OffscreenCanvasRenderingContext2D | null = null;
 let mode = "discrete";
@@ -60,7 +62,13 @@ function faceFor(seed: number) {
 
 function draw(frame: FrameMsg) {
   if (!canvas) return;
-  const traceW = mode === "software" ? 96 : Math.max(mode === "integrated" ? 160 : 320, Math.min(viewW, Math.round((viewW * traceScale) / 4) * 4));
+  if (lite) {
+    lite.paint(frame);
+    const bitmap = canvas.transferToImageBitmap();
+    scope.postMessage({ type: "bitmap", bitmap }, [bitmap]);
+    return;
+  }
+  const traceW = mode === "software" ? 96 : Math.max(320, Math.min(viewW, Math.round((viewW * traceScale) / 4) * 4));
   const traceH = mode === "software" ? 54 : Math.max(90, Math.round((traceW * viewH) / Math.max(1, viewW) / 4) * 4);
   const bodies = frame.bodies.map((body) => ({
     x: body.x,
@@ -76,13 +84,7 @@ function draw(frame: FrameMsg) {
     const ok = painter.paint(picture, traceW, traceH);
     if (ok) painter.present(1);
     const ms = performance.now() - started;
-    if (mode === "integrated") {
-      if (ms < 32) traceScale = Math.min(traceMax, traceScale * 1.06);
-      else if (ms > 50) {
-        traceScale = Math.max(0.22, traceScale * 0.8);
-        traceMax = traceScale;
-      }
-    } else if (ms < 80) traceScale = Math.min(1, traceScale * 1.08);
+    if (ms < 80) traceScale = Math.min(1, traceScale * 1.08);
     else if (ms > 140) traceScale = Math.max(0.5, traceScale * 0.86);
     scope.postMessage({ type: "painted", ms, ok });
     const bitmap = canvas.transferToImageBitmap();
@@ -101,10 +103,28 @@ function draw(frame: FrameMsg) {
 }
 
 async function bootGpu() {
-  if (!canvas || mode === "software") return;
+  if (!canvas || mode !== "discrete") return;
   const gpu = await import("../vendor/meridian/render/gpu.js");
   painter = gpu.createGpuPainter(canvas, tune) as Painter | null;
   painter?.setSmoothing?.(true);
+}
+
+async function bootPicture() {
+  if (!canvas) return;
+  if (mode === "discrete") {
+    await bootGpu();
+    return;
+  }
+  const { createLitePainter } = await import("./lite");
+  try {
+    lite = createLitePainter(canvas);
+  } catch {
+    lite = null;
+  }
+  if (!lite) {
+    cpu = await import("../vendor/meridian/engine/frame.js");
+    ctx2d = canvas.getContext("2d");
+  }
 }
 
 scope.onmessage = (event: MessageEvent) => {
@@ -124,6 +144,7 @@ scope.onmessage = (event: MessageEvent) => {
     still?: boolean;
     rain?: number;
     sun?: [number, number, number];
+    course?: string;
   };
   if (message.cmd === "stop") {
     scope.close();
@@ -138,14 +159,10 @@ scope.onmessage = (event: MessageEvent) => {
     canvas = new OffscreenCanvas(viewW, viewH);
     void (async () => {
       try {
-        if (mode === "software") {
-          cpu = await import("../vendor/meridian/engine/frame.js");
-          ctx2d = canvas!.getContext("2d");
-        } else {
-          await bootGpu();
-        }
+        if (mode === "discrete") await bootGpu();
+        else await bootPicture();
         ready = true;
-        scope.postMessage({ type: "ready", ok: Boolean(painter || ctx2d) });
+        scope.postMessage({ type: "ready", ok: Boolean(painter || lite || ctx2d) });
       } catch (error) {
         scope.postMessage({ type: "ready", ok: false, reason: error instanceof Error ? error.message : "picture failed" });
       }
@@ -167,8 +184,9 @@ scope.onmessage = (event: MessageEvent) => {
     canvas.width = viewW;
     canvas.height = viewH;
     painter = null;
-    if (mode === "software") ctx2d = canvas.getContext("2d");
-    else void bootGpu();
+    lite = null;
+    if (mode === "discrete") void bootGpu();
+    else void bootPicture();
     return;
   }
   if (message.cmd === "frame" && message.bodies && message.camera && message.sun) {
@@ -179,6 +197,7 @@ scope.onmessage = (event: MessageEvent) => {
       still: Boolean(message.still),
       rain: message.rain || 0,
       sun: message.sun,
+      course: message.course,
     };
     if (!ready) {
       queued = frame;
