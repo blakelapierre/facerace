@@ -299,6 +299,24 @@
   border-color: transparent;
 }
 
+.mine-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.15rem 0 0.25rem;
+  color: var(--color-moss);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.mine-range {
+  width: 100%;
+  accent-color: var(--color-lane);
+  min-height: 2.2rem;
+}
+
 .room-line {
   display: flex;
   flex-direction: column;

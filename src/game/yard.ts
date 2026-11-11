@@ -99,6 +99,48 @@ export function specOf(yard: Yard) {
   return mechanicById(cart.mechanic);
 }
 
+export type Offer = {
+  cartId: string;
+  mechanic: string;
+  price: number;
+  seller: string;
+  nonce: number;
+  x: string;
+  y: string;
+  sig: string;
+};
+
+const OFFER_KEY = "facerace-offers";
+
+export function loadOffers(): Offer[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(OFFER_KEY) || "[]") as Offer[];
+    if (Array.isArray(raw)) return raw.filter((item) => item?.cartId && item.sig && item.seller);
+  } catch {
+    /* fresh book */
+  }
+  return [];
+}
+
+function saveOffers(offers: Offer[]) {
+  localStorage.setItem(OFFER_KEY, JSON.stringify(offers.slice(-12)));
+  return offers;
+}
+
+export function putOffer(offers: Offer[], offer: Offer) {
+  return saveOffers([...offers.filter((item) => item.cartId !== offer.cartId), offer]);
+}
+
+export function pullOffer(offers: Offer[], cartId: string) {
+  return saveOffers(offers.filter((item) => item.cartId !== cartId));
+}
+
+export function pullMechanic(offers: Offer[], mechanic: string) {
+  const index = offers.findIndex((item) => item.mechanic === mechanic);
+  if (index < 0) return offers;
+  return saveOffers(offers.filter((_, i) => i !== index));
+}
+
 export async function signListing(wallet: Wallet, mechanic: string, price: number) {
   const { wallet: next, nonce } = nextNonce(wallet);
   const message = `sell:${mechanic}:${price}:${next.address}:${nonce}`;

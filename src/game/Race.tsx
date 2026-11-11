@@ -9,6 +9,7 @@ import { COURSES, lapCount } from "./track";
 import { freshCode, openBoard, type ListedRoom, type MarketListing } from "./lobby";
 import type { RaceNet } from "./net";
 import { credit, openWallet, shortAddress, type Wallet } from "./wallet";
+import { startMiner, type MineStatus } from "./miner";
 import {
   HEATS,
   MECHANICS,
@@ -20,13 +21,18 @@ import {
   loadYard,
   mechanicById,
   payIsReal,
+  pullMechanic,
+  pullOffer,
+  putOffer,
   rememberPay,
   selectCart,
   signListing,
   signPay,
   specOf,
   stakeHeat,
+  loadOffers,
   type Heat,
+  type Offer,
   type Yard,
 } from "./yard";
 
@@ -93,7 +99,9 @@ export function Race() {
   const boardRef = useRef<{ announce: (card: { code: string; course: string; host: string; live: boolean }) => void; post: (catalog: string) => void; close: () => void } | null>(null);
   const walletRef = useRef<Wallet | null>(null);
   const yardRef = useRef<Yard>(loadYard());
+  const offerRef = useRef<Offer[]>(loadOffers());
   const heatRef = useRef<(Heat & { paid: boolean }) | null>(null);
+  const minerRef = useRef<{ setPower: (power: number) => void; stop: () => void } | null>(null);
   const weatherRef = useRef(12);
   const armRef = useRef(false);
   const leaveRef = useRef<() => void>(() => {});
@@ -105,9 +113,11 @@ export function Race() {
   const [roomCode, setRoomCode] = useState("");
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [yard, setYard] = useState<Yard>(yardRef.current);
+  const [offers, setOffers] = useState<Offer[]>(offerRef.current);
   const [desk, setDesk] = useState<"race" | "yard" | "purse">("race");
   const [listings, setListings] = useState<MarketListing[]>([]);
   const [yardNote, setYardNote] = useState("");
+  const [mine, setMine] = useState<MineStatus>({ height: 0, rate: "0 H/s", power: 10, gpu: false, load: 0, mined: 0, detail: "" });
   const [camOn, setCamOn] = useState(false);
   const [camError, setCamError] = useState("");
   const [muted, setMuted] = useState(false);
@@ -132,6 +142,30 @@ export function Race() {
       if (closedBoard) return;
       walletRef.current = opened;
       setWallet(opened);
+      minerRef.current = startMiner({
+        address: opened.address,
+        onStatus: (status) => {
+          if (closedBoard) return;
+          setMine((prev) =>
+            prev.height === status.height &&
+            prev.rate === status.rate &&
+            prev.power === status.power &&
+            prev.gpu === status.gpu &&
+            prev.load === status.load &&
+            prev.mined === status.mined &&
+            prev.detail === status.detail
+              ? prev
+              : status,
+          );
+        },
+        onReward: (amount) => {
+          const purse = walletRef.current;
+          if (!purse || closedBoard) return;
+          const next = credit(purse, amount);
+          walletRef.current = next;
+          setWallet(next);
+        },
+      });
     });
     void openBoard(
       (found, note) => {
@@ -156,12 +190,14 @@ export function Race() {
             rememberPay(pay.id);
             purse = credit(purse, pay.amount);
             owned = dropCart(owned, pay.mechanic);
+            offerRef.current = pullMechanic(offerRef.current, pay.mechanic);
           }
           walletRef.current = purse;
           yardRef.current = owned;
           if (!closedBoard) {
             setWallet(purse);
             setYard(owned);
+            setOffers(offerRef.current);
           }
         })();
       },
@@ -510,6 +546,7 @@ export function Race() {
       screen.orientation?.removeEventListener("change", resetTilt);
       canvas.parentElement?.removeEventListener("selectstart", blockSelect);
       closedBoard = true;
+      minerRef.current?.stop();
       boardRef.current?.close();
       void bootDone.then((off) => off?.());
       audio.close();
@@ -727,8 +764,28 @@ export function Race() {
     }
     const price = mechanicById(selected.mechanic).cost;
     const signed = await signListing(purse, selected.mechanic, price);
+    const offer: Offer = {
+      cartId: selected.id,
+      mechanic: selected.mechanic,
+      price,
+      seller: signed.wallet.address,
+      nonce: signed.nonce,
+      x: signed.wallet.x,
+      y: signed.wallet.y,
+      sig: signed.sig,
+    };
+    offerRef.current = putOffer(offerRef.current, offer);
+    setOffers(offerRef.current);
     boardRef.current?.post(`s|${selected.mechanic}|${price}|${signed.wallet.address}|${signed.nonce}|${signed.wallet.x}|${signed.wallet.y}|${signed.sig}`);
-    keep(signed.wallet, yardRef.current, `Listed ${mechanicById(selected.mechanic).name} for ${price}.`);
+    keep(signed.wallet, yardRef.current, `${mechanicById(selected.mechanic).name} is for sale at ${price}.`);
+    setDesk("purse");
+  }
+
+  function cancelOffer(cartId: string) {
+    offerRef.current = pullOffer(offerRef.current, cartId);
+    setOffers(offerRef.current);
+    setYardNote("Pulled the listing.");
+    if (offerRef.current.length === 0) boardRef.current?.post("");
   }
 
   async function buyListing(listing: MarketListing) {
@@ -851,7 +908,7 @@ export function Race() {
                   Yard
                 </button>
                 <button type="button" className={desk === "purse" ? "is-on" : ""} onClick={() => setDesk("purse")}>
-                  Purse
+                  Wallet
                 </button>
               </div>
               <p className="race-note">{wallet ? `${shortAddress(wallet.address)} · ${wallet.purse} chips` : "Opening a wallet…"}</p>
@@ -926,6 +983,7 @@ export function Race() {
                         }}
                       >
                         {mechanicById(cart.mechanic).name}
+                        {offers.some((offer) => offer.cartId === cart.id) ? " · sale" : ""}
                       </button>
                     ))}
                   </div>
@@ -944,25 +1002,72 @@ export function Race() {
               ) : null}
               {desk === "purse" ? (
                 <>
-                  <h2>Small stakes.</h2>
+                  <h2>Wallet</h2>
+                  <label className="pit-name">
+                    Address
+                    <input readOnly value={wallet?.address ?? ""} onFocus={(event) => event.currentTarget.select()} onKeyDown={(event) => event.key === "Enter" && event.preventDefault()} />
+                  </label>
+                  <p className="race-note">
+                    {wallet ? `${wallet.purse} chips` : "Opening…"} · chain #{mine.height} · {mine.mined} mined · {mine.load}% cpu
+                  </p>
+                  <div className="room-line">
+                    {yard.carts.filter((cart) => cart.mechanic !== "stock").length === 0 ? (
+                      <p className="race-note">Hire a mechanic in the yard, then list that cart here.</p>
+                    ) : null}
+                    {yard.carts
+                      .filter((cart) => cart.mechanic !== "stock")
+                      .slice(0, 3)
+                      .map((cart) => {
+                        const offer = offers.find((item) => item.cartId === cart.id);
+                        return (
+                          <button
+                            key={cart.id}
+                            type="button"
+                            className="room-row"
+                            onClick={() => {
+                              if (offer) cancelOffer(cart.id);
+                              else {
+                                const next = selectCart(yard, cart.id);
+                                yardRef.current = next;
+                                setYard(next);
+                                void listSelected();
+                              }
+                            }}
+                          >
+                            <strong>{mechanicById(cart.mechanic).name}</strong>
+                            <span>{offer ? `For sale · ${offer.price} · pull` : `List · ${mechanicById(cart.mechanic).cost}`}</span>
+                          </button>
+                        );
+                      })}
+                    {listings
+                      .filter((listing) => listing.seller !== wallet?.address)
+                      .slice(0, 2)
+                      .map((listing) => (
+                        <button key={listing.id} type="button" className="room-row" onClick={() => void buyListing(listing)}>
+                          <strong>{mechanicById(listing.mechanic).name}</strong>
+                          <span>
+                            Buy {listing.price} · {shortAddress(listing.seller)}
+                          </span>
+                        </button>
+                      ))}
+                  </div>
+                  <label className="mine-row">
+                    Power {mine.power}%
+                    <input
+                      className="mine-range"
+                      type="range"
+                      min={10}
+                      max={100}
+                      step={5}
+                      value={mine.power}
+                      onPointerDown={(event) => event.stopPropagation()}
+                      onChange={(event) => minerRef.current?.setPower(Number(event.target.value))}
+                    />
+                  </label>
                   <div className="race-actions">
                     {HEATS.map((heat) => (
                       <button key={heat.id} type="button" className="race-ghost" onClick={() => enterHeat(heat)}>
                         {heat.name} {heat.stake}
-                      </button>
-                    ))}
-                    <button type="button" className="race-go" onClick={() => void listSelected()}>
-                      List cart
-                    </button>
-                  </div>
-                  <div className="room-line">
-                    {listings.length === 0 ? <p className="race-note">No signed carts on the trackers yet.</p> : null}
-                    {listings.slice(0, 2).map((listing) => (
-                      <button key={listing.id} type="button" className="room-row" onClick={() => void buyListing(listing)}>
-                        <strong>{mechanicById(listing.mechanic).name}</strong>
-                        <span>
-                          {listing.price} · {shortAddress(listing.seller)}
-                        </span>
                       </button>
                     ))}
                   </div>
