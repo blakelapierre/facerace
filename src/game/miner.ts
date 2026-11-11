@@ -1,6 +1,7 @@
 import { createTorrentRoom } from "@/vendor/meridian/net/signal-torrent.js";
 import { startRoom } from "@/vendor/meridian/net/room.js";
-import { blocksAfter, chainTip, consider, minedBy, REWARD, type Block } from "./chain";
+import { acceptBlock, blocksAfter, chainTip, minedBy, nextTx, REWARD, watchChain, type Block } from "./chain";
+import { txTagOf } from "./tx";
 import { hashHeader, nextBits, workMeets } from "./work";
 
 export type MineStatus = {
@@ -47,12 +48,12 @@ function formatRate(hashesPerSecond: number) {
 }
 
 function pack(block: Block) {
-  return `k|${block.height}|${block.bits}|${block.nonce}|${block.time}|${block.miner}|${block.hash}|${block.prev}`;
+  return `k|${block.height}|${block.bits}|${block.nonce}|${block.time}|${block.miner}|${block.hash}|${block.prev}|${block.txTag || 0}`;
 }
 
 function unpack(raw: string): Block | null {
   if (!raw.startsWith("k|")) return null;
-  const [, height, bits, nonce, time, miner, hash, prev] = raw.split("|");
+  const [, height, bits, nonce, time, miner, hash, prev, txTag] = raw.split("|");
   if (!hash || !prev || !miner) return null;
   return {
     height: Number(height) || 0,
@@ -62,6 +63,7 @@ function unpack(raw: string): Block | null {
     miner,
     hash,
     prev,
+    txTag: Number(txTag) || 0,
   };
 }
 
@@ -69,11 +71,13 @@ export function startMiner(options: {
   address: string;
   onStatus: (status: MineStatus) => void;
   onReward: (amount: number) => void;
+  allowGpu?: boolean;
 }): Handle {
   let power = savedPower();
   let stopped = false;
+  const allowGpu = options.allowGpu !== false;
   let gpu = false;
-  let detail = "GPU starting";
+  let detail = allowGpu ? "GPU starting" : "GPU left for the picture";
   const cpus: Worker[] = [];
   const dutyOf = new Map<number, number>();
   let hashes = 0;
@@ -82,6 +86,7 @@ export function startMiner(options: {
   let gpuWorker: Worker | null = null;
   let room: { setCatalog?: (next: string) => void; send?: (to: string, blob: string) => void; close: () => void; onMessage?: (fn: (message: { type?: string; from?: string; blob?: string }) => void) => void; list?: () => Promise<{ pubkey: string; catalog?: string }[]> } | null = null;
   const asked = new Map<string, number>();
+  let mining = nextTx();
 
   const publish = () => {
     const tip = chainTip();
@@ -103,6 +108,7 @@ export function startMiner(options: {
   };
 
   const job = () => {
+    mining = nextTx();
     const tip = chainTip();
     const time = Math.floor(Date.now() / 1000);
     return {
@@ -113,6 +119,7 @@ export function startMiner(options: {
       miner: options.address,
       bits: nextBits(tip, time),
       duty: plan(power).duty,
+      txTag: txTagOf(mining),
     };
   };
 
@@ -127,6 +134,7 @@ export function startMiner(options: {
     if (typeof found.nonce !== "number" || typeof found.time !== "number" || typeof found.prev !== "string" || typeof found.bits !== "number") return;
     const tip = chainTip();
     if (found.prev !== tip.hash) return;
+    const tx = mining;
     const header = {
       height: tip.height + 1,
       prev: tip.hash,
@@ -134,14 +142,17 @@ export function startMiner(options: {
       miner: options.address,
       nonce: found.nonce,
       bits: found.bits,
+      txTag: txTagOf(tx),
     };
     if (header.bits !== nextBits(tip, header.time)) return;
     const hash = hashHeader(header);
     if (!workMeets(hash, header.bits)) return;
-    if (consider({ ...header, hash }) !== "added") return;
-    options.onReward(REWARD);
-    postJob();
-    emit();
+    void acceptBlock({ ...header, hash, tx }).then((verdict) => {
+      if (verdict !== "added") return;
+      options.onReward(tx ? 0 : REWARD);
+      postJob();
+      emit();
+    });
   };
 
   const onCpu = (id: number) => (event: MessageEvent) => {
@@ -166,7 +177,7 @@ export function startMiner(options: {
       cpus.push(worker);
       worker.postMessage({ ...job(), duty, lane });
     }
-    if (!gpuWorker) {
+    if (allowGpu && !gpuWorker) {
       gpuWorker = new Worker(new URL("./gpu.worker.ts", import.meta.url), { type: "module" });
       gpuWorker.onmessage = (event: MessageEvent) => {
         const message = event.data as { type?: string; hashes?: number; spent?: number; wall?: number; nonce?: number; time?: number; prev?: string; bits?: number; on?: boolean };
@@ -178,7 +189,7 @@ export function startMiner(options: {
         if (message.type === "found") take(message);
       };
       gpuWorker.postMessage(job());
-    } else {
+    } else if (gpuWorker) {
       gpuWorker.postMessage({ cmd: "duty", duty });
       gpuWorker.postMessage(job());
     }
@@ -203,9 +214,12 @@ export function startMiner(options: {
             if (body.t === "want") {
               opened.send(message.from, JSON.stringify({ t: "blocks", blocks: blocksAfter(body.have || 0) }));
             } else if (body.t === "blocks" && Array.isArray(body.blocks)) {
-              let added = false;
-              for (const block of body.blocks) if (consider(block) === "added") added = true;
-              if (added) postJob();
+              const blocks = body.blocks;
+              void (async () => {
+                let added = false;
+                for (const block of blocks) if ((await acceptBlock(block)) === "added") added = true;
+                if (added) postJob();
+              })();
             }
           } catch {
             /* ignore a bad peer */
@@ -231,12 +245,20 @@ export function startMiner(options: {
       for (const peer of peers) {
         const block = unpack(peer.catalog || "");
         if (!block) continue;
-        const verdict = consider(block);
-        if (verdict === "added") postJob();
-        if ((verdict === "orphan" || block.height > tip.height + 1) && performance.now() - (asked.get(peer.pubkey) || 0) > 5000) {
-          asked.set(peer.pubkey, performance.now());
-          room?.send?.(peer.pubkey, JSON.stringify({ t: "want", have: chainTip().height }));
+        if (block.txTag) {
+          if (block.height > tip.height && performance.now() - (asked.get(peer.pubkey) || 0) > 5000) {
+            asked.set(peer.pubkey, performance.now());
+            room?.send?.(peer.pubkey, JSON.stringify({ t: "want", have: chainTip().height }));
+          }
+          continue;
         }
+        void acceptBlock(block).then((verdict) => {
+          if (verdict === "added") postJob();
+          if ((verdict === "orphan" || block.height > tip.height + 1) && performance.now() - (asked.get(peer.pubkey) || 0) > 5000) {
+            asked.set(peer.pubkey, performance.now());
+            room?.send?.(peer.pubkey, JSON.stringify({ t: "want", have: chainTip().height }));
+          }
+        });
       }
     });
     emit();
@@ -246,6 +268,9 @@ export function startMiner(options: {
     if (!stopped) postJob();
   }, 4000);
 
+  const unwatch = watchChain(() => {
+    if (!stopped) postJob();
+  });
   spawn();
   bootRoom();
   emit();
@@ -268,6 +293,7 @@ export function startMiner(options: {
     },
     stop() {
       stopped = true;
+      unwatch();
       window.clearInterval(poll);
       window.clearInterval(refresh);
       for (const worker of cpus) worker.terminate();

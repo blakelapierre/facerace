@@ -177,7 +177,7 @@ export function createGpuPainter(canvas) {
       antialias: false,
       depth: false,
       stencil: false,
-      preserveDrawingBuffer: true,
+      preserveDrawingBuffer: false,
     });
   } catch {
     return null;

@@ -8,29 +8,24 @@ import { rainAt } from "./terrain";
 import { COURSES, lapCount } from "./track";
 import { freshCode, openBoard, type ListedRoom, type MarketListing } from "./lobby";
 import type { RaceNet } from "./net";
-import { credit, openWallet, shortAddress, type Wallet } from "./wallet";
+import { openWallet, shortAddress, writePurse, type Wallet } from "./wallet";
 import { startMiner, type MineStatus } from "./miner";
+import { addSide, holdings, submitTx, watchChain, type Holdings } from "./chain";
+import { cartIdFor, signTx } from "./tx";
 import {
   HEATS,
   MECHANICS,
-  alreadyPaid,
-  dropCart,
-  giveCart,
-  hire,
   listingIsReal,
+  loadOffers,
   loadYard,
   mechanicById,
-  payIsReal,
-  pullMechanic,
   pullOffer,
   putOffer,
-  rememberPay,
   selectCart,
   signListing,
-  signPay,
   specOf,
-  stakeHeat,
-  loadOffers,
+  writeOffers,
+  writeYard,
   type Heat,
   type Offer,
   type Yard,
@@ -68,6 +63,27 @@ function clampUnit(n: number) {
   if (n > 1) return 1;
   if (n < -1) return -1;
   return n;
+}
+
+/** Intel integrated graphics compile the raytracer and then lock the machine. Paint those on the CPU. */
+function pictureBudget() {
+  const probe = document.createElement("canvas");
+  let name = "";
+  try {
+    const gl = probe.getContext("webgl2", { antialias: false, depth: false, stencil: false, powerPreference: "low-power" });
+    if (gl) {
+      const info = gl.getExtension("WEBGL_debug_renderer_info");
+      name = String((info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)) || "");
+      gl.getExtension("WEBGL_lose_context")?.loseContext();
+    }
+  } catch {
+    name = "";
+  }
+  const cores = navigator.hardwareConcurrency || 8;
+  const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 8;
+  const discrete = /nvidia|geforce|radeon|amd|apple|adreno|arc/i.test(name);
+  const integrated = /intel|uhd|hd graphics|iris|swiftshader|llvmpipe|basic render/i.test(name);
+  return { safe: !discrete && (integrated || (cores <= 4 && memory <= 8)), name };
 }
 
 function preferredHands(): "tilt" | "stick" {
@@ -114,7 +130,9 @@ export function Race() {
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [yard, setYard] = useState<Yard>(yardRef.current);
   const [offers, setOffers] = useState<Offer[]>(offerRef.current);
-  const [desk, setDesk] = useState<"race" | "yard" | "purse">("race");
+  const [book, setBook] = useState<Holdings | null>(null);
+  const syncRef = useRef<() => void>(() => {});
+  const [desk, setDesk] = useState<"race" | "yard" | "purse" | "wallet">("race");
   const [listings, setListings] = useState<MarketListing[]>([]);
   const [yardNote, setYardNote] = useState("");
   const [mine, setMine] = useState<MineStatus>({ height: 0, rate: "0 H/s", power: 10, gpu: false, load: 0, mined: 0, detail: "" });
@@ -136,14 +154,17 @@ export function Race() {
       if (kart.ai) botFaces.current.set(kart.id, paintFace(kart.seed));
     }
     faceRef.current = paintFace(7);
+    const budget = pictureBudget();
 
     let closedBoard = false;
+    let unwatch = () => {};
     void openWallet().then((opened) => {
       if (closedBoard) return;
       walletRef.current = opened;
       setWallet(opened);
       minerRef.current = startMiner({
         address: opened.address,
+        allowGpu: !budget.safe,
         onStatus: (status) => {
           if (closedBoard) return;
           setMine((prev) =>
@@ -158,14 +179,29 @@ export function Race() {
               : status,
           );
         },
-        onReward: (amount) => {
-          const purse = walletRef.current;
-          if (!purse || closedBoard) return;
-          const next = credit(purse, amount);
-          walletRef.current = next;
-          setWallet(next);
-        },
+        onReward: () => syncRef.current(),
       });
+      const sync = () => {
+        const purse = walletRef.current;
+        if (!purse || closedBoard) return;
+        const held = holdings(purse.address);
+        const nextPurse = writePurse(purse, held.chips);
+        walletRef.current = nextPurse;
+        const carts = [{ id: "stock", mechanic: "stock" }, ...held.carts];
+        const selected = carts.some((cart) => cart.id === yardRef.current.selected) ? yardRef.current.selected : "stock";
+        const nextYard = writeYard({ carts, selected });
+        yardRef.current = nextYard;
+        const owned = new Set(carts.map((cart) => cart.id));
+        const offers = offerRef.current.filter((offer) => owned.has(offer.cartId));
+        if (offers.length !== offerRef.current.length) offerRef.current = writeOffers(offers);
+        setWallet(nextPurse);
+        setYard(nextYard);
+        setOffers(offerRef.current);
+        setBook(held);
+      };
+      syncRef.current = sync;
+      sync();
+      unwatch = watchChain(() => sync());
     });
     void openBoard(
       (found, note) => {
@@ -178,27 +214,9 @@ export function Race() {
         void (async () => {
           const real: MarketListing[] = [];
           for (const listing of found) {
-            if (await listingIsReal(listing.mechanic, listing.price, listing.seller, listing.nonce, listing.x, listing.y, listing.sig)) real.push(listing);
+            if (await listingIsReal(listing.mechanic, listing.price, listing.seller, listing.nonce, listing.cartId, listing.x, listing.y, listing.sig)) real.push(listing);
           }
           if (!closedBoard) setListings(real);
-          let purse = walletRef.current;
-          let owned = yardRef.current;
-          if (!purse) return;
-          for (const pay of pays) {
-            if (pay.seller !== purse.address || alreadyPaid(pay.id)) continue;
-            if (!(await payIsReal(pay.seller, pay.amount, pay.buyer, pay.nonce, pay.mechanic, pay.x, pay.y, pay.sig))) continue;
-            rememberPay(pay.id);
-            purse = credit(purse, pay.amount);
-            owned = dropCart(owned, pay.mechanic);
-            offerRef.current = pullMechanic(offerRef.current, pay.mechanic);
-          }
-          walletRef.current = purse;
-          yardRef.current = owned;
-          if (!closedBoard) {
-            setWallet(purse);
-            setYard(owned);
-            setOffers(offerRef.current);
-          }
         })();
       },
     ).then((board) => {
@@ -230,10 +248,9 @@ export function Race() {
       const box = canvas.parentElement?.getBoundingClientRect();
       const cssW = box?.width || window.innerWidth || 960;
       const cssH = box?.height || window.innerHeight || 540;
-      // A full-window backing store plus the raytrace freezes desktop GPUs, then the picture goes black.
-      const scale = Math.min(1, 960 / Math.max(1, cssW), 540 / Math.max(1, cssH));
-      const viewW = Math.max(320, Math.floor(cssW * scale));
-      const viewH = Math.max(180, Math.floor(cssH * scale));
+      const scale = Math.min(1, (budget.safe ? 480 : 960) / Math.max(1, cssW, cssH));
+      const viewW = Math.max(2, Math.floor(cssW * scale));
+      const viewH = Math.max(2, Math.floor(cssH * scale));
       if (canvas.width === viewW && canvas.height === viewH) return false;
       canvas.width = viewW;
       canvas.height = viewH;
@@ -307,31 +324,54 @@ export function Race() {
     let gpuWait = false;
     let gpuAt = 0;
     let ambAt = 0;
+    let cpuW = budget.safe ? 96 : 80;
+    let cpuH = budget.safe ? 54 : 45;
+    let cpuGap = budget.safe ? 280 : 800;
+    let scratch: HTMLCanvasElement | null = null;
 
     const boot = async () => {
-      const gpu = await import("@/vendor/meridian/render/gpu.js");
       const frame = await import("@/vendor/meridian/engine/frame.js");
       cpu = frame;
       if (!alive) return;
       const make = () => {
         fit();
-        painter = gpu.createGpuPainter(canvas);
-        if (!painter) {
-          glFailed = canvas.dataset.gpuError || "no WebGL2";
+        if (budget.safe) {
+          glFailed = "cpu picture";
           ctx2d = canvas.getContext("2d");
-        } else painter.setSmoothing?.(true);
+          painter = null;
+          return;
+        }
+        void import("@/vendor/meridian/render/gpu.js").then((gpu) => {
+          if (!alive || budget.safe) return;
+          painter = gpu.createGpuPainter(canvas);
+          if (!painter) {
+            glFailed = canvas.dataset.gpuError || "no WebGL2";
+            ctx2d = canvas.getContext("2d");
+          } else painter.setSmoothing?.(true);
+        });
       };
+      if (budget.safe) await new Promise((resolve) => setTimeout(resolve, 400));
+      if (!alive) return;
       make();
       const onResize = () => {
+        if (!alive) return;
+        if (budget.safe) {
+          if (!fit()) return;
+          ctx2d = canvas.getContext("2d");
+          return;
+        }
         traceScale = 0.72;
         timed = false;
-        if (!fit() || !alive) return;
+        if (!fit()) return;
         if (glFailed) {
           ctx2d = canvas.getContext("2d");
           return;
         }
-        painter = gpu.createGpuPainter(canvas);
-        painter?.setSmoothing?.(true);
+        void import("@/vendor/meridian/render/gpu.js").then((gpu) => {
+          if (!alive) return;
+          painter = gpu.createGpuPainter(canvas);
+          painter?.setSmoothing?.(true);
+        });
       };
       window.addEventListener("resize", onResize);
       const lost = (event: Event) => {
@@ -342,9 +382,13 @@ export function Race() {
         timed = false;
       };
       const restored = () => {
-        painter = gpu.createGpuPainter(canvas);
-        painter?.setSmoothing?.(true);
-        gpuWait = false;
+        if (budget.safe) return;
+        void import("@/vendor/meridian/render/gpu.js").then((gpu) => {
+          if (!alive) return;
+          painter = gpu.createGpuPainter(canvas);
+          painter?.setSmoothing?.(true);
+          gpuWait = false;
+        });
       };
       canvas.addEventListener("webglcontextlost", lost);
       canvas.addEventListener("webglcontextrestored", restored);
@@ -475,19 +519,28 @@ export function Race() {
           gpuWait = true;
           lastPaint = now;
         } else glFailed = painter.failReason?.() || "picture failed";
-      } else if (!painter && glFailed && cpu && ctx2d && now - lastPaint > 800) {
+      } else if (!painter && glFailed && cpu && ctx2d && now - lastPaint > cpuGap) {
         lastPaint = now;
-        const w = 80;
-        const h = 45;
-        const picture = buildPicture(bodies, view, w, h, true, raceSun(weatherRef.current), rainAt(weatherRef.current));
-        const pixels = cpu.paintFrame(picture, w, h);
-        const image = new ImageData(new Uint8ClampedArray(pixels), w, h);
-        const scratch = document.createElement("canvas");
-        scratch.width = w;
-        scratch.height = h;
+        const started = performance.now();
+        const picture = buildPicture(bodies, view, cpuW, cpuH, true, raceSun(weatherRef.current), rainAt(weatherRef.current));
+        const pixels = cpu.paintFrame(picture, cpuW, cpuH);
+        const image = new ImageData(new Uint8ClampedArray(pixels), cpuW, cpuH);
+        if (!scratch) scratch = document.createElement("canvas");
+        scratch.width = cpuW;
+        scratch.height = cpuH;
         scratch.getContext("2d")?.putImageData(image, 0, 0);
         ctx2d.imageSmoothingEnabled = true;
         ctx2d.drawImage(scratch, 0, 0, canvas.width, canvas.height);
+        const spent = performance.now() - started;
+        if (spent > 80) {
+          cpuW = Math.max(64, cpuW - 16);
+          cpuH = Math.max(36, Math.round((cpuW * boxH) / Math.max(1, boxW) / 2) * 2);
+          cpuGap = 520;
+        } else if (spent < 36 && cpuW < (budget.safe ? 160 : 96)) {
+          cpuW += 16;
+          cpuH = Math.max(36, Math.round((cpuW * boxH) / Math.max(1, boxW) / 2) * 2);
+          cpuGap = 240;
+        }
       }
       netRef.current?.tick(
         {
@@ -511,9 +564,8 @@ export function Race() {
           heat.paid = true;
           const purse = walletRef.current;
           if (purse) {
-            const paid = credit(purse, heat.purse);
-            walletRef.current = paid;
-            setWallet(paid);
+            addSide(purse.address, heat.purse);
+            syncRef.current();
             current.banner = `Won ${heat.purse}`;
           }
         }
@@ -538,6 +590,7 @@ export function Race() {
 
     return () => {
       alive = false;
+      unwatch();
       cancelAnimationFrame(raf);
       window.removeEventListener("keydown", keysDown);
       window.removeEventListener("keyup", keysUp);
@@ -740,30 +793,69 @@ export function Race() {
     if (statusRef.current) statusRef.current.textContent = "Room posted";
   }
 
-  function keep(nextWallet: Wallet, nextYard: Yard, note = "") {
-    walletRef.current = nextWallet;
-    yardRef.current = nextYard;
-    setWallet(nextWallet);
-    setYard(nextYard);
-    setYardNote(note);
-  }
-
-  function hireMechanic(id: string) {
+  async function hireMechanic(id: string) {
     const purse = walletRef.current;
     if (!purse) return;
-    const result = hire(purse, yardRef.current, id);
-    keep(result.wallet, result.yard, result.error || `${mechanicById(id).name} rolled it out.`);
+    const mechanic = mechanicById(id);
+    const held = holdings(purse.address);
+    if (held.chips < mechanic.cost) {
+      setYardNote("Not enough chips.");
+      return;
+    }
+    const nonce = held.nonce + 1;
+    const tx = await signTx(purse, {
+      kind: "hire",
+      nonce,
+      mechanic: id,
+      cartId: cartIdFor(id, purse.address, nonce),
+      seller: "",
+      price: mechanic.cost,
+      ask: "",
+      askNonce: 0,
+      sx: "",
+      sy: "",
+    });
+    const err = await submitTx(tx);
+    setYardNote(err || `${mechanic.name} mints when the next block confirms it.`);
+    syncRef.current();
   }
 
-  async function listSelected() {
+  async function listOnChain(cartId: string) {
     const purse = walletRef.current;
-    const selected = yardRef.current.carts.find((cart) => cart.id === yardRef.current.selected);
+    const selected = yardRef.current.carts.find((cart) => cart.id === cartId);
+    if (!purse || !selected || selected.mechanic === "stock") {
+      setYardNote("Pick a built cart to list.");
+      return;
+    }
+    const held = holdings(purse.address);
+    const price = mechanicById(selected.mechanic).cost;
+    const tx = await signTx(purse, {
+      kind: "list",
+      nonce: held.nonce + 1,
+      mechanic: selected.mechanic,
+      cartId,
+      seller: purse.address,
+      price,
+      ask: "",
+      askNonce: 0,
+      sx: "",
+      sy: "",
+    });
+    const err = await submitTx(tx);
+    setYardNote(err || `${mechanicById(selected.mechanic).name} goes on the chain in the next block.`);
+    setDesk("purse");
+    syncRef.current();
+  }
+
+  async function listSelected(cartId: string) {
+    const purse = walletRef.current;
+    const selected = yardRef.current.carts.find((cart) => cart.id === cartId);
     if (!purse || !selected || selected.mechanic === "stock") {
       setYardNote("Pick a built cart to list.");
       return;
     }
     const price = mechanicById(selected.mechanic).cost;
-    const signed = await signListing(purse, selected.mechanic, price);
+    const signed = await signListing(purse, selected.mechanic, price, selected.id);
     const offer: Offer = {
       cartId: selected.id,
       mechanic: selected.mechanic,
@@ -776,45 +868,103 @@ export function Race() {
     };
     offerRef.current = putOffer(offerRef.current, offer);
     setOffers(offerRef.current);
-    boardRef.current?.post(`s|${selected.mechanic}|${price}|${signed.wallet.address}|${signed.nonce}|${signed.wallet.x}|${signed.wallet.y}|${signed.sig}`);
-    keep(signed.wallet, yardRef.current, `${mechanicById(selected.mechanic).name} is for sale at ${price}.`);
+    boardRef.current?.post(`s|${selected.mechanic}|${price}|${signed.wallet.address}|${signed.nonce}|${selected.id}|${signed.wallet.x}|${signed.wallet.y}|${signed.sig}`);
+    walletRef.current = signed.wallet;
+    setWallet(signed.wallet);
+    setYardNote(`${mechanicById(selected.mechanic).name} is posted on the trackers. A buy still confirms on chain.`);
     setDesk("purse");
   }
 
   function cancelOffer(cartId: string) {
     offerRef.current = pullOffer(offerRef.current, cartId);
     setOffers(offerRef.current);
-    setYardNote("Pulled the listing.");
+    setYardNote("Pulled the tracker listing.");
     if (offerRef.current.length === 0) boardRef.current?.post("");
+  }
+
+  async function buyChain(cartId: string, seller: string, price: number, mechanic: string) {
+    const purse = walletRef.current;
+    if (!purse) return;
+    if (seller === purse.address) {
+      const held = holdings(purse.address);
+      const tx = await signTx(purse, {
+        kind: "drop",
+        nonce: held.nonce + 1,
+        mechanic,
+        cartId,
+        seller: purse.address,
+        price,
+        ask: "",
+        askNonce: 0,
+        sx: "",
+        sy: "",
+      });
+      const err = await submitTx(tx);
+      setYardNote(err || "Pull waits for the next block.");
+      syncRef.current();
+      return;
+    }
+    const held = holdings(purse.address);
+    if (held.chips < price) {
+      setYardNote("Not enough chips.");
+      return;
+    }
+    const tx = await signTx(purse, {
+      kind: "buy",
+      nonce: held.nonce + 1,
+      mechanic,
+      cartId,
+      seller,
+      price,
+      ask: "",
+      askNonce: 0,
+      sx: "",
+      sy: "",
+    });
+    const err = await submitTx(tx);
+    setYardNote(err || "Buy waits for the next block.");
+    syncRef.current();
   }
 
   async function buyListing(listing: MarketListing) {
     const purse = walletRef.current;
     if (!purse) return;
     if (listing.seller === purse.address) {
-      setYardNote("That’s your own listing.");
+      cancelOffer(listing.cartId);
       return;
     }
-    const next = stakeHeat(purse, { id: "buy", name: "buy", stake: listing.price, purse: 0 });
-    if (!next) {
+    const held = holdings(purse.address);
+    if (held.chips < listing.price) {
       setYardNote("Not enough chips.");
       return;
     }
-    const paid = await signPay(next, listing.seller, listing.price, listing.mechanic);
-    const owned = giveCart(yardRef.current, listing.mechanic);
-    boardRef.current?.post(`p|${listing.seller}|${listing.price}|${paid.wallet.address}|${paid.nonce}|${listing.mechanic}|${paid.wallet.x}|${paid.wallet.y}|${paid.sig}`);
-    keep(paid.wallet, owned, `${mechanicById(listing.mechanic).name} is in your yard.`);
+    const tx = await signTx(purse, {
+      kind: "buy",
+      nonce: held.nonce + 1,
+      mechanic: listing.mechanic,
+      cartId: listing.cartId,
+      seller: listing.seller,
+      price: listing.price,
+      ask: listing.sig,
+      askNonce: listing.nonce,
+      sx: listing.x,
+      sy: listing.y,
+    });
+    const err = await submitTx(tx);
+    setYardNote(err || "Buy waits for the next block.");
+    syncRef.current();
   }
 
   function enterHeat(heat: Heat) {
     const purse = walletRef.current;
     if (!purse) return;
-    const next = stakeHeat(purse, heat);
-    if (!next) {
+    if (holdings(purse.address).chips < heat.stake) {
       setYardNote("Not enough chips for that heat.");
       return;
     }
-    keep(next, yardRef.current, `${heat.name} heat. Win pays ${heat.purse}.`);
+    addSide(purse.address, -heat.stake);
+    syncRef.current();
+    setYardNote(`${heat.name} heat. Win pays ${heat.purse}.`);
     heatRef.current = { ...heat, paid: false };
     void begin("", courseId);
   }
@@ -908,6 +1058,9 @@ export function Race() {
                   Yard
                 </button>
                 <button type="button" className={desk === "purse" ? "is-on" : ""} onClick={() => setDesk("purse")}>
+                  Purse
+                </button>
+                <button type="button" className={desk === "wallet" ? "is-on" : ""} onClick={() => setDesk("wallet")}>
                   Wallet
                 </button>
               </div>
@@ -969,7 +1122,8 @@ export function Race() {
               ) : null}
               {desk === "yard" ? (
                 <>
-                  <h2>Hire a mechanic.</h2>
+                  <h2>Mint a cart.</h2>
+                  <p className="race-note">A hire mints the cart when the next block confirms it.</p>
                   <div className="course-row">
                     {yard.carts.map((cart) => (
                       <button
@@ -992,7 +1146,7 @@ export function Race() {
                       <button key={mechanic.id} type="button" className="room-row" onClick={() => hireMechanic(mechanic.id)}>
                         <strong>{mechanic.name}</strong>
                         <span>
-                          {mechanic.line} · {mechanic.cost}
+                          {mechanic.line} · mint {mechanic.cost}
                         </span>
                       </button>
                     ))}
@@ -1002,43 +1156,62 @@ export function Race() {
               ) : null}
               {desk === "purse" ? (
                 <>
-                  <h2>Wallet</h2>
-                  <label className="pit-name">
-                    Address
-                    <input readOnly value={wallet?.address ?? ""} onFocus={(event) => event.currentTarget.select()} onKeyDown={(event) => event.key === "Enter" && event.preventDefault()} />
-                  </label>
+                  <h2>Your pit.</h2>
                   <p className="race-note">
-                    {wallet ? `${wallet.purse} chips` : "Opening…"} · chain #{mine.height} · {mine.mined} mined · {mine.load}% cpu
+                    {book?.pending[0]
+                      ? `${book.pending[0].kind === "hire" ? "Mint" : book.pending[0].kind} ${mechanicById(book.pending[0].mechanic).name} · waiting for a block`
+                      : "Nothing is waiting on a block."}
                   </p>
                   <div className="room-line">
                     {yard.carts.filter((cart) => cart.mechanic !== "stock").length === 0 ? (
-                      <p className="race-note">Hire a mechanic in the yard, then list that cart here.</p>
+                      <p className="race-note">You hold the stock kart. Mint one in the yard.</p>
                     ) : null}
                     {yard.carts
                       .filter((cart) => cart.mechanic !== "stock")
-                      .slice(0, 3)
+                      .slice(0, 2)
                       .map((cart) => {
                         const offer = offers.find((item) => item.cartId === cart.id);
+                        const chain = book?.lists.find((item) => item.cartId === cart.id);
                         return (
-                          <button
-                            key={cart.id}
-                            type="button"
-                            className="room-row"
-                            onClick={() => {
-                              if (offer) cancelOffer(cart.id);
-                              else {
-                                const next = selectCart(yard, cart.id);
-                                yardRef.current = next;
-                                setYard(next);
-                                void listSelected();
-                              }
-                            }}
-                          >
-                            <strong>{mechanicById(cart.mechanic).name}</strong>
-                            <span>{offer ? `For sale · ${offer.price} · pull` : `List · ${mechanicById(cart.mechanic).cost}`}</span>
-                          </button>
+                          <div key={cart.id} className="room-row">
+                            <strong>
+                              {mechanicById(cart.mechanic).name}
+                              {chain ? " · on chain" : offer ? " · on trackers" : ""}
+                            </strong>
+                            <span className="row-actions">
+                              {chain ? (
+                                <button type="button" onClick={() => void buyChain(cart.id, chain.seller, chain.price, chain.mechanic)}>
+                                  Pull {chain.price}
+                                </button>
+                              ) : offer ? (
+                                <button type="button" onClick={() => cancelOffer(cart.id)}>
+                                  Pull trackers
+                                </button>
+                              ) : (
+                                <>
+                                  <button type="button" onClick={() => void listOnChain(cart.id)}>
+                                    Chain
+                                  </button>
+                                  <button type="button" onClick={() => void listSelected(cart.id)}>
+                                    Trackers
+                                  </button>
+                                </>
+                              )}
+                            </span>
+                          </div>
                         );
                       })}
+                    {book?.lists
+                      .filter((item) => item.seller !== wallet?.address)
+                      .slice(0, 2)
+                      .map((item) => (
+                        <button key={item.cartId} type="button" className="room-row" onClick={() => void buyChain(item.cartId, item.seller, item.price, item.mechanic)}>
+                          <strong>{mechanicById(item.mechanic).name}</strong>
+                          <span>
+                            Buy {item.price} · chain · {shortAddress(item.seller)}
+                          </span>
+                        </button>
+                      ))}
                     {listings
                       .filter((listing) => listing.seller !== wallet?.address)
                       .slice(0, 2)
@@ -1046,11 +1219,33 @@ export function Race() {
                         <button key={listing.id} type="button" className="room-row" onClick={() => void buyListing(listing)}>
                           <strong>{mechanicById(listing.mechanic).name}</strong>
                           <span>
-                            Buy {listing.price} · {shortAddress(listing.seller)}
+                            Buy {listing.price} · trackers · {shortAddress(listing.seller)}
                           </span>
                         </button>
                       ))}
                   </div>
+                  <div className="race-actions">
+                    {HEATS.map((heat) => (
+                      <button key={heat.id} type="button" className="race-ghost" onClick={() => enterHeat(heat)}>
+                        {heat.name} {heat.stake}
+                      </button>
+                    ))}
+                  </div>
+                  {yardNote ? <p className="race-note">{yardNote}</p> : null}
+                </>
+              ) : null}
+              {desk === "wallet" ? (
+                <>
+                  <h2>Wallet</h2>
+                  <p className="race-note">This key signs mints and trades. The chain confirms them.</p>
+                  <label className="pit-name">
+                    Address
+                    <input readOnly value={wallet?.address ?? ""} onFocus={(event) => event.currentTarget.select()} onKeyDown={(event) => event.key === "Enter" && event.preventDefault()} />
+                  </label>
+                  <p className="race-note">
+                    {wallet ? `${wallet.purse} chips` : "Opening…"} · chain #{mine.height} · {mine.rate} · {mine.load}% cpu · {mine.gpu ? "GPU on" : mine.detail.slice(0, 36) || "GPU off"}
+                    {mine.mined ? ` · ${mine.mined} mined` : ""}
+                  </p>
                   <label className="mine-row">
                     Power {mine.power}%
                     <input
@@ -1064,14 +1259,6 @@ export function Race() {
                       onChange={(event) => minerRef.current?.setPower(Number(event.target.value))}
                     />
                   </label>
-                  <div className="race-actions">
-                    {HEATS.map((heat) => (
-                      <button key={heat.id} type="button" className="race-ghost" onClick={() => enterHeat(heat)}>
-                        {heat.name} {heat.stake}
-                      </button>
-                    ))}
-                  </div>
-                  {yardNote ? <p className="race-note">{yardNote}</p> : null}
                 </>
               ) : null}
             </>
