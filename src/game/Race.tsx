@@ -65,7 +65,7 @@ function clampUnit(n: number) {
   return n;
 }
 
-/** Intel integrated graphics compile the raytracer and then lock the machine. Paint those on the CPU. */
+/** Software GL gets a tiny CPU picture. Intel integrated gets a smaller raytracer on the GPU. */
 function pictureBudget() {
   const probe = document.createElement("canvas");
   let name = "";
@@ -79,11 +79,20 @@ function pictureBudget() {
   } catch {
     name = "";
   }
+  try {
+    const pick = localStorage.getItem("facerace-picture");
+    if (pick === "gpu") return { mode: "integrated" as const, name };
+    if (pick === "cpu") return { mode: "software" as const, name };
+  } catch {
+    /* ignore */
+  }
   const cores = navigator.hardwareConcurrency || 8;
   const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 8;
+  const software = /swiftshader|llvmpipe|basic render/i.test(name);
   const discrete = /nvidia|geforce|radeon|amd|apple|adreno|arc/i.test(name);
-  const integrated = /intel|uhd|hd graphics|iris|swiftshader|llvmpipe|basic render/i.test(name);
-  return { safe: !discrete && (integrated || (cores <= 4 && memory <= 8)), name };
+  const integrated = !discrete && !software && (/intel|uhd|hd graphics|iris/i.test(name) || (cores <= 4 && memory <= 8));
+  const mode = software ? "software" : integrated ? "integrated" : "discrete";
+  return { mode, name } as const;
 }
 
 function preferredHands(): "tilt" | "stick" {
@@ -164,7 +173,7 @@ export function Race() {
       setWallet(opened);
       minerRef.current = startMiner({
         address: opened.address,
-        allowGpu: !budget.safe,
+        allowGpu: budget.mode === "discrete",
         onStatus: (status) => {
           if (closedBoard) return;
           setMine((prev) =>
@@ -248,7 +257,8 @@ export function Race() {
       const box = canvas.parentElement?.getBoundingClientRect();
       const cssW = box?.width || window.innerWidth || 960;
       const cssH = box?.height || window.innerHeight || 540;
-      const scale = Math.min(1, (budget.safe ? 480 : 960) / Math.max(1, cssW, cssH));
+      const cap = budget.mode === "integrated" ? 720 : budget.mode === "software" ? 480 : 960;
+      const scale = Math.min(1, cap / Math.max(1, cssW, cssH));
       const viewW = Math.max(2, Math.floor(cssW * scale));
       const viewH = Math.max(2, Math.floor(cssH * scale));
       if (canvas.width === viewW && canvas.height === viewH) return false;
@@ -319,73 +329,74 @@ export function Race() {
     let raf = 0;
     let lastPaint = 0;
     let paintMs = 120;
-    let traceScale = 0.72;
+    let traceScale = budget.mode === "integrated" ? 0.36 : 0.72;
+    let traceMax = budget.mode === "integrated" ? 1 : 1;
     let timed = false;
     let gpuWait = false;
     let gpuAt = 0;
     let ambAt = 0;
-    let cpuW = budget.safe ? 96 : 80;
-    let cpuH = budget.safe ? 54 : 45;
-    let cpuGap = budget.safe ? 280 : 800;
+    let cpuW = 80;
+    let cpuH = 45;
+    let cpuGap = 800;
     let scratch: HTMLCanvasElement | null = null;
 
+    const tune = budget.mode === "integrated" ? { spheres: 80, boxes: 8, shapes: 64 } : undefined;
     const boot = async () => {
       const frame = await import("@/vendor/meridian/engine/frame.js");
       cpu = frame;
       if (!alive) return;
       const make = () => {
         fit();
-        if (budget.safe) {
+        if (budget.mode === "software") {
           glFailed = "cpu picture";
           ctx2d = canvas.getContext("2d");
           painter = null;
           return;
         }
         void import("@/vendor/meridian/render/gpu.js").then((gpu) => {
-          if (!alive || budget.safe) return;
-          painter = gpu.createGpuPainter(canvas);
+          if (!alive) return;
+          painter = gpu.createGpuPainter(canvas, tune);
           if (!painter) {
             glFailed = canvas.dataset.gpuError || "no WebGL2";
             ctx2d = canvas.getContext("2d");
           } else painter.setSmoothing?.(true);
         });
       };
-      if (budget.safe) await new Promise((resolve) => setTimeout(resolve, 400));
+      if (budget.mode !== "discrete") await new Promise((resolve) => setTimeout(resolve, 300));
       if (!alive) return;
       make();
       const onResize = () => {
         if (!alive) return;
-        if (budget.safe) {
-          if (!fit()) return;
-          ctx2d = canvas.getContext("2d");
-          return;
-        }
-        traceScale = 0.72;
-        timed = false;
-        if (!fit()) return;
-        if (glFailed) {
-          ctx2d = canvas.getContext("2d");
-          return;
-        }
-        void import("@/vendor/meridian/render/gpu.js").then((gpu) => {
-          if (!alive) return;
-          painter = gpu.createGpuPainter(canvas);
-          painter?.setSmoothing?.(true);
-        });
+        window.setTimeout(() => {
+          if (!alive || !fit()) return;
+          if (budget.mode === "software") {
+            ctx2d = canvas.getContext("2d");
+            return;
+          }
+          traceScale = budget.mode === "integrated" ? 0.36 : 0.72;
+          traceMax = 1;
+          timed = false;
+          void import("@/vendor/meridian/render/gpu.js").then((gpu) => {
+            if (!alive) return;
+            painter = gpu.createGpuPainter(canvas, tune);
+            painter?.setSmoothing?.(true);
+            gpuWait = false;
+          });
+        }, budget.mode === "integrated" ? 600 : 0);
       };
       window.addEventListener("resize", onResize);
       const lost = (event: Event) => {
         event.preventDefault();
         painter = null;
         gpuWait = false;
-        traceScale = 0.72;
+        traceScale = budget.mode === "integrated" ? 0.36 : 0.72;
         timed = false;
       };
       const restored = () => {
-        if (budget.safe) return;
+        if (budget.mode === "software") return;
         void import("@/vendor/meridian/render/gpu.js").then((gpu) => {
           if (!alive) return;
-          painter = gpu.createGpuPainter(canvas);
+          painter = gpu.createGpuPainter(canvas, tune);
           painter?.setSmoothing?.(true);
           gpuWait = false;
         });
@@ -506,11 +517,18 @@ export function Race() {
       }
       if (painter && !gpuWait && !painter.busy?.()) {
         if (timed) {
-          if (paintMs < (settled ? 110 : 80)) traceScale = Math.min(1, traceScale * 1.12);
+          if (budget.mode === "integrated") {
+            if (paintMs < 32) traceScale = Math.min(traceMax, traceScale * 1.06);
+            else if (paintMs > 50) {
+              traceScale = Math.max(0.22, traceScale * 0.8);
+              traceMax = traceScale;
+            }
+          } else if (paintMs < (settled ? 110 : 80)) traceScale = Math.min(1, traceScale * 1.12);
           else if (paintMs > (settled ? 180 : 150)) traceScale = Math.max(0.58, traceScale * 0.84);
         }
-        const traceW = Math.max(320, Math.min(boxW, Math.round((boxW * traceScale) / 4) * 4));
-        const traceH = Math.max(180, Math.min(boxH, Math.round((boxH * traceScale) / 4) * 4));
+        const floorW = budget.mode === "integrated" ? 160 : 320;
+        const traceW = Math.max(floorW, Math.min(boxW, Math.round((boxW * traceScale) / 4) * 4));
+        const traceH = Math.max(90, Math.min(boxH, Math.round((traceW * boxH) / Math.max(1, boxW) / 4) * 4));
         const picture = buildPicture(bodies, view, traceW, traceH, settled, raceSun(weatherRef.current), rainAt(weatherRef.current));
         gpuAt = performance.now();
         const ok = painter.paint(picture, traceW, traceH);
@@ -536,7 +554,7 @@ export function Race() {
           cpuW = Math.max(64, cpuW - 16);
           cpuH = Math.max(36, Math.round((cpuW * boxH) / Math.max(1, boxW) / 2) * 2);
           cpuGap = 520;
-        } else if (spent < 36 && cpuW < (budget.safe ? 160 : 96)) {
+        } else if (spent < 36 && cpuW < 96) {
           cpuW += 16;
           cpuH = Math.max(36, Math.round((cpuW * boxH) / Math.max(1, boxW) / 2) * 2);
           cpuGap = 240;

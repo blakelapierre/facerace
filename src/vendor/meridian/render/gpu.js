@@ -169,7 +169,10 @@ export function fitCanvas(canvas, scale = 1, pixels = null) {
   if (canvas.height !== height) canvas.height = height;
 }
 
-export function createGpuPainter(canvas) {
+export function createGpuPainter(canvas, tune) {
+  const LOOP_SPHERES = Math.max(8, Math.min(MAX_SPHERES, tune?.spheres || MAX_SPHERES));
+  const LOOP_BOXES = Math.max(1, Math.min(MAX_BOXES, tune?.boxes || MAX_BOXES));
+  const LOOP_SHAPES = Math.max(8, Math.min(SHAPE_LINEAR, tune?.shapes || SHAPE_LINEAR));
   let gl;
   try {
     gl = canvas.getContext("webgl2", {
@@ -178,6 +181,7 @@ export function createGpuPainter(canvas) {
       depth: false,
       stencil: false,
       preserveDrawingBuffer: false,
+      powerPreference: tune ? "low-power" : "high-performance",
     });
   } catch {
     return null;
@@ -905,7 +909,7 @@ void considerShapes(vec3 ro, vec3 rd, inout float bestT, inout vec3 bestP, inout
     walkShapes(ro, rd, bestT, bestP, bestN, bestRgb, bestRef, found);
     return;
   }
-  for (int i = 0; i < ${SHAPE_LINEAR}; i++) {
+  for (int i = 0; i < ${LOOP_SHAPES}; i++) {
     if (i >= uShapeCount) return;
     considerOne(i, ro, rd, bestT, bestP, bestN, bestRgb, bestRef, found);
   }
@@ -1030,7 +1034,7 @@ bool treeBlocks(vec3 sro, vec3 ld, float lightT) {
 
 bool blocked(vec3 from, vec3 rd) {
   float t;
-  for (int i = 0; i < ${MAX_BOXES}; i++) {
+  for (int i = 0; i < ${LOOP_BOXES}; i++) {
     if (i >= uBoxes) break;
     vec3 bmin = texelFetch(uBoxMin, ivec2(i, 0), 0).xyz;
     vec3 bmax = texelFetch(uBoxMax, ivec2(i, 0), 0).xyz;
@@ -1041,7 +1045,7 @@ bool blocked(vec3 from, vec3 rd) {
   if (treeBlocks(from, rd, 80.0)) return true;
 /*@tree*/
 /*@line*/
-  for (int i = 0; i < ${MAX_SPHERES}; i++) {
+  for (int i = 0; i < ${LOOP_SPHERES}; i++) {
     if (i >= uSpheres) break;
     vec4 sphere = texelFetch(uSphereTex, ivec2(i, 0), 0);
     if (sphereHit(from, rd, sphere, t) && t < 80.0) return true;
@@ -1222,7 +1226,7 @@ void main() {
       bestRef = 0.02;
       found = true;
     }
-    for (int i = 0; i < ${MAX_BOXES}; i++) {
+    for (int i = 0; i < ${LOOP_BOXES}; i++) {
       if (i >= uBoxes) break;
       vec3 bmin = texelFetch(uBoxMin, ivec2(i, 0), 0).xyz;
       vec3 bmax = texelFetch(uBoxMax, ivec2(i, 0), 0).xyz;
@@ -1242,7 +1246,7 @@ void main() {
     walkSpheres(ro, rd, bestT, bestP, bestN, bestRgb, bestRef, found, bounce);
 /*@tree*/
 /*@line*/
-    for (int i = 0; i < ${MAX_SPHERES}; i++) {
+    for (int i = 0; i < ${LOOP_SPHERES}; i++) {
       if (i >= uSpheres) break;
       vec4 sphere = texelFetch(uSphereTex, ivec2(i, 0), 0);
       if (!sphereHit(ro, rd, sphere, t) || t <= 0.02 || t >= bestT) continue;
