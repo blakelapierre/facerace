@@ -87,6 +87,19 @@ export type RaceNet = {
   peers: () => number;
 };
 
+function selfId() {
+  const key = "facerace-peer";
+  try {
+    const had = sessionStorage.getItem(key);
+    if (had && /^fr-[0-9a-z-]{8,}$/i.test(had)) return had;
+    const id = `fr-${crypto.randomUUID()}`;
+    sessionStorage.setItem(key, id);
+    return id;
+  } catch {
+    return `fr-${crypto.randomUUID()}`;
+  }
+}
+
 function hashColor(id: string): [number, number, number] {
   let h = 2166136261;
   for (let i = 0; i < id.length; i++) h = Math.imul(h ^ id.charCodeAt(i), 16777619);
@@ -100,7 +113,7 @@ export async function createRaceNet(
   roomCode: string,
   onStatus: (line: string) => void,
 ): Promise<RaceNet> {
-  const me = `fr-${crypto.randomUUID().slice(0, 8)}`;
+  const me = selfId();
   const cell = `facerace/${roomCode.trim().toLowerCase() || "pit"}`;
   const links = new Map<string, Link>();
   const opening = new Set<string>();
@@ -307,7 +320,7 @@ export async function createRaceNet(
     },
     people: () =>
       [...links.values()]
-        .filter((link) => !link.dropped)
+        .filter((link) => !link.dropped && (link.ctrl.readyState === "open" || link.snap.readyState === "open"))
         .map((link) => ({
           id: link.id,
           name: link.name,

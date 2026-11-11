@@ -69,6 +69,17 @@ float heightAt(vec2 p) {
   return max(-2.0, h);
 }
 
+float coneBound(vec2 a, vec2 b, vec2 c, float radius, float height) {
+  vec2 ab = b - a;
+  float span = max(dot(ab, ab), 0.0001);
+  float u = clamp(dot(c - a, ab) / span, 0.0, 1.0);
+  float dist = length(a + ab * u - c);
+  float reach = radius * 0.92;
+  if (dist >= reach) return 0.0;
+  float s = 1.0 - dist / reach;
+  return height * s * s * (3.0 - 2.0 * s);
+}
+
 float nearest(vec2 p) {
   float best = 200.0;
   for (int i = 0; i < 64; i++) {
@@ -117,7 +128,7 @@ void main() {
   float tanHalf = tan(uFov * 0.5);
   vec3 rd = normalize(uFwd + uRight * (ndc.x * tanHalf * uAspect) + uUp * (ndc.y * tanHalf));
   vec3 sun = normalize(uSun);
-  float best = 400.0;
+  float best = 8000.0;
   vec3 rgb = vec3(0.0);
   bool hit = false;
   for (int i = 0; i < 12; i++) {
@@ -138,22 +149,29 @@ void main() {
     ball(uCam, rd, pos - fwd * 0.4 + side * 0.46 + vec3(0.0, 0.0, -0.24), 0.2, wheel, -1.0, fwd, sun, best, rgb, hit);
     ball(uCam, rd, pos - fwd * 0.4 - side * 0.46 + vec3(0.0, 0.0, -0.24), 0.2, wheel, -1.0, fwd, sun, best, rgb, hit);
   }
-  float prevT = 0.3;
-  float t = 0.3;
+  float prevT = 0.35;
+  float t = 0.35;
   float ground = -1.0;
-  for (int i = 0; i < 42; i++) {
-    vec3 p = uCam + rd * t;
-    float h = heightAt(p.xy);
-    if (p.z < h) {
-      ground = t;
+  for (int i = 0; i < 64; i++) {
+    float stride = min(320.0, 0.45 + t * 0.18);
+    float nextT = min(t + stride, 8000.0);
+    vec3 a = uCam + rd * t;
+    vec3 b = uCam + rd * nextT;
+    float cones = coneBound(a.xy, b.xy, vec2(-40.0, 160.0), 104.0, 36.0);
+    cones = max(cones, coneBound(a.xy, b.xy, vec2(-155.0, -55.0), 72.0, 30.0));
+    if (cones > 0.5 && min(a.z, b.z) < cones + 2.0 && stride > 4.0) {
+      nextT = min(t + max(1.4, min(12.0, stride * 0.35)), 8000.0);
+      b = uCam + rd * nextT;
+    }
+    if (b.z <= heightAt(b.xy)) {
+      prevT = t;
+      ground = nextT;
       break;
     }
-    if (rd.z > 0.08 && p.z > h + 28.0) break;
-    float gap = max(p.z - h, 0.0);
-    float step = clamp(gap * 0.5, 0.35, 3.2);
+    if (rd.z >= 0.0 && b.z > 48.0 && t > 12.0) break;
     prevT = t;
-    t += step;
-    if (t > 190.0) break;
+    t = nextT;
+    if (t >= 8000.0) break;
   }
   if (ground > 0.0 && ground < best) {
     float lo = prevT;
@@ -191,7 +209,7 @@ void main() {
       shade *= 1.0 - (1.0 - smoothstep(0.35, 1.5 + drop * 0.45, d)) * (0.42 / (1.0 + drop * 0.25));
     }
     albedo *= shade;
-    float fog = smoothstep(40.0, 160.0, hi);
+    float fog = 1.0 - exp(-hi * 0.00012);
     rgb = mix(albedo * light, vec3(0.62, 0.72, 0.82), fog);
     hit = true;
   }

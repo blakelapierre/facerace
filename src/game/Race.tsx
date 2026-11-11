@@ -127,6 +127,7 @@ export function Race() {
   const yardRef = useRef<Yard>(loadYard());
   const offerRef = useRef<Offer[]>(loadOffers());
   const netCodeRef = useRef("");
+  const joinGen = useRef(0);
   const gunAtRef = useRef(0);
   const purseRef = useRef<(OpenPurse & { paid: boolean }) | null>(null);
   const racedRef = useRef(new Set<string>());
@@ -591,6 +592,7 @@ export function Race() {
       void bootDone.then((off) => off?.());
       audio.close();
       audioRef.current = null;
+      joinGen.current += 1;
       netRef.current?.close();
       netRef.current = null;
       const stream = videoRef.current?.srcObject as MediaStream | null;
@@ -703,9 +705,15 @@ export function Race() {
     }
   }
 
-  function leaveRace() {
+  function dropNet() {
+    joinGen.current += 1;
     netRef.current?.close();
     netRef.current = null;
+    netCodeRef.current = "";
+  }
+
+  function leaveRace() {
+    dropNet();
     const sim = simRef.current;
     if (sim) {
       sim.running = false;
@@ -727,16 +735,24 @@ export function Race() {
   }
   leaveRef.current = leaveRace;
 
+  function leaveLobby() {
+    dropNet();
+    setLobby([]);
+    setSeat("pick");
+  }
+
   async function ensureNet(code: string) {
     if (!code) return null;
     if (netRef.current && netCodeRef.current === code) return netRef.current;
+    const gen = ++joinGen.current;
     netRef.current?.close();
+    netRef.current = null;
     netCodeRef.current = code;
     const { createRaceNet } = await import("./net");
     const net = await createRaceNet(code, (line) => {
       if (statusRef.current) statusRef.current.textContent = line;
     });
-    if (netCodeRef.current !== code) {
+    if (gen !== joinGen.current) {
       net.close();
       return null;
     }
@@ -813,7 +829,6 @@ export function Race() {
     setSeat("host");
     boardRef.current?.announce({ code, course: courseId, host: name, live: false });
     if (statusRef.current) statusRef.current.textContent = "Room posted";
-    void ensureNet(code);
   }
 
   function startTogether() {
@@ -1026,7 +1041,6 @@ export function Race() {
     setCourseId("stadium");
     setSeat("purse");
     purseRef.current = { ...row, paid: false };
-    void ensureNet(code);
     syncRef.current();
   }
 
@@ -1397,7 +1411,7 @@ export function Race() {
                 ))}
               </div>
               <div className="race-actions">
-                <button type="button" className="race-ghost" onClick={() => setSeat("pick")}>
+                <button type="button" className="race-ghost" onClick={leaveLobby}>
                   Back
                 </button>
                 <button type="submit" className="race-go">
