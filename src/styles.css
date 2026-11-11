@@ -278,7 +278,7 @@
 
 .desk-row {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 0.35rem;
   margin: 0.35rem 0 0.4rem;
 }
@@ -290,6 +290,7 @@
   background: transparent;
   color: var(--color-paper);
   font: inherit;
+  font-size: 0.92rem;
   font-weight: 560;
 }
 
@@ -366,8 +367,20 @@
   flex-direction: column;
 }
 
-.room-row strong {
-  font-weight: 560;
+.room-row .row-actions {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.room-row .row-actions button {
+  border: 1px solid var(--color-line);
+  background: transparent;
+  color: var(--color-moss);
+  border-radius: 999px;
+  min-height: 1.7rem;
+  padding: 0.1rem 0.55rem;
+  font: inherit;
+  font-size: 0.75rem;
 }
 
 .race-go,

@@ -9,17 +9,20 @@ export type Header = {
   miner: string;
   nonce: number;
   bits: number;
+  /** First four bytes of the transaction body hash. Zero is a coinbase block. */
+  txTag: number;
 };
 
-export function prepareHeader(buf: Uint8Array, prev: Uint8Array, time: number, height: number, miner: Uint8Array) {
+export function prepareHeader(buf: Uint8Array, prev: Uint8Array, time: number, height: number, miner: Uint8Array, txTag = 0) {
   buf.fill(0);
   buf.set(prev.subarray(0, 32), 0);
   const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
   view.setUint32(32, time >>> 0, false);
   view.setUint32(36, height >>> 0, false);
   buf.set(miner.subarray(0, 8), 40);
-  buf[52] = 0x80;
-  view.setUint32(60, 416, false);
+  view.setUint32(52, txTag >>> 0, false);
+  buf[56] = 0x80;
+  view.setUint32(60, 448, false);
 }
 
 export function writeNonce(buf: Uint8Array, nonce: number) {
@@ -28,7 +31,7 @@ export function writeNonce(buf: Uint8Array, nonce: number) {
 
 export function hashHeader(header: Header) {
   const buf = new Uint8Array(64);
-  prepareHeader(buf, fromHex(header.prev.padStart(64, "0")), header.time, header.height, fromHex(header.miner.padStart(16, "0")));
+  prepareHeader(buf, fromHex(header.prev.padStart(64, "0")), header.time, header.height, fromHex(header.miner.padStart(16, "0")), header.txTag || 0);
   writeNonce(buf, header.nonce);
   return toHex(sha256Block(buf));
 }

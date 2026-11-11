@@ -79,6 +79,10 @@ function saveYard(yard: Yard) {
   return yard;
 }
 
+export function writeYard(yard: Yard) {
+  return saveYard(yard);
+}
+
 export function selectCart(yard: Yard, id: string) {
   if (!yard.carts.some((cart) => cart.id === id)) return yard;
   return saveYard({ ...yard, selected: id });
@@ -127,6 +131,10 @@ function saveOffers(offers: Offer[]) {
   return offers;
 }
 
+export function writeOffers(offers: Offer[]) {
+  return saveOffers(offers);
+}
+
 export function putOffer(offers: Offer[], offer: Offer) {
   return saveOffers([...offers.filter((item) => item.cartId !== offer.cartId), offer]);
 }
@@ -141,15 +149,15 @@ export function pullMechanic(offers: Offer[], mechanic: string) {
   return saveOffers(offers.filter((_, i) => i !== index));
 }
 
-export async function signListing(wallet: Wallet, mechanic: string, price: number) {
+export async function signListing(wallet: Wallet, mechanic: string, price: number, cartId: string) {
   const { wallet: next, nonce } = nextNonce(wallet);
-  const message = `sell:${mechanic}:${price}:${next.address}:${nonce}`;
+  const message = `sell|${next.address}|${nonce}|${mechanic}|${cartId}|${price}`;
   const sig = await signText(next, message);
   return { wallet: next, message, sig, nonce };
 }
 
-export async function listingIsReal(mechanic: string, price: number, address: string, nonce: number, x: string, y: string, sig: string) {
-  return verifyText(x, y, `sell:${mechanic}:${price}:${address}:${nonce}`, sig);
+export async function listingIsReal(mechanic: string, price: number, address: string, nonce: number, cartId: string, x: string, y: string, sig: string) {
+  return verifyText(x, y, `sell|${address}|${nonce}|${mechanic}|${cartId}|${price}`, sig);
 }
 
 export function giveCart(yard: Yard, mechanic: string) {

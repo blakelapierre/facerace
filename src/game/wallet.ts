@@ -85,6 +85,12 @@ export async function verifyText(x: string, y: string, message: string, sig: str
   }
 }
 
+export function writePurse(wallet: Wallet, purse: number) {
+  const next = Math.round(purse * 100) / 100;
+  if (wallet.purse === next) return wallet;
+  return save({ ...wallet, purse: next });
+}
+
 export function credit(wallet: Wallet, amount: number) {
   return save({ ...wallet, purse: Math.round((wallet.purse + amount) * 100) / 100 });
 }

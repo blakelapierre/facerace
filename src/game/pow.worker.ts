@@ -54,6 +54,7 @@ scope.onmessage = (event: MessageEvent) => {
     height?: number;
     prev?: string;
     miner?: string;
+    txTag?: number;
     lane?: number;
   };
   if (message.cmd === "stop") {
@@ -70,7 +71,7 @@ scope.onmessage = (event: MessageEvent) => {
     jobTime = message.time || 0;
     jobHeight = message.height || 1;
     jobPrev = message.prev || "";
-    prepareHeader(buf, fromHex(jobPrev.padStart(64, "0")), jobTime, jobHeight, fromHex((message.miner || "").padStart(16, "0")));
+    prepareHeader(buf, fromHex(jobPrev.padStart(64, "0")), jobTime, jobHeight, fromHex((message.miner || "").padStart(16, "0")), message.txTag || 0);
     nonce = ((Math.random() * 0xffffffff) ^ ((message.lane || 0) * 0x9e3779b1)) >>> 0;
     if (!running) {
       running = true;

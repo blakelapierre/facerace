@@ -19,6 +19,7 @@ uniform uint uHeight;
 uniform uint uMiner0;
 uniform uint uMiner1;
 uniform uint uBase;
+uniform uint uTx;
 uniform uint uBits;
 uniform uint uMode;
 uniform uint uWidth;
@@ -34,7 +35,7 @@ void compress(uint nonce, out uint H0, out uint H1, out uint H2, out uint H3, ou
   w[0] = uPrev[0]; w[1] = uPrev[1]; w[2] = uPrev[2]; w[3] = uPrev[3];
   w[4] = uPrev[4]; w[5] = uPrev[5]; w[6] = uPrev[6]; w[7] = uPrev[7];
   w[8] = uTime; w[9] = uHeight; w[10] = uMiner0; w[11] = uMiner1;
-  w[12] = nonce; w[13] = 0x80000000u; w[14] = 0u; w[15] = 416u;
+  w[12] = nonce; w[13] = uTx; w[14] = 0x80000000u; w[15] = 448u;
   for (int i = 16; i < 64; ++i) {
     uint x15 = w[i - 15];
     uint x2 = w[i - 2];
@@ -85,7 +86,7 @@ void main() {
   outColor = hit ? vec4(1.0) : vec4(0.0);
 }`;
 
-type Job = { prev: string; time: number; height: number; miner: string; bits: number; duty: number };
+type Job = { prev: string; time: number; height: number; miner: string; bits: number; duty: number; txTag?: number };
 
 let canvas: OffscreenCanvas | null = null;
 let gl: WebGL2RenderingContext | null = null;
@@ -117,6 +118,7 @@ function upload(nonceBase: number, mode: number) {
   gl.uniform1ui(location("uMiner0"), parseInt(miner.slice(0, 8), 16) >>> 0);
   gl.uniform1ui(location("uMiner1"), parseInt(miner.slice(8, 16), 16) >>> 0);
   gl.uniform1ui(location("uBase"), nonceBase >>> 0);
+  gl.uniform1ui(location("uTx"), (job.txTag || 0) >>> 0);
   gl.uniform1ui(location("uBits"), job.bits >>> 0);
   gl.uniform1ui(location("uMode"), mode >>> 0);
   gl.uniform1ui(location("uWidth"), width);
@@ -136,7 +138,7 @@ function prove() {
   const minerHex = job.miner.padStart(16, "0");
   for (let i = 0; i < 32; i++) prev[i] = parseInt(prevHex.slice(i * 2, i * 2 + 2), 16);
   for (let i = 0; i < 8; i++) miner[i] = parseInt(minerHex.slice(i * 2, i * 2 + 2), 16);
-  prepareHeader(buf, prev, job.time, job.height, miner);
+  prepareHeader(buf, prev, job.time, job.height, miner, job.txTag || 0);
   writeNonce(buf, 0);
   const expect = sha256Block(buf);
   upload(0, 0);

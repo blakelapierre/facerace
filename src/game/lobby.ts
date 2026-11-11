@@ -15,6 +15,7 @@ export type MarketListing = {
   price: number;
   seller: string;
   nonce: number;
+  cartId: string;
   x: string;
   y: string;
   sig: string;
@@ -54,9 +55,9 @@ function parseCatalog(raw: string): Omit<ListedRoom, "id"> | null {
 
 function parseListing(raw: string, id: string): MarketListing | null {
   if (!raw.startsWith("s|")) return null;
-  const [, mechanic, price, seller, nonce, x, y, sig] = raw.split("|");
-  if (!mechanic || !seller || !x || !y || !sig) return null;
-  return { id, mechanic, price: Number(price) || 0, seller, nonce: Number(nonce) || 0, x, y, sig };
+  const [, mechanic, price, seller, nonce, cartId, x, y, sig] = raw.split("|");
+  if (!mechanic || !seller || !cartId || !x || !y || !sig) return null;
+  return { id, mechanic, price: Number(price) || 0, seller, nonce: Number(nonce) || 0, cartId, x, y, sig };
 }
 
 function parsePay(raw: string): MarketPay | null {
