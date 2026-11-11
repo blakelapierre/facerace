@@ -54,6 +54,10 @@ uniform int uPrints;
 uniform vec4 uWork;
 uniform float uTime;
 uniform float uRain;
+uniform float uFog;
+uniform vec4 uFog0;
+uniform vec4 uFog1;
+uniform vec4 uFog2;
 uniform float uFrame;
 uniform float uFull;
 ${Re}
@@ -156,6 +160,15 @@ float cloudShade(vec3 rd) {
   return cloudShadeAt(uOrigin, rd);
 }
 
+float coneHeight(vec2 p, vec2 c, float radius, float height) {
+  float d = length(p - c);
+  float wobble = 0.92 + 0.08 * sin(p.x * 0.05 + c.y) * cos(p.y * 0.04);
+  float u = d / (radius * wobble);
+  if (u >= 1.0) return 0.0;
+  float s = 1.0 - u;
+  return height * s * s * (3.0 - 2.0 * s);
+}
+
 float duneHeight(vec2 p) {
   float roll = 0.5 * sin(p.x * 0.15) + 0.5 * cos(p.y * 0.13);
   float wash = 0.5 * sin((p.x + p.y) * 0.17 + 1.3) + 0.5;
@@ -165,7 +178,18 @@ float duneHeight(vec2 p) {
   float marsh = exp(-((p.x - 36.0) * (p.x - 36.0) + (p.y + 96.0) * (p.y + 96.0)) / 2200.0);
   h *= 1.0 - marsh * 0.55;
   float ridge = exp(-((p.x + 24.0) * (p.x + 24.0)) / 520.0) * max(cos(p.y * 0.02), 0.0);
-  return clamp(h + ridge * 1.6, 0.0, 5.4);
+  h = clamp(h + ridge * 1.6, 0.0, 5.4);
+  h += coneHeight(p, vec2(-40.0, 160.0), 104.0, 36.0);
+  h += coneHeight(p, vec2(-155.0, -55.0), 72.0, 30.0);
+  float crater = length(p - vec2(-155.0, -55.0));
+  if (crater < 14.0) h -= (1.0 - crater / 14.0) * 12.0;
+  float lakeR = length(p - vec2(70.0, 96.0));
+  float rl = 14.0 * (0.94 + 0.06 * sin(p.x * 0.21));
+  if (lakeR < rl) {
+    float q = lakeR / max(rl, 0.01);
+    h = 2.2 - 0.12 - 1.6 * (1.0 - q * q);
+  }
+  return max(h, -2.0);
 }
 
 vec3 duneNormal(vec2 p) {
@@ -245,7 +269,7 @@ vec3 ribbonAlbedo(vec2 p, vec3 base) {
     bool yellow = (seg - (seg / 2) * 2) == 0;
     return yellow ? vec3(0.86, 0.55, 0.12) : vec3(0.9, 0.88, 0.8);
   }
-  vec3 asphalt = vec3(0.17, 0.17, 0.18) * (0.9 + valueNoise(p * 1.1) * 0.14);
+  vec3 asphalt = vec3(0.17, 0.17, 0.18) * (0.9 + valueNoise(p * 1.1) * 0.14) * (1.0 - uRain * 0.28);
   if (seg == 0 && alongT < 0.22) return vec3(0.86, 0.84, 0.76);
   if (ad < 0.16 && mod(float(seg) + alongT, 5.0) < 2.0) asphalt = vec3(0.78, 0.76, 0.68);
   return asphalt;
@@ -269,6 +293,14 @@ vec3 groundAlbedo(vec2 p, vec3 n) {
   grassC *= 0.86 + valueNoise(p * 0.31 + 4.0) * 0.26;
   rockC *= 0.84 + valueNoise(p * 0.19 + 9.0) * 0.28;
   vec3 rgb = mix(mix(sandC, grassC, grassW), rockC, rockW);
+  float volc = coneHeight(p, vec2(-155.0, -55.0), 72.0, 1.0);
+  rgb = mix(rgb, vec3(0.32, 0.16, 0.11), clamp(volc * 1.5, 0.0, 0.9));
+  float lakeR = length(p - vec2(70.0, 96.0));
+  float rl = 14.0 * (0.94 + 0.06 * sin(p.x * 0.21));
+  if (lakeR < rl) {
+    rgb = mix(vec3(0.45, 0.72, 0.7), vec3(0.06, 0.24, 0.4), clamp((rl - lakeR) / 7.0, 0.0, 1.0));
+    rgb += vec3(0.15) * smoothstep(0.72, 0.9, valueNoise(p * 0.8 + vec2(uTime * 0.15, -uTime * 0.08)));
+  }
   return withWear(ribbonAlbedo(p, rgb), p);
 }
 
@@ -908,6 +940,30 @@ vec3 boxNormal(vec3 p, vec3 bmin, vec3 bmax) {
   return vec3(0.0, 0.0, sign(q.z));
 }
 
+float bankAmount(vec3 q, vec4 b) {
+  if (b.z <= 0.5) return 0.0;
+  vec2 o = q.xy - b.xy;
+  float rise = q.z - b.w;
+  return exp(-dot(o, o) / (b.z * b.z)) * smoothstep(-0.6, 0.4, rise) * exp(-max(rise, 0.0) / 2.2);
+}
+
+vec3 bankFog(vec3 ro, vec3 rd, float tHit, vec3 color) {
+  float t1 = min(tHit, 240.0);
+  if (t1 < 2.0) return color;
+  float optical = 0.0;
+  for (int i = 0; i < 6; i++) {
+    vec3 q = ro + rd * (t1 * (float(i) + 0.5) / 6.0);
+    float d = bankAmount(q, uFog0) + bankAmount(q, uFog1) + bankAmount(q, uFog2);
+    if (d < 0.02) continue;
+    float roll = valueNoise(q.xy * 0.05 + vec2(uTime * 0.35, uTime * 0.12));
+    optical += d * smoothstep(0.32, 0.8, roll) * (t1 / 6.0);
+  }
+  float T = exp(-0.07 * optical * (0.7 + uRain * 0.8));
+  float day = smoothstep(-0.05, 0.25, normalize(uSun).z);
+  vec3 fogC = mix(vec3(0.26, 0.28, 0.32), vec3(0.8, 0.82, 0.84), day);
+  return mix(fogC, color, clamp(T, 0.0, 1.0));
+}
+
 void main() {
   // Foveated progressive tracing: the gaze region traces every frame at full resolution;
   // the periphery traces one pixel per cell, every few frames, and stays in the accumulation target between.
@@ -925,6 +981,7 @@ void main() {
   float px = (uu * 2.0 - 1.0) * uAspect * halfAngle;
   float py = (1.0 - vv * 2.0) * halfAngle;
   vec3 rd = normalize(uRight * px + uUp * py + uForward * uPlane);
+  vec3 eye = rd;
   vec3 ro = uOrigin;
   vec3 accum = vec3(0.0);
   float thru = 1.0;
@@ -1130,6 +1187,7 @@ void main() {
     float streak = step(0.86, fract(rp.x)) * smoothstep(0.0, 0.25, fall) * step(fall, 0.25) * step(0.55, h);
     accum = mix(accum, vec3(0.55, 0.6, 0.66), uRain * (0.18 + 0.5 * streak));
   }
+  if (uFog > 0.5) accum = bankFog(uOrigin, eye, firstT, accum);
   // Alpha carries log depth (0 near, 1 at 4 km) for future reprojection.
   float depthCode = clamp(log2(1.0 + firstT) / 12.0, 0.0, 1.0);
   fragColor = vec4(present(accum), depthCode);
@@ -1250,4 +1308,4 @@ void main() {
   vec3 rgb = mix(sharp, gather(pix, r), smoothstep(1.0, 1.5, r));
   vec3 past = texelFetch(uHistory, ivec2(pix), 0).rgb;
   fragColor = vec4(mix(rgb, past, uKeep * t), 1.0);
-}`),Z=null;Ye&&nt&&(Z=p.createProgram(),p.attachShader(Z,Ye),p.attachShader(Z,nt),p.bindAttribLocation(Z,0,`aPos`),p.linkProgram(Z),p.getProgramParameter(Z,p.LINK_STATUS)||(Z=null));let rt=(e,t,n,r)=>{let i=t=>p.getUniformLocation(e,t);p.uniform2f(i(`uGaze`),t.x,t.y),p.uniform4f(i(`uFovea`),t.fovea,t.falloff,t.period,t.block),p.uniform1f(i(`uRefine`),t.refine),p.uniform1f(i(`uCellMax`),t.cellMax??2**(t.block||0)),p.uniform1f(i(`uTanHalf`),Math.tan((n.fov||70)*Math.PI/360)),p.uniform1f(i(`uView`),n.aspect||1),r!==void 0&&p.uniform1f(i(`uFull`),+!!r)},Q=(e=>{p.activeTexture(p.TEXTURE0);let t=p.createTexture();return p.bindTexture(p.TEXTURE_2D,t),p.texParameteri(p.TEXTURE_2D,p.TEXTURE_MIN_FILTER,e),p.texParameteri(p.TEXTURE_2D,p.TEXTURE_MAG_FILTER,e),p.texParameteri(p.TEXTURE_2D,p.TEXTURE_WRAP_S,p.CLAMP_TO_EDGE),p.texParameteri(p.TEXTURE_2D,p.TEXTURE_WRAP_T,p.CLAMP_TO_EDGE),{tex:t,fbo:p.createFramebuffer(),w:0,h:0}})(p.LINEAR),it=0,at=0,ot=!0,$=null,st=()=>{if(!$)return!1;let e=p.clientWaitSync($,0,0);return e===p.ALREADY_SIGNALED||e===p.CONDITION_SATISFIED?(p.deleteSync($),$=null,!1):!0},ct=()=>{$&&p.deleteSync($),$=p.fenceSync(p.SYNC_GPU_COMMANDS_COMPLETE,0),p.flush()},lt=(e,i,m,h=null)=>{N.fill(0),P.fill(0),we.fill(0),Te.fill(0),Ee.fill(0),L.fill(0),R.fill(0);let g=0,y=0,b=0,x=0,ee=e=>{x>=A||(I[x]=e,x+=1)};for(let t of e.objects)if(t.type===`sphere`&&g<k){let e=g*4;N[e]=t.origin[0],N[e+1]=t.origin[1],N[e+2]=t.origin[2],N[e+3]=t.radius,P[e]=t.color[0],P[e+1]=t.color[1],P[e+2]=t.color[2],P[e+3]=(t.texture?0:d[t.tile]||0)+(t.reflectivity||0),t.texture?g<32&&(z.set(_(g),g*4),Ve[g]!==t.texture&&(v(B,g,t.texture),Ve[g]=t.texture,He=!0)):g<32&&(z[g*4+3]=0),g+=1}else if(t.type===`box`&&y<M){let e=y*4;we.set(t.min,e),Te.set(t.max,e),Ee.set(t.color,e),Ee[e+3]=t.reflectivity||0,y+=1}else if(t.type===`shape`)ee(t);else if(t.type===`crust`&&t.field){let e=new Map;for(let[n,r]of t.field.overrides){if(r<=0)continue;let[t,i,a]=n.split(`,`).map(Number),o=a*l,s=`${t},${i}`,c=e.get(s);(c===void 0||o<c)&&e.set(s,o)}for(let[t,n]of e){if(b>=ye)break;let[e,r]=t.split(`,`).map(Number),i=b*4;L[i]=e,L[i+1]=r,L[i+2]=n,L[i+3]=1,b+=1}}let te=e.shapes||[];for(let e=0;e<te.length;e++)ee(te[e]);let ne=0;for(let e=0;e<x;e++){let t=I[e];t&&(t.kind===`plane`||t.kind===`disk`&&(t.r||0)>30)&&(e!==ne&&(I[e]=I[ne],I[ne]=t),ne+=1)}Ce(x);let re=n(I,x),C=s(e.camera),de=e.prints||[],fe=Math.min(de.length,xe);for(let e=0;e<fe;e+=1){let t=de[de.length-fe+e];R[e*4]=t.x,R[e*4+1]=t.y,R[e*4+2]=t.yaw||0,R[e*4+3]=t.scale||0}let pe=e.miss||[.45,.62,.85,1],me=e.sun||[0,0,1],he=i!==`points`&&!!w&&!!E&&g>64&&c(N,g),ge=i===`points`&&K?K:he?w:S,D=e=>p.getUniformLocation(ge,e);p.useProgram(ge),p.viewport(0,0,q?q.w:f.width,q?q.h:f.height),G(0,ie,k,N),G(1,ae,k,P),G(2,le,M,we),G(3,ue,M,Te),G(4,Se,M,Ee),G(5,De,ye,L),G(8,Ae,xe,R);let O=e.track,_e=0,ve=0;O&&O.samples&&O.samples.length>=16&&(_e=Math.min(160,O.count|0,O.samples.length>>2),ve=O.half||0,Ne.fill(0),Ne.set(O.samples.subarray(0,_e*4))),p.activeTexture(p.TEXTURE10),p.bindTexture(p.TEXTURE_2D,Me),p.texSubImage2D(p.TEXTURE_2D,0,0,0,160,1,p.RGBA,p.FLOAT,Ne);let j=e.wear;if(j&&j.version!==Fe&&(Fe=j.version,Oe.set(j.grid),p.activeTexture(p.TEXTURE13),p.bindTexture(p.TEXTURE_2D,Pe),p.pixelStorei(p.UNPACK_ALIGNMENT,1),p.texSubImage2D(p.TEXTURE_2D,0,0,0,128,128,p.RED,p.UNSIGNED_BYTE,Oe)),G(6,Ie,ke,z),p.activeTexture(p.TEXTURE7),p.bindTexture(p.TEXTURE_2D,Le),He&&=(p.texSubImage2D(p.TEXTURE_2D,0,0,0,u,u,p.RGBA,p.UNSIGNED_BYTE,B),p.generateMipmap(p.TEXTURE_2D),!1),p.uniform1i(D(`uSphereTex`),0),p.uniform1i(D(`uSphereColor`),1),p.uniform1i(D(`uBoxMin`),2),p.uniform1i(D(`uBoxMax`),3),p.uniform1i(D(`uBoxColor`),4),p.uniform1i(D(`uDigTex`),5),p.uniform1i(D(`uPrintTex`),8),p.uniform1i(D(`uTrackTex`),10),p.uniform1i(D(`uTrackCount`),_e),p.uniform1f(D(`uTrackHalf`),ve),p.uniform1i(D(`uTexRects`),6),p.uniform1i(D(`uAtlas`),7),p.activeTexture(p.TEXTURE14),p.bindTexture(p.TEXTURE_2D,oe),p.texSubImage2D(p.TEXTURE_2D,0,0,0,A,4,p.RGBA,p.FLOAT,F),p.uniform1i(D(`uShapes`),14),p.uniform1i(D(`uShapeCount`),x),p.uniform1i(D(`uLooseShapes`),ne),p.activeTexture(p.TEXTURE12),p.bindTexture(p.TEXTURE_2D,se),re>0&&p.texSubImage2D(p.TEXTURE_2D,0,0,0,4,re,p.RGBA,p.FLOAT,a),p.uniform1i(D(`uShapeNodes`),12),p.uniform1i(D(`uShapeNodeCount`),re),p.activeTexture(p.TEXTURE9),p.bindTexture(p.TEXTURE_2D,ce),p.texSubImage2D(p.TEXTURE_2D,0,0,0,A,1,p.RGBA,p.FLOAT,r),p.uniform1i(D(`uShapeIndex`),9),he){p.activeTexture(p.TEXTURE15),p.bindTexture(p.TEXTURE_2D,E),p.texSubImage2D(p.TEXTURE_2D,0,0,0,4,o(),p.RGBA,p.FLOAT,t);let e=D(`uNodes`);e&&p.uniform1i(e,15)}p.activeTexture(p.TEXTURE13),p.bindTexture(p.TEXTURE_2D,Pe),p.uniform1i(D(`uWearTex`),13),p.uniform3f(D(`uWear`),j?j.origin[0]:0,j?j.origin[1]:0,j?j.cell:0),p.uniform3f(D(`uOrigin`),e.camera.origin[0],e.camera.origin[1],e.camera.origin[2]),p.uniform3f(D(`uForward`),C.forward[0],C.forward[1],C.forward[2]),p.uniform3f(D(`uRight`),C.right[0],C.right[1],C.right[2]),p.uniform3f(D(`uUp`),C.up[0],C.up[1],C.up[2]),p.uniform3f(D(`uSun`),me[0],me[1],me[2]),p.uniform4f(D(`uMiss`),pe[0],pe[1],pe[2],pe[3]),p.uniform1f(D(`uFov`),e.camera.fov),p.uniform1f(D(`uAspect`),e.camera.aspect),p.uniform1f(D(`uPlane`),e.camera.planeDistance);let be=q?q.w:f.width,V=q?q.h:f.height;p.uniform2f(D(`uRes`),be,V),p.uniform1i(D(`uSpheres`),g),p.uniform1i(D(`uBoxes`),y),p.uniform1i(D(`uDigs`),b),p.uniform1i(D(`uPrints`),fe),p.uniform1f(D(`uRain`),e.rain||0);let H=e.work;p.uniform4f(D(`uWork`),H?H.x:0,H?H.y:0,H?H.height:0,H?H.mode:0),p.uniform1f(D(`uTime`),e.time||0),p.uniform1f(D(`uFrame`),it),rt(ge,h||{x:.5,y:.5,fovea:3.2,falloff:1,period:1,block:0,refine:0},e.camera,!h||ot),p.uniform1f(D(`uExposure`),je(me));let U=Math.tan((e.camera.fov||70)*Math.PI/360);if(p.uniform1f(D(`uFoot`),2*U/Math.max(2,V)),ge===K){let e=Math.max(0,Math.min(m|0,We.length/2)),t=Math.max(1,f.width),n=Math.max(1,f.height);for(let r=0;r<e;r+=1)We[r*2]=(Math.random()*(t-1)+.5)/t,We[r*2+1]=(Math.random()*(n-1)+.5)/n;return p.bindBuffer(p.ARRAY_BUFFER,Ge),p.bufferData(p.ARRAY_BUFFER,We.subarray(0,e*2),p.DYNAMIC_DRAW),p.enableVertexAttribArray(0),p.vertexAttribPointer(0,2,p.FLOAT,!1,0,0),p.drawArrays(p.POINTS,0,e),!0}return p.bindBuffer(p.ARRAY_BUFFER,T),p.enableVertexAttribArray(0),p.vertexAttribPointer(0,2,p.FLOAT,!1,0,0),p.drawArrays(p.TRIANGLES,0,3),!0};return{paint(e,t,n){let r=t|0,i=n|0,a=Math.max(2,r>0?r:Math.min(f.width||160,480)),o=Math.max(2,i>0?i:Math.min(f.height||90,270)),s=()=>(q=null,p.bindFramebuffer(p.FRAMEBUFFER,null),p.disable(p.BLEND),lt(e,`full`,0,null));if(!X||!Z)return s();let c=0;for(let e=0;e<J.length;e+=1)if(e!==Y&&e!==Ke){c=e;break}let l=J[c],u=Q.w===a&&Q.h===o;if(!qe(Q,a,o)||!qe(l,a,o))return s();u||(ot=!0);let d=e.fovea||{x:.5,y:.5,fovea:3.2,falloff:1,period:1,block:0,still:!1};at=d.still?at+1:0;let m={...d,refine:at/Math.max(1,d.period),cellMax:Be(a,d.block)};Je(),p.disable(p.BLEND),p.bindFramebuffer(p.FRAMEBUFFER,Q.fbo),q={w:a,h:o};let h=ot,g=lt(e,`full`,0,m);if(ot=!1,it=(it+1)%3600,!g)return q=null,p.bindFramebuffer(p.FRAMEBUFFER,null),!1;p.bindFramebuffer(p.FRAMEBUFFER,l.fbo),p.viewport(0,0,a,o),p.useProgram(Z),rt(Z,m,e.camera),p.activeTexture(p.TEXTURE11),p.bindTexture(p.TEXTURE_2D,Q.tex),p.uniform1i(p.getUniformLocation(Z,`uAccum`),11);let _=Y>=0&&J[Y]!==l?J[Y]:Q;return p.activeTexture(p.TEXTURE12),p.bindTexture(p.TEXTURE_2D,_.tex),p.uniform1i(p.getUniformLocation(Z,`uHistory`),12),p.uniform1f(p.getUniformLocation(Z,`uJitter`),it%64),p.uniform1f(p.getUniformLocation(Z,`uKeep`),ze(d.still,_!==Q&&_.w===a&&_.h===o&&!h)),p.bindBuffer(p.ARRAY_BUFFER,T),p.enableVertexAttribArray(0),p.vertexAttribPointer(0,2,p.FLOAT,!1,0,0),p.drawArrays(p.TRIANGLES,0,3),p.activeTexture(p.TEXTURE11),p.bindTexture(p.TEXTURE_2D,null),p.activeTexture(p.TEXTURE12),p.bindTexture(p.TEXTURE_2D,null),q=null,p.bindFramebuffer(p.FRAMEBUFFER,null),Y>=0&&(Ke=Y),Y=c,!0},invalidate(){ot=!0},setSmoothing(e){tt=!!e},present(e=1){if(!X||Y<0)return!1;let t=J[Ke>=0?Ke:Y],n=J[Y],r=Ke<0?1:Math.max(0,Math.min(1,e));return p.bindFramebuffer(p.FRAMEBUFFER,null),p.viewport(0,0,f.width,f.height),p.useProgram(X),p.activeTexture(p.TEXTURE9),p.bindTexture(p.TEXTURE_2D,t.tex),p.uniform1i(Ze,9),p.activeTexture(p.TEXTURE10),p.bindTexture(p.TEXTURE_2D,n.tex),p.uniform1i(Qe,10),p.uniform1f($e,r),p.uniform1f(et,+!!tt),p.bindBuffer(p.ARRAY_BUFFER,T),p.enableVertexAttribArray(0),p.vertexAttribPointer(0,2,p.FLOAT,!1,0,0),p.drawArrays(p.TRIANGLES,0,3),Je(),ct(),!0},busy(){return st()},paintRandom(e,t){return K?lt(e,`points`,t):lt(e,`full`,0)}}}export{G as CELL_FLOOR_WIDTH,Me as EDGE_FADE,Ne as EDGE_LAST_BOUNCE,Re as FOVEA_GLSL,W as HISTORY_KEEP,Ae as SPHERE_BUDGET,De as WEAR_GRID,Ie as WET_DARKEN,Le as WET_SHEEN,Be as cellCap,He as createGpuPainter,Pe as edgeBounces,je as exposureFor,Ve as fitCanvas,ze as historyKeep,Fe as screenFoveaAngle};
+}`),Z=null;Ye&&nt&&(Z=p.createProgram(),p.attachShader(Z,Ye),p.attachShader(Z,nt),p.bindAttribLocation(Z,0,`aPos`),p.linkProgram(Z),p.getProgramParameter(Z,p.LINK_STATUS)||(Z=null));let rt=(e,t,n,r)=>{let i=t=>p.getUniformLocation(e,t);p.uniform2f(i(`uGaze`),t.x,t.y),p.uniform4f(i(`uFovea`),t.fovea,t.falloff,t.period,t.block),p.uniform1f(i(`uRefine`),t.refine),p.uniform1f(i(`uCellMax`),t.cellMax??2**(t.block||0)),p.uniform1f(i(`uTanHalf`),Math.tan((n.fov||70)*Math.PI/360)),p.uniform1f(i(`uView`),n.aspect||1),r!==void 0&&p.uniform1f(i(`uFull`),+!!r)},Q=(e=>{p.activeTexture(p.TEXTURE0);let t=p.createTexture();return p.bindTexture(p.TEXTURE_2D,t),p.texParameteri(p.TEXTURE_2D,p.TEXTURE_MIN_FILTER,e),p.texParameteri(p.TEXTURE_2D,p.TEXTURE_MAG_FILTER,e),p.texParameteri(p.TEXTURE_2D,p.TEXTURE_WRAP_S,p.CLAMP_TO_EDGE),p.texParameteri(p.TEXTURE_2D,p.TEXTURE_WRAP_T,p.CLAMP_TO_EDGE),{tex:t,fbo:p.createFramebuffer(),w:0,h:0}})(p.LINEAR),it=0,at=0,ot=!0,$=null,st=()=>{if(!$)return!1;let e=p.clientWaitSync($,0,0);return e===p.ALREADY_SIGNALED||e===p.CONDITION_SATISFIED?(p.deleteSync($),$=null,!1):!0},ct=()=>{$&&p.deleteSync($),$=p.fenceSync(p.SYNC_GPU_COMMANDS_COMPLETE,0),p.flush()},lt=(e,i,m,h=null)=>{N.fill(0),P.fill(0),we.fill(0),Te.fill(0),Ee.fill(0),L.fill(0),R.fill(0);let g=0,y=0,b=0,x=0,ee=e=>{x>=A||(I[x]=e,x+=1)};for(let t of e.objects)if(t.type===`sphere`&&g<k){let e=g*4;N[e]=t.origin[0],N[e+1]=t.origin[1],N[e+2]=t.origin[2],N[e+3]=t.radius,P[e]=t.color[0],P[e+1]=t.color[1],P[e+2]=t.color[2],P[e+3]=(t.texture?0:d[t.tile]||0)+(t.reflectivity||0),t.texture?g<32&&(z.set(_(g),g*4),Ve[g]!==t.texture&&(v(B,g,t.texture),Ve[g]=t.texture,He=!0)):g<32&&(z[g*4+3]=0),g+=1}else if(t.type===`box`&&y<M){let e=y*4;we.set(t.min,e),Te.set(t.max,e),Ee.set(t.color,e),Ee[e+3]=t.reflectivity||0,y+=1}else if(t.type===`shape`)ee(t);else if(t.type===`crust`&&t.field){let e=new Map;for(let[n,r]of t.field.overrides){if(r<=0)continue;let[t,i,a]=n.split(`,`).map(Number),o=a*l,s=`${t},${i}`,c=e.get(s);(c===void 0||o<c)&&e.set(s,o)}for(let[t,n]of e){if(b>=ye)break;let[e,r]=t.split(`,`).map(Number),i=b*4;L[i]=e,L[i+1]=r,L[i+2]=n,L[i+3]=1,b+=1}}let te=e.shapes||[];for(let e=0;e<te.length;e++)ee(te[e]);let ne=0;for(let e=0;e<x;e++){let t=I[e];t&&(t.kind===`plane`||t.kind===`disk`&&(t.r||0)>30)&&(e!==ne&&(I[e]=I[ne],I[ne]=t),ne+=1)}Ce(x);let re=n(I,x),C=s(e.camera),de=e.prints||[],fe=Math.min(de.length,xe);for(let e=0;e<fe;e+=1){let t=de[de.length-fe+e];R[e*4]=t.x,R[e*4+1]=t.y,R[e*4+2]=t.yaw||0,R[e*4+3]=t.scale||0}let pe=e.miss||[.45,.62,.85,1],me=e.sun||[0,0,1],he=i!==`points`&&!!w&&!!E&&g>64&&c(N,g),ge=i===`points`&&K?K:he?w:S,D=e=>p.getUniformLocation(ge,e);p.useProgram(ge),p.viewport(0,0,q?q.w:f.width,q?q.h:f.height),G(0,ie,k,N),G(1,ae,k,P),G(2,le,M,we),G(3,ue,M,Te),G(4,Se,M,Ee),G(5,De,ye,L),G(8,Ae,xe,R);let O=e.track,_e=0,ve=0;O&&O.samples&&O.samples.length>=16&&(_e=Math.min(160,O.count|0,O.samples.length>>2),ve=O.half||0,Ne.fill(0),Ne.set(O.samples.subarray(0,_e*4))),p.activeTexture(p.TEXTURE10),p.bindTexture(p.TEXTURE_2D,Me),p.texSubImage2D(p.TEXTURE_2D,0,0,0,160,1,p.RGBA,p.FLOAT,Ne);let j=e.wear;if(j&&j.version!==Fe&&(Fe=j.version,Oe.set(j.grid),p.activeTexture(p.TEXTURE13),p.bindTexture(p.TEXTURE_2D,Pe),p.pixelStorei(p.UNPACK_ALIGNMENT,1),p.texSubImage2D(p.TEXTURE_2D,0,0,0,128,128,p.RED,p.UNSIGNED_BYTE,Oe)),G(6,Ie,ke,z),p.activeTexture(p.TEXTURE7),p.bindTexture(p.TEXTURE_2D,Le),He&&=(p.texSubImage2D(p.TEXTURE_2D,0,0,0,u,u,p.RGBA,p.UNSIGNED_BYTE,B),p.generateMipmap(p.TEXTURE_2D),!1),p.uniform1i(D(`uSphereTex`),0),p.uniform1i(D(`uSphereColor`),1),p.uniform1i(D(`uBoxMin`),2),p.uniform1i(D(`uBoxMax`),3),p.uniform1i(D(`uBoxColor`),4),p.uniform1i(D(`uDigTex`),5),p.uniform1i(D(`uPrintTex`),8),p.uniform1i(D(`uTrackTex`),10),p.uniform1i(D(`uTrackCount`),_e),p.uniform1f(D(`uTrackHalf`),ve),p.uniform1i(D(`uTexRects`),6),p.uniform1i(D(`uAtlas`),7),p.activeTexture(p.TEXTURE14),p.bindTexture(p.TEXTURE_2D,oe),p.texSubImage2D(p.TEXTURE_2D,0,0,0,A,4,p.RGBA,p.FLOAT,F),p.uniform1i(D(`uShapes`),14),p.uniform1i(D(`uShapeCount`),x),p.uniform1i(D(`uLooseShapes`),ne),p.activeTexture(p.TEXTURE12),p.bindTexture(p.TEXTURE_2D,se),re>0&&p.texSubImage2D(p.TEXTURE_2D,0,0,0,4,re,p.RGBA,p.FLOAT,a),p.uniform1i(D(`uShapeNodes`),12),p.uniform1i(D(`uShapeNodeCount`),re),p.activeTexture(p.TEXTURE9),p.bindTexture(p.TEXTURE_2D,ce),p.texSubImage2D(p.TEXTURE_2D,0,0,0,A,1,p.RGBA,p.FLOAT,r),p.uniform1i(D(`uShapeIndex`),9),he){p.activeTexture(p.TEXTURE15),p.bindTexture(p.TEXTURE_2D,E),p.texSubImage2D(p.TEXTURE_2D,0,0,0,4,o(),p.RGBA,p.FLOAT,t);let e=D(`uNodes`);e&&p.uniform1i(e,15)}p.activeTexture(p.TEXTURE13),p.bindTexture(p.TEXTURE_2D,Pe),p.uniform1i(D(`uWearTex`),13),p.uniform3f(D(`uWear`),j?j.origin[0]:0,j?j.origin[1]:0,j?j.cell:0),p.uniform3f(D(`uOrigin`),e.camera.origin[0],e.camera.origin[1],e.camera.origin[2]),p.uniform3f(D(`uForward`),C.forward[0],C.forward[1],C.forward[2]),p.uniform3f(D(`uRight`),C.right[0],C.right[1],C.right[2]),p.uniform3f(D(`uUp`),C.up[0],C.up[1],C.up[2]),p.uniform3f(D(`uSun`),me[0],me[1],me[2]),p.uniform4f(D(`uMiss`),pe[0],pe[1],pe[2],pe[3]),p.uniform1f(D(`uFov`),e.camera.fov),p.uniform1f(D(`uAspect`),e.camera.aspect),p.uniform1f(D(`uPlane`),e.camera.planeDistance);let be=q?q.w:f.width,V=q?q.h:f.height;p.uniform2f(D(`uRes`),be,V),p.uniform1i(D(`uSpheres`),g),p.uniform1i(D(`uBoxes`),y),p.uniform1i(D(`uDigs`),b),p.uniform1i(D(`uPrints`),fe),p.uniform1f(D(`uRain`),e.rain||0),p.uniform1f(D(`uFog`),1),p.uniform4f(D(`uFog0`),70,96,18,2.2),p.uniform4f(D(`uFog1`),-155,-55,40,10),p.uniform4f(D(`uFog2`),36,-96,22,.8);let H=e.work;p.uniform4f(D(`uWork`),H?H.x:0,H?H.y:0,H?H.height:0,H?H.mode:0),p.uniform1f(D(`uTime`),e.time||0),p.uniform1f(D(`uFrame`),it),rt(ge,h||{x:.5,y:.5,fovea:3.2,falloff:1,period:1,block:0,refine:0},e.camera,!h||ot),p.uniform1f(D(`uExposure`),je(me));let U=Math.tan((e.camera.fov||70)*Math.PI/360);if(p.uniform1f(D(`uFoot`),2*U/Math.max(2,V)),ge===K){let e=Math.max(0,Math.min(m|0,We.length/2)),t=Math.max(1,f.width),n=Math.max(1,f.height);for(let r=0;r<e;r+=1)We[r*2]=(Math.random()*(t-1)+.5)/t,We[r*2+1]=(Math.random()*(n-1)+.5)/n;return p.bindBuffer(p.ARRAY_BUFFER,Ge),p.bufferData(p.ARRAY_BUFFER,We.subarray(0,e*2),p.DYNAMIC_DRAW),p.enableVertexAttribArray(0),p.vertexAttribPointer(0,2,p.FLOAT,!1,0,0),p.drawArrays(p.POINTS,0,e),!0}return p.bindBuffer(p.ARRAY_BUFFER,T),p.enableVertexAttribArray(0),p.vertexAttribPointer(0,2,p.FLOAT,!1,0,0),p.drawArrays(p.TRIANGLES,0,3),!0};return{paint(e,t,n){let r=t|0,i=n|0,a=Math.max(2,r>0?r:Math.min(f.width||160,480)),o=Math.max(2,i>0?i:Math.min(f.height||90,270)),s=()=>(q=null,p.bindFramebuffer(p.FRAMEBUFFER,null),p.disable(p.BLEND),lt(e,`full`,0,null));if(!X||!Z)return s();let c=0;for(let e=0;e<J.length;e+=1)if(e!==Y&&e!==Ke){c=e;break}let l=J[c],u=Q.w===a&&Q.h===o;if(!qe(Q,a,o)||!qe(l,a,o))return s();u||(ot=!0);let d=e.fovea||{x:.5,y:.5,fovea:3.2,falloff:1,period:1,block:0,still:!1};at=d.still?at+1:0;let m={...d,refine:at/Math.max(1,d.period),cellMax:Be(a,d.block)};Je(),p.disable(p.BLEND),p.bindFramebuffer(p.FRAMEBUFFER,Q.fbo),q={w:a,h:o};let h=ot,g=lt(e,`full`,0,m);if(ot=!1,it=(it+1)%3600,!g)return q=null,p.bindFramebuffer(p.FRAMEBUFFER,null),!1;p.bindFramebuffer(p.FRAMEBUFFER,l.fbo),p.viewport(0,0,a,o),p.useProgram(Z),rt(Z,m,e.camera),p.activeTexture(p.TEXTURE11),p.bindTexture(p.TEXTURE_2D,Q.tex),p.uniform1i(p.getUniformLocation(Z,`uAccum`),11);let _=Y>=0&&J[Y]!==l?J[Y]:Q;return p.activeTexture(p.TEXTURE12),p.bindTexture(p.TEXTURE_2D,_.tex),p.uniform1i(p.getUniformLocation(Z,`uHistory`),12),p.uniform1f(p.getUniformLocation(Z,`uJitter`),it%64),p.uniform1f(p.getUniformLocation(Z,`uKeep`),ze(d.still,_!==Q&&_.w===a&&_.h===o&&!h)),p.bindBuffer(p.ARRAY_BUFFER,T),p.enableVertexAttribArray(0),p.vertexAttribPointer(0,2,p.FLOAT,!1,0,0),p.drawArrays(p.TRIANGLES,0,3),p.activeTexture(p.TEXTURE11),p.bindTexture(p.TEXTURE_2D,null),p.activeTexture(p.TEXTURE12),p.bindTexture(p.TEXTURE_2D,null),q=null,p.bindFramebuffer(p.FRAMEBUFFER,null),Y>=0&&(Ke=Y),Y=c,!0},invalidate(){ot=!0},setSmoothing(e){tt=!!e},present(e=1){if(!X||Y<0)return!1;let t=J[Ke>=0?Ke:Y],n=J[Y],r=Ke<0?1:Math.max(0,Math.min(1,e));return p.bindFramebuffer(p.FRAMEBUFFER,null),p.viewport(0,0,f.width,f.height),p.useProgram(X),p.activeTexture(p.TEXTURE9),p.bindTexture(p.TEXTURE_2D,t.tex),p.uniform1i(Ze,9),p.activeTexture(p.TEXTURE10),p.bindTexture(p.TEXTURE_2D,n.tex),p.uniform1i(Qe,10),p.uniform1f($e,r),p.uniform1f(et,+!!tt),p.bindBuffer(p.ARRAY_BUFFER,T),p.enableVertexAttribArray(0),p.vertexAttribPointer(0,2,p.FLOAT,!1,0,0),p.drawArrays(p.TRIANGLES,0,3),Je(),ct(),!0},busy(){return st()},paintRandom(e,t){return K?lt(e,`points`,t):lt(e,`full`,0)}}}export{G as CELL_FLOOR_WIDTH,Me as EDGE_FADE,Ne as EDGE_LAST_BOUNCE,Re as FOVEA_GLSL,W as HISTORY_KEEP,Ae as SPHERE_BUDGET,De as WEAR_GRID,Ie as WET_DARKEN,Le as WET_SHEEN,Be as cellCap,He as createGpuPainter,Pe as edgeBounces,je as exposureFor,Ve as fitCanvas,ze as historyKeep,Fe as screenFoveaAngle};
