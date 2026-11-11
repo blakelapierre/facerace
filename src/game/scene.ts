@@ -215,10 +215,41 @@ export function buildPicture(
   still: boolean,
   sun: V3 = [0.45, 0.22, 0.86],
   rain = 0,
+  rails: { x: number; y: number; x2: number; y2: number; hp: number }[] = [],
 ): Picture {
   const faces: SceneObject[] = [];
   const rest: SceneObject[] = [];
   for (const body of bodies) kartParts(body, faces, rest);
+  const bars: SceneObject[] = [];
+  for (let i = 0; i < rails.length; i++) {
+    const rail = rails[i]!;
+    if (rail.hp < 0.12) continue;
+    const za = duneHeight(rail.x, rail.y);
+    const zb = duneHeight(rail.x2, rail.y2);
+    const sag = (1 - rail.hp) * 0.7;
+    const hurt = 1 - rail.hp;
+    const steel = [0.82 - hurt * 0.42, 0.84 - hurt * 0.66, 0.8 - hurt * 0.7, 1];
+    const band = i % 2 === 0 ? [0.9 - hurt * 0.58, 0.2 - hurt * 0.1, 0.12, 1] : [0.95 - hurt * 0.67, 0.93 - hurt * 0.77, 0.88 - hurt * 0.76, 1];
+    const radius = 0.2 + 0.12 * rail.hp;
+    bars.push({
+      type: "shape",
+      kind: "capsule",
+      a: [rail.x, rail.y, za + 0.48 - sag],
+      b: [rail.x2, rail.y2, zb + 0.48 - sag],
+      r: radius,
+      color: steel,
+      reflectivity: 0.22,
+    });
+    bars.push({
+      type: "shape",
+      kind: "capsule",
+      a: [rail.x, rail.y, za + 1.02 - sag],
+      b: [rail.x2, rail.y2, zb + 1.02 - sag],
+      r: radius * 0.85,
+      color: band,
+      reflectivity: 0.16,
+    });
+  }
   return {
     camera: {
       origin: [camera.x, camera.y, camera.z],
@@ -230,7 +261,7 @@ export function buildPicture(
     },
     miss: [0.45, 0.62, 0.82, 1],
     sun,
-    objects: [...faces, ...rest, ...trackObjects()],
+    objects: [...faces, ...rest, ...trackObjects(), ...bars],
     track: { half: halfWidth(), count: 160, samples: trackRibbon(160) },
     rain,
     fovea: {

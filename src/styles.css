@@ -158,6 +158,15 @@
   color: var(--color-lane);
 }
 
+.race-parts {
+  font-size: 0.82rem;
+  font-weight: 560;
+}
+
+.race-parts:empty {
+  display: none;
+}
+
 .race-unit {
   color: var(--color-moss);
   font-size: 0.75rem;

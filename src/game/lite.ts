@@ -7,6 +7,7 @@ type Frame = {
   sun: [number, number, number];
   course?: string;
   skids?: { x: number; y: number; x2: number; y2: number }[];
+  rails?: { x: number; y: number; x2: number; y2: number; hp: number }[];
 };
 
 const VERT = `#version 300 es
@@ -38,6 +39,9 @@ uniform vec4 uSkid[40];
 uniform int uSkids;
 uniform int uKarts;
 uniform vec4 uGate[8];
+uniform vec4 uRail[16];
+uniform float uHp[16];
+uniform int uRails;
 uniform sampler2D uFace;
 
 float heightAt(vec2 p) {
@@ -152,6 +156,65 @@ void ball(vec3 ro, vec3 rd, vec3 center, float radius, vec3 albedo, float faceSl
   hit = true;
 }
 
+float capT(vec3 ro, vec3 rd, vec3 pa, vec3 pb, float ra, out vec3 nrm) {
+  nrm = vec3(0.0, 0.0, 1.0);
+  vec3 ba = pb - pa;
+  vec3 oa = ro - pa;
+  float baba = dot(ba, ba);
+  float bard = dot(ba, rd);
+  float baoa = dot(ba, oa);
+  float rdoa = dot(rd, oa);
+  float oaoa = dot(oa, oa);
+  float aa = baba - bard * bard;
+  float bb = baba * rdoa - baoa * bard;
+  float cc = baba * oaoa - baoa * baoa - ra * ra * baba;
+  float h = bb * bb - aa * cc;
+  float bestT = -1.0;
+  if (h >= 0.0 && abs(aa) > 1.0e-4) {
+    float t = (-bb - sqrt(h)) / aa;
+    float y = baoa + t * bard;
+    if (y > 0.0 && y < baba) {
+      vec3 p = ro + rd * t;
+      nrm = normalize(p - (pa + ba * (y / max(baba, 1.0e-4))));
+      return t;
+    }
+  }
+  vec3 capA = pa;
+  vec3 oc = ro - capA;
+  bb = dot(oc, rd);
+  cc = dot(oc, oc) - ra * ra;
+  h = bb * bb - cc;
+  if (h > 0.0) {
+    float t = -bb - sqrt(h);
+    if (t > 0.0) {
+      bestT = t;
+      nrm = normalize(ro + rd * t - capA);
+    }
+  }
+  oc = ro - pb;
+  bb = dot(oc, rd);
+  cc = dot(oc, oc) - ra * ra;
+  h = bb * bb - cc;
+  if (h > 0.0) {
+    float t = -bb - sqrt(h);
+    if (t > 0.0 && (bestT < 0.0 || t < bestT)) {
+      bestT = t;
+      nrm = normalize(ro + rd * t - pb);
+    }
+  }
+  return bestT;
+}
+
+void beam(vec3 ro, vec3 rd, vec3 pa, vec3 pb, float ra, vec3 albedo, vec3 sun, inout float best, inout vec3 rgb, inout bool hit) {
+  vec3 nrm;
+  float t = capT(ro, rd, pa, pb, ra, nrm);
+  if (t <= 0.2 || t >= best) return;
+  best = t;
+  float light = 0.34 + 0.66 * max(dot(nrm, sun), 0.0);
+  rgb = albedo * light;
+  hit = true;
+}
+
 void main() {
   vec2 ndc = vUv * 2.0 - 1.0;
   float tanHalf = tan(uFov * 0.5);
@@ -191,6 +254,27 @@ void main() {
     vec3 post = g == 0 ? vec3(0.93, 0.2, 0.14) : vec3(0.95, 0.82, 0.28);
     ball(uCam, rd, vec3(lp, heightAt(lp) + 1.15), 0.34, post, -1.0, uFwd, sun, best, rgb, hit);
     ball(uCam, rd, vec3(rp, heightAt(rp) + 1.15), 0.34, post, -1.0, uFwd, sun, best, rgb, hit);
+  }
+  for (int i = 0; i < 16; i++) {
+    if (i >= uRails) break;
+    float hp = uHp[i];
+    if (hp < 0.12) continue;
+    vec2 a = uRail[i].xy;
+    vec2 b = uRail[i].zw;
+    vec2 mid = (a + b) * 0.5;
+    vec2 toMid = mid - uCam.xy;
+    if (dot(toMid, uFwd.xy) < -6.0 && length(toMid) > 14.0) continue;
+    if (length(toMid) > 120.0) continue;
+    float ha = heightAt(a);
+    float hb = heightAt(b);
+    float sag = (1.0 - hp) * 0.7;
+    float rad = 0.2 + 0.12 * hp;
+    float hurt = 1.0 - hp;
+    vec3 steel = mix(vec3(0.82, 0.84, 0.8), vec3(0.4, 0.18, 0.1), hurt);
+    vec3 band = mix(vec3(0.95, 0.93, 0.88), vec3(0.28, 0.16, 0.12), hurt);
+    if (mod(float(i), 2.0) < 0.5) band = mix(vec3(0.9, 0.2, 0.12), vec3(0.32, 0.1, 0.08), hurt);
+    beam(uCam, rd, vec3(a, ha + 0.48 - sag), vec3(b, hb + 0.48 - sag), rad, steel, sun, best, rgb, hit);
+    beam(uCam, rd, vec3(a, ha + 1.02 - sag), vec3(b, hb + 1.02 - sag), rad * 0.85, band, sun, best, rgb, hit);
   }
   float prevT = 0.3;
   float t = 0.3;
@@ -333,6 +417,8 @@ export function createLitePainter(canvas: OffscreenCanvas) {
   const lean = new Float32Array(12 * 4);
   const skid = new Float32Array(40 * 4);
   const gates = new Float32Array(8 * 4);
+  const rail = new Float32Array(16 * 4);
+  const railHp = new Float32Array(16);
   const atlas = new Uint8Array(ATLAS_W * ATLAS_H * 4);
   for (let i = 0; i < atlas.length; i += 4) {
     atlas[i] = 214;
@@ -480,6 +566,21 @@ export function createLitePainter(canvas: OffscreenCanvas) {
       gl.uniform4fv(loc("uLean"), lean);
       gl.uniform4fv(loc("uSkid"), skid);
       gl.uniform1i(loc("uSkids"), count);
+      const bars = frame.rails ?? [];
+      const railsN = Math.min(16, bars.length);
+      rail.fill(0);
+      railHp.fill(0);
+      for (let i = 0; i < railsN; i++) {
+        const bar = bars[i]!;
+        rail[i * 4] = bar.x;
+        rail[i * 4 + 1] = bar.y;
+        rail[i * 4 + 2] = bar.x2;
+        rail[i * 4 + 3] = bar.y2;
+        railHp[i] = bar.hp;
+      }
+      gl.uniform4fv(loc("uRail"), rail);
+      gl.uniform1fv(loc("uHp"), railHp);
+      gl.uniform1i(loc("uRails"), railsN);
       gl.uniform1i(loc("uFace"), 0);
       gl.uniform1i(loc("uKarts"), n);
       gl.drawArrays(gl.TRIANGLES, 0, 3);

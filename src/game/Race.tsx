@@ -123,6 +123,19 @@ function drawMap(canvas: HTMLCanvasElement | null, sim: Sim, remotes: { x: numbe
   ctx.strokeStyle = "rgba(232, 196, 92, 0.95)";
   ctx.lineWidth = 2.4;
   ctx.stroke();
+  ctx.lineCap = "butt";
+  for (const rail of sim.rails) {
+    if (rail.hp < 0.12) continue;
+    const [ax, ay] = to(rail.x, rail.y);
+    const [bx, by] = to(rail.x2, rail.y2);
+    const hurt = 1 - rail.hp;
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(bx, by);
+    ctx.strokeStyle = `rgba(${210 + hurt * 20}, ${214 - hurt * 140}, ${220 - hurt * 160}, ${0.4 + rail.hp * 0.55})`;
+    ctx.lineWidth = 1.2 + rail.hp * 1.6;
+    ctx.stroke();
+  }
   const u = ((you.travel % 1) + 1) % 1;
   const nextGate = (Math.floor(u * 8 + 1e-4) + 1) / 8;
   const gate = pointAt(nextGate);
@@ -293,12 +306,27 @@ const COURSE_HINT: Record<string, string> = {
 };
 
 const DESK_HELP = {
-  race: "Race the computer, or open a room so friends can join. Drive through every yellow checkpoint or the lap does not count.",
-  yard: "Hire a mechanic and they build you a kart. Wings hold a jump. A rudder lets you steer in the air. Wins make that mechanic better.",
+  race: "Race the computer, or open a room so friends can join. Drive through every yellow checkpoint or the lap does not count. Sharp corners have rails. A hard hit bends that section, then breaks it.",
+  yard: "Hire a mechanic and they build you a kart. Wings hold a jump once you leave the ground. A rudder is how you steer in the air. Wins make that mechanic better.",
   purse: "A purse is a race against other people, no bots. Everyone pays the stake. The winner takes the pot.",
   wallet: "This address lives in this browser. Mining earns chips. Give someone the address if you want them to pay you.",
   chain: "The ledger confirms hires and trades. Send chips or parts to another address, or swap parts with the pool.",
 };
+
+function gearLine(yard: Yard, book: Holdings | null) {
+  const spec = specOf(yard);
+  const owned = book?.carts.find((item) => item.id === yard.selected);
+  const title = spec.id === "stock" ? "Stock kart" : `${spec.name}'s kart`;
+  const wings = Boolean(owned?.wings);
+  const rudder = Boolean(owned?.rudder);
+  const fitted = [wings ? "wings" : "", rudder ? "a rudder" : ""].filter(Boolean);
+  const gear = fitted.length ? ` It has ${fitted.join(" and ")}.` : " No wings or rudder on it.";
+  const how =
+    wings || rudder
+      ? " Catch air off a rise. Wings hold the jump by themselves. Steer in the air (A and D, the stick, or a tilt) to use the rudder."
+      : " Fit them in the garage. They only work after a block confirms them, and only once the kart leaves the ground.";
+  return `Taking ${title}.${gear}${how}`;
+}
 
 export function Race() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -308,6 +336,7 @@ export function Race() {
   const placeRef = useRef<HTMLSpanElement>(null);
   const clockRef = useRef<HTMLSpanElement>(null);
   const noxRef = useRef<HTMLSpanElement>(null);
+  const partsRef = useRef<HTMLSpanElement>(null);
   const mapRef = useRef<HTMLCanvasElement>(null);
   const thoughtRef = useRef<HTMLDivElement>(null);
   const thoughtNodes = useRef(new Map<string, HTMLDivElement>());
@@ -786,6 +815,7 @@ export function Race() {
         sun: raceSun(weatherRef.current),
         course: course().id,
         skids: current.skids,
+        rails: current.rails,
       });
       const bubbles = [
         ...current.karts
@@ -836,6 +866,16 @@ export function Race() {
         if (lapRef.current) lapRef.current.textContent = `Lap ${lapOf(player)}/${lapCount()} · gate ${player.gate + 1}`;
         if (placeRef.current) placeRef.current.textContent = ordinal(placeOf(current, player));
         if (noxRef.current) noxRef.current.style.transform = `scaleX(${Math.max(0, Math.min(1, player.nox))})`;
+        if (partsRef.current) {
+          const cart = current.cart;
+          const winged = Boolean(cart?.wings);
+          const ruddered = Boolean(cart?.rudder);
+          if (!current.running || (!winged && !ruddered)) partsRef.current.textContent = "";
+          else if (player.air && winged && ruddered) partsRef.current.textContent = "Wings · steer";
+          else if (player.air && winged) partsRef.current.textContent = "Wings holding";
+          else if (player.air && ruddered) partsRef.current.textContent = "Rudder · steer";
+          else partsRef.current.textContent = winged ? "Jump to glide" : "Jump to steer";
+        }
         drawMap(mapRef.current, current, remotes);
         const race = purseRef.current;
         if (race && !race.paid && player.finishedAt != null) {
@@ -1275,6 +1315,15 @@ export function Race() {
       return;
     }
     const held = holdings(purse.address);
+    const owned = held.carts.find((item) => item.id === cartId);
+    if (kind === "wing" && owned?.wings) {
+      setYardNote("Wings are already on this kart. Catch air off a rise and they hold the jump.");
+      return;
+    }
+    if (kind === "rudder" && owned?.rudder) {
+      setYardNote("The rudder is already on. Steer with A and D while the kart is in the air.");
+      return;
+    }
     const tx = await signTx(purse, {
       kind,
       nonce: held.nonce + 1,
@@ -1653,6 +1702,7 @@ export function Race() {
               <span ref={noxRef} />
             </span>
           </span>
+          <span className="race-meter race-parts" ref={partsRef} />
           {phase === "live" ? (
             <button
               type="button"
@@ -1737,6 +1787,7 @@ export function Race() {
                     ))}
                   </div>
                   <p className="race-note course-blurb">{COURSE_HINT[courseId] ?? "Pick a course."}</p>
+                  <p className="race-note">{gearLine(yard, book)}</p>
                   <div className="room-line">
                     {rooms.length === 0 ? <p className="race-note">{boardNote}</p> : null}
                     {rooms.slice(0, 2).map((room) => (
@@ -1787,7 +1838,7 @@ export function Race() {
                     </figure>
                   </div>
                   <p className="race-note">
-                    Wings are 8 chips and 2 oil. A rudder is 6 chips and 1 battery. You hold oil {book?.mats.oil ?? 0}, batteries {book?.mats.battery ?? 0}, engines {book?.mats.engine ?? 0}.
+                    Wings are 8 chips and 2 oil. A rudder is 6 chips and 1 battery. They stay quiet on the ground. Wings hold a jump. The rudder is A and D, the stick, or a tilt, while you are in the air. You hold oil {book?.mats.oil ?? 0}, batteries {book?.mats.battery ?? 0}, engines {book?.mats.engine ?? 0}.
                   </p>
                   <div className="course-row">
                     {yard.carts.map((cart) => {
@@ -1851,10 +1902,10 @@ export function Race() {
                   </div>
                   <div className="race-actions">
                     <button type="button" className="race-ghost" onClick={() => void fitPart("wing")}>
-                      Fit wings · 8
+                      {book?.carts.find((item) => item.id === yard.selected)?.wings ? "Wings on" : "Fit wings · 8"}
                     </button>
                     <button type="button" className="race-ghost" onClick={() => void fitPart("rudder")}>
-                      Fit rudder · 6
+                      {book?.carts.find((item) => item.id === yard.selected)?.rudder ? "Rudder on" : "Fit rudder · 6"}
                     </button>
                   </div>
                   {yardNote ? <p className="race-note">{yardNote}</p> : null}

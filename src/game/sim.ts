@@ -1,6 +1,6 @@
 import { bumpBodies } from "./contact";
 import { duneHeight, waterAt } from "./terrain";
-import { courseCount, courseIndex, courseName, halfWidth, lapCount, leftNormal, nearestU, pointAt, setCourse, setCourseById } from "./track";
+import { courseCount, courseIndex, courseName, guardRails, halfWidth, lapCount, leftNormal, nearestU, pointAt, setCourse, setCourseById } from "./track";
 
 export type Kart = {
   id: string;
@@ -87,6 +87,8 @@ export type Sim = {
   skids: Skid[];
   /** Marks laid this step, for the net. Drained by the frame. */
   skidOut: Skid[];
+  /** Sharp-corner rails. hp 1 is fresh. 0 is a broken gap. */
+  rails: Rail[];
 };
 
 export type Wheel = {
@@ -100,6 +102,8 @@ export type Wheel = {
 };
 
 export type Skid = { x: number; y: number; x2: number; y2: number };
+
+export type Rail = { x: number; y: number; x2: number; y2: number; hp: number };
 
 const COLORS: [number, number, number][] = [
   [0.91, 0.64, 0.13],
@@ -135,6 +139,10 @@ export type Bumper = {
   radius: number;
   mass: number;
 };
+
+function freshRails(): Rail[] {
+  return guardRails().map((seg) => ({ ...seg, hp: 1 }));
+}
 
 function wrap(a: number) {
   return Math.atan2(Math.sin(a), Math.cos(a));
@@ -253,6 +261,7 @@ export function createSim(playerName = "You"): Sim {
     cart: null,
     skids: [],
     skidOut: [],
+    rails: freshRails(),
   };
 }
 
@@ -437,11 +446,11 @@ function ride(kart: Kart, steer: number, drive: number, brake: number, boost: bo
   const reverse = forward >= -0.4 ? 1 : -1;
   const speedFactor = Math.max(0.22, Math.min(1, spd / 7));
   if (traction > 0) kart.yaw -= steer * TURN * (built?.turn ?? 1) * speedFactor * reverse * (brake > 0.5 ? 1.2 : 1) * dt;
-  else kart.yaw -= steer * (built?.rudder ? 1.65 : 0.55) * dt;
+  else kart.yaw -= steer * (built?.rudder ? 2.4 : 0.35) * dt;
 
   const glide = built?.wings && spd > 8 ? 0.5 : 1;
   vz -= GRAVITY * glide * dt;
-  if (built?.wings && kart.air && spd > 12) vz += 4.5 * dt;
+  if (built?.wings && kart.air && spd > 10) vz += 6.6 * dt;
   kart.x += vx * dt;
   kart.y += vy * dt;
   kart.z += vz * dt;
@@ -627,6 +636,66 @@ function touch(
   return closing;
 }
 
+const RAIL_R = 0.46;
+const RAIL_CLEAR = 1.45;
+
+function hitRails(sim: Sim, kart: Kart) {
+  const ground = duneHeight(kart.x, kart.y);
+  if (kart.z > ground + RAIL_CLEAR) return;
+  let best: { rail: Rail; nx: number; ny: number; pen: number; vn: number } | null = null;
+  for (const rail of sim.rails) {
+    if (rail.hp <= 0.08) continue;
+    const abx = rail.x2 - rail.x;
+    const aby = rail.y2 - rail.y;
+    const span = abx * abx + aby * aby;
+    if (span < 1e-4) continue;
+    let t = ((kart.x - rail.x) * abx + (kart.y - rail.y) * aby) / span;
+    if (t < 0) t = 0;
+    else if (t > 1) t = 1;
+    const px = rail.x + abx * t;
+    const py = rail.y + aby * t;
+    let dx = kart.x - px;
+    let dy = kart.y - py;
+    let dist = Math.hypot(dx, dy);
+    const need = kart.radius + RAIL_R;
+    if (dist >= need) continue;
+    if (dist < 1e-4) {
+      const len = Math.sqrt(span);
+      dx = -aby / len;
+      dy = abx / len;
+      dist = 1e-4;
+    }
+    const nx = dx / dist;
+    const ny = dy / dist;
+    const pen = need - dist;
+    const vn = kart.vx * nx + kart.vy * ny;
+    if (!best || pen > best.pen) best = { rail, nx, ny, pen, vn };
+  }
+  if (!best) return;
+  const incoming = Math.hypot(kart.vx, kart.vy);
+  kart.x += best.nx * best.pen;
+  kart.y += best.ny * best.pen;
+  if (best.vn < 0) {
+    const impact = -best.vn;
+    kart.vx -= best.nx * best.vn * 1.2;
+    kart.vy -= best.ny * best.vn * 1.2;
+    const out = Math.hypot(kart.vx, kart.vy);
+    if (out > incoming && out > 1e-4) {
+      const scale = incoming / out;
+      kart.vx *= scale;
+      kart.vy *= scale;
+    }
+    if (impact > 7) best.rail.hp = Math.max(0, best.rail.hp - Math.min(0.55, (impact - 5) * 0.04));
+    if (impact > 5 && kart === sim.karts[0] && sim.tick - sim.bumpTick > 6) {
+      sim.bumpTick = sim.tick;
+      const amount = Math.min(1, impact / 18);
+      sim.events.push({ kind: "bump", amount, x: kart.x, y: kart.y });
+      sim.shake = Math.min(1, sim.shake + amount * 0.8);
+    }
+  }
+  kart.speed = kart.vx * Math.sin(kart.yaw) + kart.vy * Math.cos(kart.yaw);
+}
+
 function plant(kart: Kart) {
   const floor = duneHeight(kart.x, kart.y) + 0.2;
   if (kart.z < floor) {
@@ -725,6 +794,7 @@ export function stepSim(sim: Sim, dt: number, peers: Bumper[] = []) {
     const cap = kart.ai ? Math.min(33, kart.cruise + (sim.level - 1) * 2.2) : MAX_SPEED * (built?.speed ?? 1);
     const skidding = ride(kart, steer, drive, brake, wantsBoost, built, dt, cap);
     laySkid(sim, kart, skidding);
+    hitRails(sim, kart);
     advanceTravel(kart);
     penalize(kart, dt, cap);
     contain(kart);
@@ -795,16 +865,18 @@ export function stepSim(sim: Sim, dt: number, peers: Bumper[] = []) {
       }
     }
     plant(kart);
+    hitRails(sim, kart);
   }
 
   if (player.finishedAt != null && !sim.promoted && sim.time - player.finishedAt > 2.6) {
     if (courseIndex() >= courseCount() - 1) {
       sim.level = Math.min(12, sim.level + 1);
       setCourse(0);
-      sim.skids = [];
     } else {
       setCourse(courseIndex() + 1);
     }
+    sim.skids = [];
+    sim.rails = freshRails();
     for (let i = 0; i < sim.karts.length; i++) resetKart(sim.karts[i]!, i);
     sim.time = 0;
     sim.lapSeen = 0;
@@ -844,6 +916,7 @@ export function parkOn(sim: Sim, courseId: string) {
   sim.level = 1;
   sim.skids = [];
   sim.skidOut = [];
+  sim.rails = freshRails();
   sim.running = false;
   sim.banner = courseName();
 }
@@ -886,6 +959,7 @@ export function parkHuman(sim: Sim, courseId: string, name: string, slot: number
   sim.level = 1;
   sim.skids = [];
   sim.skidOut = [];
+  sim.rails = freshRails();
   sim.running = false;
   sim.banner = "Hold for the flag";
 }

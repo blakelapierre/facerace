@@ -308,3 +308,185 @@ export function trackRibbon(count = 160) {
   ribbonCache.set(key, data);
   return data;
 }
+
+export type RailSeg = { x: number; y: number; x2: number; y2: number };
+
+const RAIL_MAX = 16;
+
+/** Outside rails on sharp bends. Both sides only on a hairpin, so an oval is not boxed in. */
+export function guardRails(): RailSeg[] {
+  const n = 80;
+  const len = course().length;
+  const px: number[] = [];
+  const py: number[] = [];
+  const nx: number[] = [];
+  const ny: number[] = [];
+  const yaw: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const s = pointAt(i / n);
+    const [lx, ly] = leftNormal(s);
+    px.push(s.x);
+    py.push(s.y);
+    nx.push(lx);
+    ny.push(ly);
+    yaw.push(s.yaw);
+  }
+  const kappa: number[] = [];
+  const side: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    let dy = yaw[j]! - yaw[i]!;
+    dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+    const ds = Math.hypot(px[j]! - px[i]!, py[j]! - py[i]!) || len / n;
+    kappa.push(Math.abs(dy) / ds);
+    side.push(dy >= 0 ? 1 : -1);
+  }
+  const sharp = 0.032;
+  const hairpin = 0.072;
+  type Run = { idx: number[]; maxK: number; side: number };
+  const runs: Run[] = [];
+  let cur: number[] = [];
+  const take = (idx: number[]): Run | null => {
+    if (!idx.length) return null;
+    let maxK = 0;
+    let at = 1;
+    for (const i of idx) {
+      if (kappa[i]! >= maxK) {
+        maxK = kappa[i]!;
+        at = side[i]!;
+      }
+    }
+    return { idx, maxK, side: at };
+  };
+  const flush = () => {
+    const run = take(cur);
+    if (run) runs.push(run);
+    cur = [];
+  };
+  for (let i = 0; i < n; i++) {
+    if (kappa[i]! >= sharp) cur.push(i);
+    else flush();
+  }
+  if (cur.length && runs.length && runs[0]!.idx[0] === 0 && cur[cur.length - 1] === n - 1) {
+    const first = runs.shift()!;
+    const run = take(cur.concat(first.idx));
+    if (run) runs.unshift(run);
+    cur = [];
+  } else flush();
+
+  const off = halfWidth() + 3.1;
+  type Poly = { pts: { x: number; y: number }[]; score: number; apex: number };
+  const polys: Poly[] = [];
+  const place = (run: Run, sign: number) => {
+    const pts: { x: number; y: number }[] = [];
+    const first = run.idx[0]!;
+    const prev = (first - 1 + n) % n;
+    if (!run.idx.includes(prev)) {
+      pts.push({ x: px[prev]! + nx[prev]! * off * sign, y: py[prev]! + ny[prev]! * off * sign });
+    }
+    let apex = 0;
+    for (const i of run.idx) {
+      if (i === run.idx.reduce((best, k) => (kappa[k]! > kappa[best]! ? k : best), run.idx[0]!)) apex = pts.length;
+      pts.push({ x: px[i]! + nx[i]! * off * sign, y: py[i]! + ny[i]! * off * sign });
+    }
+    const last = run.idx[run.idx.length - 1]!;
+    const next = (last + 1) % n;
+    if (!run.idx.includes(next)) {
+      pts.push({ x: px[next]! + nx[next]! * off * sign, y: py[next]! + ny[next]! * off * sign });
+    }
+    polys.push({ pts, score: run.maxK * run.idx.length, apex });
+  };
+  for (const run of runs) {
+    place(run, run.side);
+    if (run.maxK >= hairpin) place(run, -run.side);
+  }
+  if (!polys.length) return [];
+  polys.sort((a, b) => b.score - a.score);
+  let keep = polys.length;
+  while (keep > 1 && keep * 2 > RAIL_MAX) keep -= 1;
+  const kept = polys.slice(0, keep);
+  const budget = new Array<number>(kept.length).fill(2);
+  let left = RAIL_MAX - kept.length * 2;
+  const weight = kept.map((poly) => Math.max(1, poly.pts.length));
+  const totalW = weight.reduce((sum, w) => sum + w, 0);
+  const shares = weight.map((w) => Math.floor((left * w) / totalW));
+  for (let i = 0; i < kept.length; i++) budget[i] = (budget[i] ?? 2) + (shares[i] ?? 0);
+  left -= shares.reduce((sum, n) => sum + n, 0);
+  for (let i = 0; left > 0; i++) {
+    budget[i % kept.length] = (budget[i % kept.length] ?? 2) + 1;
+    left -= 1;
+  }
+
+  const segs: RailSeg[] = [];
+  for (let p = 0; p < kept.length; p++) {
+    const pts = kept[p]!.pts;
+    const pieces = budget[p] ?? 2;
+    const cum = [0];
+    for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1]! + Math.hypot(pts[i]!.x - pts[i - 1]!.x, pts[i]!.y - pts[i - 1]!.y));
+    const total = cum[cum.length - 1] || 1;
+    const maxChord = 13;
+    const cover = Math.min(total, pieces * maxChord);
+    const apexAt = cum[Math.min(kept[p]!.apex, cum.length - 1)] ?? total * 0.5;
+    let start = apexAt - cover * 0.5;
+    if (start < 0) start = 0;
+    if (start + cover > total) start = Math.max(0, total - cover);
+    const atDist = (dist: number) => {
+      const d = Math.max(0, Math.min(total, dist));
+      let i = 1;
+      while (i < cum.length - 1 && cum[i]! < d) i += 1;
+      const span = (cum[i] ?? total) - (cum[i - 1] ?? 0) || 1;
+      const f = (d - (cum[i - 1] ?? 0)) / span;
+      const a = pts[i - 1]!;
+      const b = pts[i] ?? a;
+      return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f };
+    };
+    for (let s = 0; s < pieces; s++) {
+      const a = atDist(start + (s / pieces) * cover);
+      const b = atDist(start + ((s + 1) / pieces) * cover);
+      if (Math.hypot(b.x - a.x, b.y - a.y) < 1.2) continue;
+      segs.push({ x: a.x, y: a.y, x2: b.x, y2: b.y });
+    }
+  }
+  const road = halfWidth() + 1.45;
+  const cleared: RailSeg[] = [];
+  for (const seg of segs) {
+    let x = seg.x;
+    let y = seg.y;
+    let x2 = seg.x2;
+    let y2 = seg.y2;
+    let ok = true;
+    for (let n = 0; n < 3 && ok; n++) {
+      let minAbs = Infinity;
+      let px = 0;
+      let py = 0;
+      const lats: number[] = [];
+      for (const f of [0, 0.5, 1]) {
+        const qx = x + (x2 - x) * f;
+        const qy = y + (y2 - y) * f;
+        const s = pointAt(nearestU(qx, qy));
+        const [lx, ly] = leftNormal(s);
+        const lat = (qx - s.x) * lx + (qy - s.y) * ly;
+        lats.push(lat);
+        const abs = Math.abs(lat);
+        if (abs < minAbs) {
+          minAbs = abs;
+          const sign = lat >= 0 ? 1 : -1;
+          px = lx * sign;
+          py = ly * sign;
+        }
+      }
+      if (lats[0]! * lats[2]! <= 0) {
+        ok = false;
+        break;
+      }
+      if (minAbs >= road) break;
+      const push = road - minAbs + 0.08;
+      x += px * push;
+      y += py * push;
+      x2 += px * push;
+      y2 += py * push;
+    }
+    if (ok) cleared.push({ x, y, x2, y2 });
+  }
+  return cleared.slice(0, RAIL_MAX);
+}

@@ -29,6 +29,7 @@ type FrameMsg = {
   sun: [number, number, number];
   course?: string;
   skids?: { x: number; y: number; x2: number; y2: number }[];
+  rails?: { x: number; y: number; x2: number; y2: number; hp: number }[];
 };
 
 const scope = self as unknown as {
@@ -91,7 +92,7 @@ function draw(frame: FrameMsg) {
     name: body.name,
     face: faceFor(body.seed),
   }));
-  const picture = buildPicture(bodies, frame.camera, traceW, traceH, frame.still, frame.sun, frame.rain);
+  const picture = buildPicture(bodies, frame.camera, traceW, traceH, frame.still, frame.sun, frame.rain, frame.rails ?? []);
   const started = performance.now();
   if (painter) {
     const ok = painter.paint(picture, traceW, traceH);
@@ -159,6 +160,8 @@ scope.onmessage = (event: MessageEvent) => {
     rain?: number;
     sun?: [number, number, number];
     course?: string;
+    skids?: FrameMsg["skids"];
+    rails?: FrameMsg["rails"];
   };
   if (message.cmd === "stop") {
     scope.close();
@@ -212,6 +215,8 @@ scope.onmessage = (event: MessageEvent) => {
       rain: message.rain || 0,
       sun: message.sun,
       course: message.course,
+      skids: message.skids,
+      rails: message.rails,
     };
     if (!ready) {
       queued = frame;
