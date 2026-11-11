@@ -532,11 +532,34 @@
   .race-stand {
     display: none;
   }
+}
 
+@media (max-height: 480px) {
   .race-card {
-    top: auto;
-    bottom: 10.4rem;
-    transform: translate(-50%, 0);
+    top: 50%;
+    bottom: auto;
+    transform: translate(-50%, -50%);
+    width: min(40rem, calc(100% - 1.25rem));
+    max-height: calc(100dvh - 1rem);
+    padding: 0.55rem 0.85rem 0.5rem;
+  }
+
+  .race-card h2 {
+    margin: 0.05rem 0 0.35rem;
+    font-size: 1.2rem;
+  }
+
+  .desk-row {
+    margin: 0.15rem 0 0.25rem;
+  }
+
+  .pit-name,
+  .race-actions {
+    margin-bottom: 0.3rem;
+  }
+
+  .race-actions {
+    margin-top: 0.35rem;
   }
 }
 
