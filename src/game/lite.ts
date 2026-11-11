@@ -2,10 +2,11 @@ import { duneHeight } from "./terrain";
 import { halfWidth, setCourseById, trackRibbon } from "./track";
 
 type Frame = {
-  bodies: { x: number; y: number; z?: number; yaw?: number; seed?: number; color: [number, number, number] }[];
+  bodies: { x: number; y: number; z?: number; yaw?: number; pitch?: number; roll?: number; flame?: number; seed?: number; color: [number, number, number] }[];
   camera: { x: number; y: number; z: number; dir: [number, number, number] };
   sun: [number, number, number];
   course?: string;
+  skids?: { x: number; y: number; x2: number; y2: number }[];
 };
 
 const VERT = `#version 300 es
@@ -32,6 +33,9 @@ uniform vec4 uTrack[64];
 uniform vec4 uPos[12];
 uniform vec3 uTint[12];
 uniform float uSlot[12];
+uniform vec4 uLean[12];
+uniform vec4 uSkid[28];
+uniform int uSkids;
 uniform int uKarts;
 uniform sampler2D uFace;
 
@@ -93,6 +97,30 @@ float nearest(vec2 p) {
   return best;
 }
 
+void axes(float yaw, float pitch, float roll, out vec3 fwd, out vec3 right, out vec3 up) {
+  float cp = cos(pitch);
+  float sp = sin(pitch);
+  float cr = cos(roll);
+  float sr = sin(roll);
+  float fx = sin(yaw);
+  float fy = cos(yaw);
+  fwd = vec3(fx * cp, fy * cp, sp);
+  vec3 rx0 = vec3(cos(yaw), -sin(yaw), 0.0);
+  vec3 up0 = vec3(-fx * sp, -fy * sp, cp);
+  right = rx0 * cr + up0 * sr;
+  up = up0 * cr - rx0 * sr;
+}
+
+vec3 placed(vec3 pos, vec3 fwd, vec3 right, vec3 up, vec3 local) {
+  return pos + right * local.x + fwd * local.y + up * local.z;
+}
+
+vec3 wheelAt(vec3 pos, vec3 fwd, vec3 right, vec3 up, vec3 local) {
+  vec3 w = placed(pos, fwd, right, up, local);
+  if (up.z > 0.25) w.z = max(w.z, heightAt(w.xy) + 0.2);
+  return w;
+}
+
 void ball(vec3 ro, vec3 rd, vec3 center, float radius, vec3 albedo, float faceSlot, vec3 fwd, vec3 sun, inout float best, inout vec3 rgb, inout bool hit) {
   vec3 oc = ro - center;
   float b = dot(oc, rd);
@@ -135,19 +163,24 @@ void main() {
     if (i >= uKarts) break;
     vec3 pos = uPos[i].xyz;
     float yaw = uPos[i].w;
-    vec3 fwd = vec3(sin(yaw), cos(yaw), 0.0);
-    vec3 side = vec3(fwd.y, -fwd.x, 0.0);
+    vec3 fwd;
+    vec3 side;
+    vec3 up;
+    axes(yaw, uLean[i].x, uLean[i].y, fwd, side, up);
     vec3 tint = uTint[i];
     vec3 dark = tint * 0.38;
     vec3 wheel = vec3(0.07, 0.07, 0.08);
-    ball(uCam, rd, pos, 0.5, tint, -1.0, fwd, sun, best, rgb, hit);
-    ball(uCam, rd, pos + fwd * 0.78 + vec3(0.0, 0.0, 0.05), 0.26, tint, -1.0, fwd, sun, best, rgb, hit);
-    ball(uCam, rd, pos - fwd * 0.52, 0.22, dark, -1.0, fwd, sun, best, rgb, hit);
-    ball(uCam, rd, pos + vec3(0.0, 0.0, 0.58), 0.4, vec3(0.86, 0.72, 0.58), uSlot[i], fwd, sun, best, rgb, hit);
-    ball(uCam, rd, pos + fwd * 0.46 + side * 0.46 + vec3(0.0, 0.0, -0.24), 0.2, wheel, -1.0, fwd, sun, best, rgb, hit);
-    ball(uCam, rd, pos + fwd * 0.46 - side * 0.46 + vec3(0.0, 0.0, -0.24), 0.2, wheel, -1.0, fwd, sun, best, rgb, hit);
-    ball(uCam, rd, pos - fwd * 0.4 + side * 0.46 + vec3(0.0, 0.0, -0.24), 0.2, wheel, -1.0, fwd, sun, best, rgb, hit);
-    ball(uCam, rd, pos - fwd * 0.4 - side * 0.46 + vec3(0.0, 0.0, -0.24), 0.2, wheel, -1.0, fwd, sun, best, rgb, hit);
+    ball(uCam, rd, placed(pos, fwd, side, up, vec3(0.0, 0.0, 0.05)), 0.46, tint, -1.0, fwd, sun, best, rgb, hit);
+    ball(uCam, rd, placed(pos, fwd, side, up, vec3(0.0, 0.72, 0.08)), 0.24, tint, -1.0, fwd, sun, best, rgb, hit);
+    ball(uCam, rd, placed(pos, fwd, side, up, vec3(0.0, -0.48, 0.02)), 0.2, dark, -1.0, fwd, sun, best, rgb, hit);
+    ball(uCam, rd, placed(pos, fwd, side, up, vec3(0.0, -0.02, 0.52)), 0.36, vec3(0.86, 0.72, 0.58), uSlot[i], fwd, sun, best, rgb, hit);
+    ball(uCam, rd, wheelAt(pos, fwd, side, up, vec3(0.46, 0.5, -0.28)), 0.2, wheel, -1.0, fwd, sun, best, rgb, hit);
+    ball(uCam, rd, wheelAt(pos, fwd, side, up, vec3(-0.46, 0.5, -0.28)), 0.2, wheel, -1.0, fwd, sun, best, rgb, hit);
+    ball(uCam, rd, wheelAt(pos, fwd, side, up, vec3(0.46, -0.42, -0.28)), 0.2, wheel, -1.0, fwd, sun, best, rgb, hit);
+    ball(uCam, rd, wheelAt(pos, fwd, side, up, vec3(-0.46, -0.42, -0.28)), 0.2, wheel, -1.0, fwd, sun, best, rgb, hit);
+    if (uLean[i].z > 0.5) {
+      ball(uCam, rd, placed(pos, fwd, side, up, vec3(0.0, -0.85, 0.02)), 0.16, vec3(1.0, 0.45, 0.08), -1.0, fwd, sun, best, rgb, hit);
+    }
   }
   float prevT = 0.35;
   float t = 0.35;
@@ -209,6 +242,17 @@ void main() {
       shade *= 1.0 - (1.0 - smoothstep(0.35, 1.5 + drop * 0.45, d)) * (0.42 / (1.0 + drop * 0.25));
     }
     albedo *= shade;
+    float rubber = 0.0;
+    for (int i = 0; i < 28; i++) {
+      if (i >= uSkids) break;
+      vec2 a = uSkid[i].xy;
+      vec2 b = uSkid[i].zw;
+      vec2 ab = b - a;
+      float span = max(dot(ab, ab), 0.0001);
+      float u = clamp(dot(p.xy - a, ab) / span, 0.0, 1.0);
+      rubber = max(rubber, 1.0 - smoothstep(0.04, 0.26, length(p.xy - (a + ab * u))));
+    }
+    albedo = mix(albedo, vec3(0.04, 0.04, 0.045), rubber * 0.88);
     float fog = 1.0 - exp(-hi * 0.00012);
     rgb = mix(albedo * light, vec3(0.62, 0.72, 0.82), fog);
     hit = true;
@@ -264,6 +308,8 @@ export function createLitePainter(canvas: OffscreenCanvas) {
   const karts = new Float32Array(12 * 4);
   const tint = new Float32Array(12 * 3);
   const slots = new Float32Array(12);
+  const lean = new Float32Array(12 * 4);
+  const skid = new Float32Array(28 * 4);
   const atlas = new Uint8Array(ATLAS_W * ATLAS_H * 4);
   for (let i = 0; i < atlas.length; i += 4) {
     atlas[i] = 214;
@@ -354,6 +400,7 @@ export function createLitePainter(canvas: OffscreenCanvas) {
       karts.fill(0);
       tint.fill(0);
       slots.fill(0);
+      lean.fill(0);
       const n = Math.min(12, frame.bodies.length);
       for (let i = 0; i < n; i++) {
         const body = frame.bodies[i]!;
@@ -365,6 +412,9 @@ export function createLitePainter(canvas: OffscreenCanvas) {
         tint[i * 3 + 1] = body.color[1];
         tint[i * 3 + 2] = body.color[2];
         slots[i] = faceSlot.get(body.seed ?? i) ?? 0;
+        lean[i * 4] = body.pitch ?? 0;
+        lean[i * 4 + 1] = body.roll ?? 0;
+        lean[i * 4 + 2] = body.flame ?? 0;
       }
       gl.viewport(0, 0, canvas.width, canvas.height);
       gl.useProgram(program);
@@ -385,6 +435,19 @@ export function createLitePainter(canvas: OffscreenCanvas) {
       gl.uniform4fv(loc("uPos"), karts);
       gl.uniform3fv(loc("uTint"), tint);
       gl.uniform1fv(loc("uSlot"), slots);
+      const marks = frame.skids ?? [];
+      const count = Math.min(28, marks.length);
+      skid.fill(0);
+      for (let i = 0; i < count; i++) {
+        const mark = marks[i]!;
+        skid[i * 4] = mark.x;
+        skid[i * 4 + 1] = mark.y;
+        skid[i * 4 + 2] = mark.x2;
+        skid[i * 4 + 3] = mark.y2;
+      }
+      gl.uniform4fv(loc("uLean"), lean);
+      gl.uniform4fv(loc("uSkid"), skid);
+      gl.uniform1i(loc("uSkids"), count);
       gl.uniform1i(loc("uFace"), 0);
       gl.uniform1i(loc("uKarts"), n);
       gl.drawArrays(gl.TRIANGLES, 0, 3);

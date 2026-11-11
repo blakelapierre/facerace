@@ -32,6 +32,8 @@ export type RemoteRacer = {
   color: [number, number, number];
   travel: number;
   done: boolean;
+  pitch: number;
+  roll: number;
 };
 
 type Link = {
@@ -47,6 +49,8 @@ type Link = {
   faceSent: string;
   travel: number;
   done: boolean;
+  pitch: number;
+  roll: number;
   whoAt: number;
 };
 
@@ -61,6 +65,8 @@ export type RacePose = {
   speed: number;
   yawRate: number;
   air?: boolean;
+  pitch?: number;
+  roll?: number;
   name: string;
   faceUrl: string;
   travel?: number;
@@ -83,6 +89,7 @@ export type RaceNet = {
   setIdentity: (name: string, faceUrl: string) => void;
   say: (text: string) => void;
   onSay: (fn: (from: string, text: string) => void) => () => void;
+  onSkid: (fn: (mark: { x: number; y: number; x2: number; y2: number }) => void) => () => void;
   close: () => void;
   peers: () => number;
 };
@@ -119,6 +126,7 @@ export async function createRaceNet(
   const opening = new Set<string>();
   const faces = new Map<string, FaceImage | null>();
   const sayers = new Set<(from: string, text: string) => void>();
+  const skidders = new Set<(mark: { x: number; y: number; x2: number; y2: number }) => void>();
   let closed = false;
   let poseTick = 0;
   let identity = { name: "Racer", faceUrl: "" };
@@ -140,6 +148,7 @@ export async function createRaceNet(
     },
     say: () => {},
     onSay: () => () => {},
+    onSkid: () => () => {},
     peers: () => 0,
     close: () => {
       closed = true;
@@ -200,6 +209,8 @@ export async function createRaceNet(
       faceSent: "",
       travel: 0,
       done: false,
+      pitch: 0,
+      roll: 0,
       whoAt: 0,
     };
     links.set(to, link);
@@ -235,6 +246,19 @@ export async function createRaceNet(
         if (msg.t === "prog") {
           link.travel = Number(msg.travel) || 0;
           link.done = Boolean(msg.done);
+          return;
+        }
+        if (msg.t === "lean") {
+          const lean = msg as { p?: number; r?: number };
+          if (Number.isFinite(lean.p)) link.pitch = Number(lean.p);
+          if (Number.isFinite(lean.r)) link.roll = Number(lean.r);
+          return;
+        }
+        if (msg.t === "skid") {
+          const mark = msg as { x?: number; y?: number; x2?: number; y2?: number };
+          if ([mark.x, mark.y, mark.x2, mark.y2].every((n) => Number.isFinite(n))) {
+            for (const hear of skidders) hear({ x: Number(mark.x), y: Number(mark.y), x2: Number(mark.x2), y2: Number(mark.y2) });
+          }
           return;
         }
         for (const hear of sayers) hear(to, text);
@@ -297,7 +321,7 @@ export async function createRaceNet(
       const out: RemoteRacer[] = [];
       const now = performance.now();
       for (const link of links.values()) {
-        const pose = shown(link.view, poseTick, now) as { p: number[]; v?: number[]; yaw: number } | null;
+        const pose = shown(link.view, poseTick, now) as { p: number[]; v?: number[]; yaw: number; pitch?: number } | null;
         if (!pose) continue;
         settle(link.view, 1 / 30);
         out.push({
@@ -314,6 +338,8 @@ export async function createRaceNet(
           color: hashColor(link.id),
           travel: link.travel,
           done: link.done,
+          pitch: link.pitch || pose.pitch || 0,
+          roll: link.roll,
         });
       }
       return out;
@@ -355,6 +381,10 @@ export async function createRaceNet(
       sayers.add(fn);
       return () => sayers.delete(fn);
     },
+    onSkid: (fn) => {
+      skidders.add(fn);
+      return () => skidders.delete(fn);
+    },
     tick: (pose, simTime) => {
       poseTick = Math.floor(simTime * 30);
       const airborne = Boolean(pose.air);
@@ -366,7 +396,7 @@ export async function createRaceNet(
         a: [0, 0, airborne ? -18 : 0] as [number, number, number],
         yaw: pose.yaw,
         yawRate: pose.yawRate,
-        pitch: 0,
+        pitch: pose.pitch || 0,
         floor: airborne ? pose.z - 4 : pose.z,
         mode: modeOf(v, airborne),
         wallMs: performance.now(),
@@ -387,10 +417,11 @@ export async function createRaceNet(
             /* reliable channel will retry next pose */
           }
         }
-        if (link.ctrl.readyState === "open" && performance.now() - link.whoAt > 400) {
+        if (link.ctrl.readyState === "open" && performance.now() - link.whoAt > 100) {
           link.whoAt = performance.now();
           try {
             link.ctrl.send(JSON.stringify({ t: "prog", travel: pose.travel || 0, done: Boolean(pose.done) }));
+            link.ctrl.send(JSON.stringify({ t: "lean", p: pose.pitch || 0, r: pose.roll || 0 }));
           } catch {
             /* next pose */
           }

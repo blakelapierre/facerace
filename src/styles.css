@@ -231,6 +231,7 @@
 .race-root.is-menu .race-banner,
 .race-root.is-menu .stick,
 .race-root.is-menu .pedals,
+.race-root.is-menu .assist,
 .race-root.is-menu .race-mode,
 .race-root.is-menu .race-mute {
   display: none;
@@ -500,7 +501,8 @@
 }
 
 .race-mode,
-.pedals {
+.pedals,
+.assist {
   display: none;
 }
 
@@ -550,6 +552,63 @@
   color: var(--color-paper);
 }
 
+.assist {
+  position: absolute;
+  z-index: 2;
+  right: max(0.9rem, env(safe-area-inset-right));
+  bottom: max(4.4rem, calc(env(safe-area-inset-bottom) + 3.6rem));
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.is-tilt .assist {
+  bottom: max(12rem, calc(env(safe-area-inset-bottom) + 11rem));
+}
+
+.pedal-brake {
+  background: color-mix(in srgb, var(--color-panel) 92%, white);
+  color: var(--color-paper);
+}
+
+.pedal-nox {
+  background: #e36a2d;
+  color: #1a120c;
+}
+
+.race-map {
+  position: absolute;
+  z-index: 2;
+  left: max(0.8rem, env(safe-area-inset-left));
+  top: 4.6rem;
+  width: 9.2rem;
+  height: 9.2rem;
+  border-radius: 1rem;
+  border: 1px solid var(--color-line);
+  background: color-mix(in srgb, var(--color-ink) 48%, transparent);
+  pointer-events: none;
+}
+
+.race-root.is-menu .race-map {
+  display: none;
+}
+
+.nox-track {
+  width: 3.1rem;
+  height: 0.42rem;
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--color-ink) 45%, transparent);
+}
+
+.nox-track span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform: scaleX(1);
+  transform-origin: left center;
+  background: #e36a2d;
+}
+
 .race-sideways {
   display: none;
   inset: 0;
@@ -589,12 +648,21 @@
     justify-content: center;
   }
 
-  .is-tilt .pedals {
+  .is-tilt .pedals,
+  .assist {
     display: flex;
   }
 
   .is-stick .stick {
     display: block;
+  }
+
+  .race-map {
+    left: 50%;
+    top: 3.3rem;
+    width: 6.6rem;
+    height: 6.6rem;
+    transform: translateX(-50%);
   }
 
   .race-stand {

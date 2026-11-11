@@ -5,7 +5,7 @@ import { createSim, installProbe, lapOf, parkHuman, parkOn, placeOf, stepSim, ty
 import { chaseCamera, raceSun } from "./scene";
 import { createRaceAudio, hearAt, type RaceAudio } from "./sound";
 import { rainAt } from "./terrain";
-import { COURSES, course, lapCount } from "./track";
+import { COURSES, course, lapCount, pointAt } from "./track";
 import { freshCode, openBoard, type ListedRoom, type MarketListing } from "./lobby";
 import type { RaceNet, RoomPerson } from "./net";
 import { openWallet, shortAddress, writePurse, type Wallet } from "./wallet";
@@ -60,10 +60,57 @@ function screenRoll(event: DeviceOrientationEvent) {
   return gamma;
 }
 
+/** Degrees the top edge is lifted. Positive is pulled back. */
+function screenPitch(event: DeviceOrientationEvent) {
+  const angle = screen.orientation?.angle ?? Number(window.orientation ?? 0);
+  const beta = event.beta ?? 0;
+  const gamma = event.gamma ?? 0;
+  if (angle === 90) return -gamma;
+  if (angle === 270 || angle === -90) return gamma;
+  if (angle === 180) return -beta;
+  return beta;
+}
+
 function clampUnit(n: number) {
   if (n > 1) return 1;
   if (n < -1) return -1;
   return n;
+}
+
+function drawMap(canvas: HTMLCanvasElement | null, sim: Sim, remotes: { x: number; y: number }[]) {
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const you = sim.karts[0];
+  if (!ctx || !you) return;
+  const w = canvas.width;
+  const h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+  const scale = w / 96;
+  const to = (x: number, y: number) => [w / 2 + (x - you.x) * scale, h / 2 - (y - you.y) * scale] as const;
+  ctx.strokeStyle = "rgba(232, 196, 92, 0.92)";
+  ctx.lineWidth = 4;
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  for (let i = 0; i <= 32; i++) {
+    const sample = pointAt(you.travel - 0.05 + (i / 32) * 0.13);
+    const [px, py] = to(sample.x, sample.y);
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.stroke();
+  const dot = (x: number, y: number, color: string, radius = 3.4) => {
+    const [px, py] = to(x, y);
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(px, py, radius, 0, Math.PI * 2);
+    ctx.fill();
+  };
+  for (const kart of sim.karts) {
+    if (kart === you) continue;
+    dot(kart.x, kart.y, `rgb(${Math.round(kart.color[0] * 255)}, ${Math.round(kart.color[1] * 255)}, ${Math.round(kart.color[2] * 255)})`);
+  }
+  for (const remote of remotes) dot(remote.x, remote.y, "#9fd0ff");
+  dot(you.x, you.y, "#f4c14e", 4.4);
 }
 
 /** Software GL gets a tiny CPU picture. Intel integrated gets a smaller raytracer on the GPU. */
@@ -108,6 +155,8 @@ export function Race() {
   const lapRef = useRef<HTMLSpanElement>(null);
   const placeRef = useRef<HTMLSpanElement>(null);
   const clockRef = useRef<HTMLSpanElement>(null);
+  const noxRef = useRef<HTMLSpanElement>(null);
+  const mapRef = useRef<HTMLCanvasElement>(null);
   const bannerRef = useRef<HTMLParagraphElement>(null);
   const statusRef = useRef<HTMLParagraphElement>(null);
   const standRef = useRef<HTMLUListElement>(null);
@@ -274,7 +323,7 @@ export function Race() {
       if (tag === "INPUT" || tag === "TEXTAREA") return;
       const simNow = simRef.current;
       if (!simNow) return;
-      const tracked = ["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
+      const tracked = ["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space", "ShiftLeft", "ShiftRight"];
       if (event.code === "Escape" && down) {
         event.preventDefault();
         leaveRef.current();
@@ -298,24 +347,35 @@ export function Race() {
       sim.stick = 0;
       sim.gas = 0;
       sim.pedal = 0;
+      sim.brake = 0;
+      sim.boost = 0;
+      sim.lean = 0;
     };
     window.addEventListener("keydown", keysDown);
     window.addEventListener("keyup", keysUp);
     window.addEventListener("blur", blur);
 
     let tiltZero: number | null = null;
+    let pitchZero: number | null = null;
     const onTilt = (event: DeviceOrientationEvent) => {
       const current = simRef.current;
       if (!current || current.hands !== "tilt") return;
       const roll = screenRoll(event);
+      const pitch = screenPitch(event);
       if (tiltZero == null) tiltZero = roll;
+      if (pitchZero == null) pitchZero = pitch;
       const delta = roll - tiltZero;
       const dead = 4;
       const mag = Math.max(0, Math.abs(delta) - dead);
       current.tilt = clampUnit(-(Math.sign(delta) * mag) / 18);
+      const lifted = pitch - pitchZero;
+      const pitchDead = 8;
+      const pitchMag = Math.max(0, Math.abs(lifted) - pitchDead);
+      current.lean = clampUnit((Math.sign(lifted) * pitchMag) / 20);
     };
     const resetTilt = () => {
       tiltZero = null;
+      pitchZero = null;
     };
     window.addEventListener("deviceorientation", onTilt);
     screen.orientation?.addEventListener("change", resetTilt);
@@ -484,6 +544,9 @@ export function Race() {
             y: kart.y,
             z: kart.z,
             yaw: kart.yaw,
+            pitch: kart.pitch,
+            roll: kart.roll,
+            flame: kart.flame ? 1 : 0,
             color: kart.color,
             seed: kart.seed,
             name: kart.name,
@@ -493,6 +556,8 @@ export function Race() {
             y: remote.y,
             z: remote.z,
             yaw: remote.yaw,
+            pitch: remote.pitch,
+            roll: remote.roll,
             color: remote.color,
             seed: remote.name.split("").reduce((sum, char) => sum + char.charCodeAt(0), 3),
             name: remote.name,
@@ -503,7 +568,11 @@ export function Race() {
         rain: rainAt(weatherRef.current),
         sun: raceSun(weatherRef.current),
         course: course().id,
+        skids: current.skids,
       });
+      for (const mark of current.skidOut.splice(0)) {
+        netRef.current?.say(JSON.stringify({ t: "skid", x: mark.x, y: mark.y, x2: mark.x2, y2: mark.y2 }));
+      }
       netRef.current?.tick(
         {
           x: player.x,
@@ -516,6 +585,8 @@ export function Race() {
           speed: player.speed,
           yawRate,
           air: player.air,
+          pitch: player.pitch,
+          roll: player.roll,
           name: player.name,
           faceUrl: faceRef.current?.url || "",
           travel: player.travel,
@@ -528,6 +599,8 @@ export function Race() {
         if (speedRef.current) speedRef.current.textContent = String(Math.round(Math.abs(player.speed) * 8));
         if (lapRef.current) lapRef.current.textContent = `${lapOf(player)} / ${lapCount()}`;
         if (placeRef.current) placeRef.current.textContent = ordinal(placeOf(current, player));
+        if (noxRef.current) noxRef.current.style.transform = `scaleX(${Math.max(0, Math.min(1, player.nox))})`;
+        drawMap(mapRef.current, current, remotes);
         const race = purseRef.current;
         if (race && !race.paid && player.finishedAt != null) {
           const beaten = (netRef.current?.people() ?? []).some((person) => person.done);
@@ -639,6 +712,18 @@ export function Race() {
     if (sim) sim.pedal = 0;
   }
 
+  function holdHold(which: "brake" | "boost", event: React.PointerEvent) {
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const sim = simRef.current;
+    if (sim) sim[which] = 1;
+  }
+
+  function releaseHold(which: "brake" | "boost") {
+    const sim = simRef.current;
+    if (sim) sim[which] = 0;
+  }
+
   async function toggleHands() {
     const sim = simRef.current;
     if (!sim) return;
@@ -648,6 +733,9 @@ export function Race() {
     sim.stick = 0;
     sim.gas = 0;
     sim.pedal = 0;
+    sim.brake = 0;
+    sim.boost = 0;
+    sim.lean = 0;
     if (knobRef.current) knobRef.current.style.transform = "translate(0px, 0px)";
     setHands(next);
     if (next !== "tilt") return;
@@ -663,7 +751,7 @@ export function Race() {
 
   function lookDown(event: React.PointerEvent) {
     const target = event.target as HTMLElement | null;
-    if (target?.closest(".stick, .pedals, .race-mode, button, input, a, .race-card, .race-sideways")) return;
+    if (target?.closest(".stick, .pedals, .assist, .race-mode, button, input, a, .race-card, .race-sideways")) return;
     lookingRef.current = true;
     lookPoint.current = { id: event.pointerId, x: event.clientX, y: event.clientY };
     (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
@@ -723,6 +811,9 @@ export function Race() {
       sim.stick = 0;
       sim.gas = 0;
       sim.pedal = 0;
+      sim.brake = 0;
+      sim.boost = 0;
+      sim.lean = 0;
       sim.banner = "";
     }
     armRef.current = false;
@@ -769,6 +860,12 @@ export function Race() {
     });
     const name = nameRef.current?.value.trim().slice(0, 16) || "You";
     net.setIdentity(name, faceRef.current?.url || "");
+    net.onSkid((mark) => {
+      const sim = simRef.current;
+      if (!sim) return;
+      sim.skids.push(mark);
+      if (sim.skids.length > 28) sim.skids.shift();
+    });
     netRef.current = net;
     return net;
   }
@@ -1084,6 +1181,7 @@ export function Race() {
       onPointerCancel={lookUp}
     >
       <canvas ref={canvasRef} className="race-canvas" />
+      <canvas ref={mapRef} className="race-map" width={180} height={180} aria-hidden="true" />
       <video ref={videoRef} className="race-video" playsInline muted />
       <div className="race-sideways">
         <p className="race-kicker">Landscape</p>
@@ -1110,6 +1208,11 @@ export function Race() {
           </span>
           <span className="race-meter" ref={clockRef}>
             0:00.00
+          </span>
+          <span className="race-meter race-nox" title="Nox">
+            <span className="nox-track">
+              <span ref={noxRef} />
+            </span>
           </span>
           {phase === "live" ? (
             <button
@@ -1497,6 +1600,26 @@ export function Race() {
           onPointerCancel={releasePedal}
         >
           Back
+        </button>
+      </div>
+      <div className="assist">
+        <button
+          type="button"
+          className="pedal pedal-brake"
+          onPointerDown={(event) => holdHold("brake", event)}
+          onPointerUp={() => releaseHold("brake")}
+          onPointerCancel={() => releaseHold("brake")}
+        >
+          Brake
+        </button>
+        <button
+          type="button"
+          className="pedal pedal-nox"
+          onPointerDown={(event) => holdHold("boost", event)}
+          onPointerUp={() => releaseHold("boost")}
+          onPointerCancel={() => releaseHold("boost")}
+        >
+          Nox
         </button>
       </div>
       <button

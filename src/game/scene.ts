@@ -98,33 +98,69 @@ export type DrawBody = {
   y: number;
   z?: number;
   yaw: number;
+  pitch?: number;
+  roll?: number;
+  flame?: number;
   color: [number, number, number];
   face: FaceImage | null;
   name: string;
 };
 
-function kartParts(body: DrawBody, faces: SceneObject[], rest: SceneObject[]) {
-  const { x, y, yaw, color } = body;
+function axes(yaw: number, pitch: number, roll: number) {
+  const cp = Math.cos(pitch);
+  const sp = Math.sin(pitch);
+  const cr = Math.cos(roll);
+  const sr = Math.sin(roll);
   const fx = Math.sin(yaw);
   const fy = Math.cos(yaw);
-  const rx = Math.cos(yaw);
-  const ry = -Math.sin(yaw);
+  const fwd: [number, number, number] = [fx * cp, fy * cp, sp];
+  const rx0 = Math.cos(yaw);
+  const ry0 = -Math.sin(yaw);
+  const ux = -fx * sp;
+  const uy = -fy * sp;
+  const uz = cp;
+  return {
+    fwd,
+    right: [rx0 * cr + ux * sr, ry0 * cr + uy * sr, uz * sr] as [number, number, number],
+    up: [ux * cr - rx0 * sr, uy * cr - ry0 * sr, uz * cr] as [number, number, number],
+  };
+}
+
+function kartParts(body: DrawBody, faces: SceneObject[], rest: SceneObject[]) {
+  const { x, y, yaw, color } = body;
+  const pose = axes(yaw, body.pitch ?? 0, body.roll ?? 0);
+  const fx = pose.fwd[0];
+  const fy = pose.fwd[1];
+  const fz = pose.fwd[2];
+  const rx = pose.right[0];
+  const ry = pose.right[1];
+  const rz = pose.right[2];
+  const ux = pose.up[0];
+  const uy = pose.up[1];
+  const uz = pose.up[2];
   const paint = [color[0], color[1], color[2], 1];
   const wheelR = 0.22;
   const cz = body.z ?? duneHeight(x, y) + 0.46;
+  const at = (lx: number, ly: number, lz: number): [number, number, number] => [
+    x + rx * lx + fx * ly + ux * lz,
+    y + ry * lx + fy * ly + uy * lz,
+    cz + rz * lx + fz * ly + uz * lz,
+  ];
   faces.push({
     type: "sphere",
-    origin: [x - rx * 0.05, y - ry * 0.05, cz + 0.56],
+    origin: at(-0.05, 0, 0.56),
     radius: 0.46,
     color: [1, 1, 1, 1],
     reflectivity: 0.04,
     ...(body.face ? { texture: body.face } : {}),
   });
+  const tail = at(0, -0.55, 0);
+  const nose = at(0, 0.85, 0.06);
   rest.push({
     type: "shape",
     kind: "capsule",
-    a: [x - fx * 0.55, y - fy * 0.55, cz],
-    b: [x + fx * 0.85, y + fy * 0.85, cz + 0.06],
+    a: tail,
+    b: nose,
     r: 0.32,
     color: paint,
     reflectivity: 0.18,
@@ -132,26 +168,35 @@ function kartParts(body: DrawBody, faces: SceneObject[], rest: SceneObject[]) {
   });
   rest.push({
     type: "sphere",
-    origin: [x + fx * 0.95, y + fy * 0.95, cz + 0.02],
+    origin: at(0, 0.95, 0.02),
     radius: 0.26,
     color: paint,
     reflectivity: 0.2,
   });
   const wheels: [number, number][] = [
-    [0.55, 0.48],
-    [0.55, -0.48],
-    [-0.5, 0.48],
-    [-0.5, -0.48],
+    [0.46, 0.5],
+    [-0.46, 0.5],
+    [0.46, -0.42],
+    [-0.46, -0.42],
   ];
-  for (const [f, s] of wheels) {
-    const wx = x + fx * f + rx * s;
-    const wy = y + fy * f + ry * s;
+  for (const [s, f] of wheels) {
+    const spot = at(s, f, -0.28);
+    if (pose.up[2] > 0.25) spot[2] = Math.max(spot[2], duneHeight(spot[0], spot[1]) + wheelR);
     rest.push({
       type: "sphere",
-      origin: [wx, wy, cz - 0.22],
+      origin: spot,
       radius: wheelR,
       color: [0.08, 0.08, 0.09, 1],
       reflectivity: 0.06,
+    });
+  }
+  if ((body.flame ?? 0) > 0.5) {
+    rest.push({
+      type: "sphere",
+      origin: at(0, -0.9, 0.02),
+      radius: 0.16,
+      color: [1, 0.45, 0.08, 1],
+      reflectivity: 0.02,
     });
   }
 }

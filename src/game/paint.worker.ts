@@ -12,6 +12,9 @@ type BodyMsg = {
   y: number;
   z?: number;
   yaw: number;
+  pitch?: number;
+  roll?: number;
+  flame?: number;
   color: [number, number, number];
   seed: number;
   name: string;
@@ -25,6 +28,7 @@ type FrameMsg = {
   rain: number;
   sun: [number, number, number];
   course?: string;
+  skids?: { x: number; y: number; x2: number; y2: number }[];
 };
 
 const scope = self as unknown as {
@@ -80,6 +84,9 @@ function draw(frame: FrameMsg) {
     y: body.y,
     z: body.z,
     yaw: body.yaw,
+    pitch: body.pitch,
+    roll: body.roll,
+    flame: body.flame,
     color: body.color,
     name: body.name,
     face: faceFor(body.seed),

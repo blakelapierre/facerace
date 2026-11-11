@@ -24,6 +24,17 @@ export type Kart = {
   vz: number;
   /** True while gravity, not the road, owns the vertical. */
   air: boolean;
+  pitch: number;
+  roll: number;
+  pitchVel: number;
+  rollVel: number;
+  /** Seconds spent upside down. A long one flips the kart back over. */
+  invert: number;
+  /** 1 is a full bottle. Boost spends it. Coasting fills it. */
+  nox: number;
+  flame: boolean;
+  mark: { x: number; y: number } | null;
+  wheels: Wheel[];
 };
 
 export type Sim = {
@@ -42,6 +53,12 @@ export type Sim = {
   gas: number;
   /** Held Go / Back pedals in motion mode. */
   pedal: number;
+  /** 1 while the brake button is held. Space and a pulled-back phone also brake. */
+  brake: number;
+  /** 1 while the boost button is held. Shift and a phone tipped forward also boost. */
+  boost: number;
+  /** Phone pitch, −1..1. Negative is pulled back (brake). Positive is tipped forward (boost). */
+  lean: number;
   /** Touch scheme. Motion uses tilt plus pedals. Stick uses the joystick and ignores the phone. */
   hands: "tilt" | "stick";
   banner: string;
@@ -62,7 +79,23 @@ export type Sim = {
   level: number;
   /** Built cart. Stock is null. */
   cart: { speed: number; turn: number; grip: number; color: [number, number, number] } | null;
+  /** Recent tire marks, oldest first. Shared with every painter. */
+  skids: Skid[];
+  /** Marks laid this step, for the net. Drained by the frame. */
+  skidOut: Skid[];
 };
+
+export type Wheel = {
+  x: number;
+  y: number;
+  z: number;
+  vx: number;
+  vy: number;
+  vz: number;
+  down: boolean;
+};
+
+export type Skid = { x: number; y: number; x2: number; y2: number };
 
 const COLORS: [number, number, number][] = [
   [0.91, 0.64, 0.13],
@@ -77,8 +110,16 @@ const NAMES = ["You", "Vesper", "Nox", "Ione", "Bram", "Sol"];
 const TURN = 2.35;
 const MAX_SPEED = 26;
 const BODY = 0.82;
-const RIDE = 0.46;
+const RIDE = 0.5;
 const GRAVITY = 18;
+const WHEEL_R = 0.2;
+const RESTL = 0.36;
+const HUBS: { x: number; y: number }[] = [
+  { x: 0.46, y: 0.5 },
+  { x: -0.46, y: 0.5 },
+  { x: 0.46, y: -0.42 },
+  { x: -0.46, y: -0.42 },
+];
 
 export type Bumper = {
   x: number;
@@ -95,12 +136,43 @@ function wrap(a: number) {
   return Math.atan2(Math.sin(a), Math.cos(a));
 }
 
+function basis(yaw: number, pitch: number, roll: number) {
+  const cp = Math.cos(pitch);
+  const sp = Math.sin(pitch);
+  const cr = Math.cos(roll);
+  const sr = Math.sin(roll);
+  const fx = Math.sin(yaw);
+  const fy = Math.cos(yaw);
+  const fwd: [number, number, number] = [fx * cp, fy * cp, sp];
+  const rx0 = Math.cos(yaw);
+  const ry0 = -Math.sin(yaw);
+  const ux = -fx * sp;
+  const uy = -fy * sp;
+  const uz = cp;
+  return {
+    fwd,
+    right: [rx0 * cr + ux * sr, ry0 * cr + uy * sr, uz * sr] as [number, number, number],
+    up: [ux * cr - rx0 * sr, uy * cr - ry0 * sr, uz * cr] as [number, number, number],
+  };
+}
+
+function hangWheels(kart: Kart) {
+  const pose = basis(kart.yaw, kart.pitch, kart.roll);
+  kart.wheels = HUBS.map((hub) => {
+    const x = kart.x + pose.right[0] * hub.x + pose.fwd[0] * hub.y;
+    const y = kart.y + pose.right[1] * hub.x + pose.fwd[1] * hub.y;
+    return { x, y, z: duneHeight(x, y) + WHEEL_R, vx: kart.vx, vy: kart.vy, vz: 0, down: true };
+  });
+  const z = kart.wheels.reduce((sum, wheel) => sum + wheel.z, 0) / kart.wheels.length + RESTL;
+  kart.z = z;
+}
+
 function placeKart(i: number, name: string): Kart {
   const u = 0.016 + i * 0.016;
   const sample = pointAt(u);
   const [lx, ly] = leftNormal(sample);
   const lat = i % 2 === 0 ? -1.45 : 1.45;
-  return {
+  const kart: Kart = {
     id: `kart-${i}`,
     name,
     x: sample.x + lx * lat,
@@ -120,7 +192,18 @@ function placeKart(i: number, name: string): Kart {
     vy: 0,
     vz: 0,
     air: false,
+    pitch: 0,
+    roll: 0,
+    pitchVel: 0,
+    rollVel: 0,
+    invert: 0,
+    nox: 1,
+    flame: false,
+    mark: null,
+    wheels: [],
   };
+  hangWheels(kart);
+  return kart;
 }
 
 export function createSim(playerName = "You"): Sim {
@@ -145,6 +228,9 @@ export function createSim(playerName = "You"): Sim {
     tilt: 0,
     gas: 0,
     pedal: 0,
+    brake: 0,
+    boost: 0,
+    lean: 0,
     hands: "stick",
     banner: "",
     bestMs: best,
@@ -159,6 +245,8 @@ export function createSim(playerName = "You"): Sim {
     promoted: false,
     level: 1,
     cart: null,
+    skids: [],
+    skidOut: [],
   };
 }
 
@@ -184,6 +272,18 @@ function throttle(sim: Sim) {
   if (t > 1) return 1;
   if (t < -1) return -1;
   return t;
+}
+
+function readBrake(sim: Sim) {
+  let brake = 0;
+  if (down(sim, "Space") || sim.brake > 0) brake = 1;
+  if (sim.hands === "tilt" && sim.lean < -0.22) brake = Math.max(brake, Math.min(1, (-sim.lean - 0.22) / 0.45));
+  return brake;
+}
+
+function readBoost(sim: Sim) {
+  if (down(sim, "ShiftLeft") || down(sim, "ShiftRight") || sim.boost > 0) return true;
+  return sim.hands === "tilt" && sim.lean > 0.28;
 }
 
 function advanceTravel(kart: Kart) {
@@ -229,7 +329,9 @@ function aiSteer(kart: Kart, level: number) {
   const steer = Math.max(-1, Math.min(1, -diff / 0.42));
   const slow = Math.abs(diff) > 0.9 ? 0.85 : 1;
   const pace = Math.min(33, kart.cruise + (level - 1) * 2.2);
-  return { steer, throttle: kart.speed < pace * slow ? 1 : 0.25 };
+  const brake = Math.abs(diff) > 1.05 ? 1 : 0;
+  const boost = Math.abs(diff) < 0.2 && kart.speed + 0.8 < pace;
+  return { steer, throttle: kart.speed < pace * slow ? 1 : 0.25, brake, boost };
 }
 
 function slopeAt(x: number, y: number) {
@@ -240,105 +342,207 @@ function slopeAt(x: number, y: number) {
   return { h: h + RIDE, hx, hy };
 }
 
-function ride(kart: Kart, steer: number, drive: number, built: Sim["cart"], dt: number, cap: number) {
-  const fx = Math.sin(kart.yaw);
-  const fy = Math.cos(kart.yaw);
-  const rx = fy;
-  const ry = -fx;
+function ride(kart: Kart, steer: number, drive: number, brake: number, boost: boolean, built: Sim["cart"], dt: number, cap: number) {
+  const faceX = Math.sin(kart.yaw);
+  const faceY = Math.cos(kart.yaw);
+  const rx = Math.cos(kart.yaw);
+  const ry = -Math.sin(kart.yaw);
   let vx = kart.vx;
   let vy = kart.vy;
   let vz = kart.vz;
-  const here = slopeAt(kart.x, kart.y);
-  const forward = vx * fx + vy * fy;
+  const grounded = kart.wheels.reduce((n, wheel) => n + (wheel.down ? 1 : 0), 0);
+  const traction = grounded / 4;
+  const forward = vx * faceX + vy * faceY;
   const grip = Math.max(0.35, built?.grip ?? 1);
-  const hold = kart.ai ? Math.min(18, 11 + Math.max(0, cap - kart.cruise) * 0.4) : 11 * grip;
-  const onGround = !kart.air && kart.z <= here.h + 0.12;
+  const hold = (kart.ai ? Math.min(18, 11 + Math.max(0, cap - kart.cruise) * 0.4) : 11 * grip) * Math.max(0.15, traction);
   const spd = Math.hypot(vx, vy);
+  const skidBrake = brake > 0.05 && traction > 0;
 
-  if (onGround) {
+  if (traction > 0) {
     const lateral = vx * rx + vy * ry;
     const latAccel = Math.max(-hold, Math.min(hold, -lateral / Math.max(dt, 1e-4)));
     let driveAccel = 0;
-    if (drive > 0) driveAccel = 16 * (built?.speed ?? 1);
-    else if (drive < 0) driveAccel = -26;
+    if (skidBrake) driveAccel = -Math.sign(forward || 1) * (24 + 30 * brake);
+    else if (drive > 0) driveAccel = 16 * (built?.speed ?? 1);
+    else if (drive < 0) driveAccel = -22;
     else driveAccel = -Math.sign(forward) * Math.min(7, Math.abs(forward) / Math.max(dt, 1e-4));
-    const nx = -here.hx;
-    const ny = -here.hy;
+    if (boost && !skidBrake) driveAccel += 26;
+    const mid = slopeAt(kart.x, kart.y);
+    const nx = -mid.hx;
+    const ny = -mid.hy;
     const inv = 1 / Math.hypot(nx, ny, 1);
-    const gdot = -GRAVITY * inv;
-    vx += (fx * driveAccel + rx * latAccel - nx * inv * gdot - vx * 0.22) * dt;
-    vy += (fy * driveAccel + ry * latAccel - ny * inv * gdot - vy * 0.22) * dt;
-    const fwdNow = vx * fx + vy * fy;
-    if (fwdNow > cap) {
-      vx -= fx * (fwdNow - cap);
-      vy -= fy * (fwdNow - cap);
+    const drag = 0.16 + brake * 0.4;
+    vx += (faceX * driveAccel + rx * latAccel + nx * inv * GRAVITY * inv - vx * drag) * dt;
+    vy += (faceY * driveAccel + ry * latAccel + ny * inv * GRAVITY * inv - vy * drag) * dt;
+    const capNow = cap + (boost && !skidBrake ? 10 : 0);
+    const fwdNow = vx * faceX + vy * faceY;
+    if (fwdNow > capNow) {
+      vx -= faceX * (fwdNow - capNow);
+      vy -= faceY * (fwdNow - capNow);
     } else if (fwdNow < -9) {
-      vx -= fx * (fwdNow + 9);
-      vy -= fy * (fwdNow + 9);
+      vx -= faceX * (fwdNow + 9);
+      vy -= faceY * (fwdNow + 9);
     }
-    vz = here.hx * vx + here.hy * vy;
-  } else {
-    vz -= GRAVITY * dt;
-    const hspd = Math.hypot(vx, vy);
-    if (hspd > 34) {
-      const scale = 34 / hspd;
-      vx *= scale;
-      vy *= scale;
+    if (skidBrake && forward * (vx * faceX + vy * faceY) < 0) {
+      const stop = vx * faceX + vy * faceY;
+      vx -= faceX * stop;
+      vy -= faceY * stop;
     }
   }
 
   const reverse = forward >= -0.4 ? 1 : -1;
   const speedFactor = Math.max(0.22, Math.min(1, spd / 7));
-  if (onGround) kart.yaw -= steer * TURN * (built?.turn ?? 1) * speedFactor * reverse * dt;
-  else kart.yaw -= steer * 0.65 * dt;
+  if (traction > 0) kart.yaw -= steer * TURN * (built?.turn ?? 1) * speedFactor * reverse * (brake > 0.5 ? 1.2 : 1) * dt;
+  else kart.yaw -= steer * 0.55 * dt;
 
+  vz -= GRAVITY * dt;
   kart.x += vx * dt;
   kart.y += vy * dt;
   kart.z += vz * dt;
-  if (waterAt(kart.x, kart.y) != null) {
-    vx *= Math.pow(0.2, dt);
-    vy *= Math.pow(0.2, dt);
+
+  const pose = basis(kart.yaw, kart.pitch, kart.roll);
+  let lifts = 0;
+  const planted: { lx: number; ly: number; z: number; down: boolean }[] = [];
+  for (let i = 0; i < HUBS.length; i++) {
+    const hubL = HUBS[i]!;
+    const hub = {
+      x: kart.x + pose.right[0] * hubL.x + pose.fwd[0] * hubL.y + pose.up[0] * -0.02,
+      y: kart.y + pose.right[1] * hubL.x + pose.fwd[1] * hubL.y + pose.up[1] * -0.02,
+      z: kart.z + pose.right[2] * hubL.x + pose.fwd[2] * hubL.y + pose.up[2] * -0.02,
+    };
+    const wheel = kart.wheels[i]!;
+    wheel.x += (hub.x - wheel.x) * Math.min(1, dt * 10);
+    wheel.y += (hub.y - wheel.y) * Math.min(1, dt * 10);
+    let wx = wheel.vx;
+    let wy = wheel.vy;
+    let wz = wheel.vz;
+    wx += (vx - wx) * Math.min(1, dt * 6);
+    wy += (vy - wy) * Math.min(1, dt * 6);
+    const dx = wheel.x - hub.x;
+    const dy = wheel.y - hub.y;
+    const dz = wheel.z - hub.z;
+    const dist = Math.hypot(dx, dy, dz) || 1e-4;
+    const nx = dx / dist;
+    const ny = dy / dist;
+    const nz = dz / dist;
+    const rel = (wx - vx) * nx + (wy - vy) * ny + (wz - vz) * nz;
+    let force = 0;
+    if (dist < RESTL) {
+      force = (RESTL - dist) * 240 - rel * 30;
+      if (force < 0) force = 0;
+    } else if (dist > RESTL + 0.22) {
+      force = -(dist - (RESTL + 0.22)) * 70 - rel * 12;
+    }
+    const wheelMass = 0.22;
+    wx += (nx * force) / wheelMass * dt;
+    wy += (ny * force) / wheelMass * dt;
+    wz += (nz * force) / wheelMass * dt;
+    vx -= (nx * force) / 1.15 * dt;
+    vy -= (ny * force) / 1.15 * dt;
+    vz -= (nz * force) / 1.15 * dt;
+    wz -= GRAVITY * dt;
+    wheel.x += wx * dt;
+    wheel.y += wy * dt;
+    wheel.z += wz * dt;
+    const ground = duneHeight(wheel.x, wheel.y);
+    const slope = slopeAt(wheel.x, wheel.y);
+    if (wheel.z <= ground + WHEEL_R) {
+      wheel.z = ground + WHEEL_R;
+      const gnx = -slope.hx;
+      const gny = -slope.hy;
+      const ginv = 1 / Math.hypot(gnx, gny, 1);
+      const gvx = gnx * ginv;
+      const gvy = gny * ginv;
+      const gvz = ginv;
+      const vn = wx * gvx + wy * gvy + wz * gvz;
+      if (vn < 0) {
+        wx -= gvx * vn;
+        wy -= gvy * vn;
+        wz -= gvz * vn;
+      }
+      wheel.down = true;
+      lifts += 1;
+    } else wheel.down = false;
+    wheel.vx = wx;
+    wheel.vy = wy;
+    wheel.vz = wz;
+    planted.push({ lx: hubL.x, ly: hubL.y, z: wheel.z, down: wheel.down });
   }
 
-  const next = slopeAt(kart.x, kart.y);
-  const prevRising = here.hx * vx + here.hy * vy;
-  const nextRising = next.hx * vx + next.hy * vy;
-  if (kart.z <= next.h) {
-    const impact = nextRising - vz;
-    kart.z = next.h;
-    if (impact > 8) {
-      vz = nextRising + Math.min(6, impact * 0.2);
-      kart.air = true;
-    } else {
-      vz = nextRising;
-      kart.air = false;
-    }
-  } else if (onGround) {
-    const aVert = (nextRising - prevRising) / Math.max(dt, 1e-4);
-    if (aVert < -GRAVITY && spd > 10) {
-      kart.air = true;
-      vz = Math.max(vz, prevRising);
-    } else {
-      kart.z = next.h;
-      vz = nextRising;
-      kart.air = false;
-    }
-  } else {
-    kart.air = true;
+  let targetPitch = 0;
+  let targetRoll = 0;
+  const front = planted.filter((spot) => spot.ly > 0 && spot.down);
+  const rear = planted.filter((spot) => spot.ly < 0 && spot.down);
+  const left = planted.filter((spot) => spot.lx < 0 && spot.down);
+  const right = planted.filter((spot) => spot.lx > 0 && spot.down);
+  if (front.length && rear.length) {
+    const frontZ = front.reduce((sum, spot) => sum + spot.z, 0) / front.length;
+    const rearZ = rear.reduce((sum, spot) => sum + spot.z, 0) / rear.length;
+    targetPitch = Math.atan2(frontZ - rearZ, 0.92);
   }
-  if (kart.air && kart.z <= next.h + 0.04 && vz <= nextRising + 1.2) {
-    const aVert = (nextRising - prevRising) / Math.max(dt, 1e-4);
-    if (aVert > -GRAVITY) {
-      kart.z = next.h;
-      vz = nextRising;
-      kart.air = false;
+  if (left.length && right.length) {
+    const leftZ = left.reduce((sum, spot) => sum + spot.z, 0) / left.length;
+    const rightZ = right.reduce((sum, spot) => sum + spot.z, 0) / right.length;
+    targetRoll = Math.atan2(rightZ - leftZ, 0.92);
+  }
+  if (lifts >= 2) {
+    kart.pitchVel += ((targetPitch - kart.pitch) * 16 - kart.pitchVel * 5.5) * dt;
+    kart.rollVel += ((targetRoll - kart.roll) * 16 - kart.rollVel * 5.5) * dt;
+  } else {
+    kart.pitchVel += ((0 - kart.pitch) * 2.2 - kart.pitchVel * 1.4) * dt;
+    kart.rollVel += ((0 - kart.roll) * 2.2 - kart.rollVel * 1.4) * dt;
+  }
+  kart.pitch = Math.max(-1.15, Math.min(1.15, kart.pitch + kart.pitchVel * dt));
+  kart.roll = Math.max(-1.25, Math.min(1.25, kart.roll + kart.rollVel * dt));
+
+  const bodyH = duneHeight(kart.x, kart.y);
+  const upZ = Math.cos(kart.pitch) * Math.cos(kart.roll);
+  if (upZ < 0.2) {
+    kart.invert += dt;
+    if (kart.invert > 0.85) {
+      kart.rollVel -= wrap(kart.roll) * 9 * dt;
+      kart.pitchVel -= wrap(kart.pitch) * 9 * dt;
+      vz = Math.max(vz, 2.5);
+      if (kart.invert > 1.45) {
+        kart.pitch = 0;
+        kart.roll = 0;
+        kart.pitchVel = 0;
+        kart.rollVel = 0;
+        kart.z = Math.max(kart.z, bodyH + 0.9);
+        vz = Math.max(vz, 3);
+        kart.invert = 0;
+        hangWheels(kart);
+      }
     }
+  } else kart.invert = Math.max(0, kart.invert - dt * 2);
+
+  if (upZ >= 0.2 && kart.z < bodyH + 0.28) {
+    kart.z = bodyH + 0.28;
+    if (vz < 0) vz *= 0.2;
+  }
+  if (lifts === 0) kart.air = true;
+  else if (lifts >= 3 && kart.z <= bodyH + 0.85) kart.air = false;
+  else kart.air = lifts < 2;
+
+  const ahead = slopeAt(kart.x + faceX * 1.4, kart.y + faceY * 1.4);
+  const behind = slopeAt(kart.x - faceX * 1.4, kart.y - faceY * 1.4);
+  const aVert = ((ahead.hx - behind.hx) * vx + (ahead.hy - behind.hy) * vy) / 2.8;
+  if (aVert < -GRAVITY && spd > 11 && lifts >= 2) {
+    kart.air = true;
+    vz = Math.max(vz, Math.min(7, -aVert * 0.08));
+  }
+
+  if (waterAt(kart.x, kart.y) != null) {
+    vx *= Math.pow(0.25, dt);
+    vy *= Math.pow(0.25, dt);
   }
 
   kart.vx = vx;
   kart.vy = vy;
   kart.vz = vz;
-  kart.speed = vx * Math.sin(kart.yaw) + vy * Math.cos(kart.yaw);
+  kart.speed = vx * faceX + vy * faceY;
+  kart.flame = boost && !skidBrake && traction > 0;
+  return traction > 0 && (skidBrake && spd > 5 || (Math.abs(steer) > 0.55 && spd > 9) || (drive > 0.7 && spd > 2 && spd < 12));
 }
 
 function touch(
@@ -381,14 +585,52 @@ function touch(
 }
 
 function plant(kart: Kart) {
-  const floor = slopeAt(kart.x, kart.y).h;
+  const floor = duneHeight(kart.x, kart.y) + 0.2;
   if (kart.z < floor) {
     kart.z = floor;
-    if (kart.vz < 1.5) {
-      kart.vz = 0;
-      kart.air = false;
-    } else kart.air = true;
+    if (kart.vz < 0) kart.vz = 0;
   }
+}
+
+function laySkid(sim: Sim, kart: Kart, active: boolean) {
+  if (!active) {
+    kart.mark = null;
+    return;
+  }
+  const rears = kart.wheels.filter((_, index) => HUBS[index]!.y < 0);
+  if (!rears.length) return;
+  const x = rears.reduce((sum, wheel) => sum + wheel.x, 0) / rears.length;
+  const y = rears.reduce((sum, wheel) => sum + wheel.y, 0) / rears.length;
+  if (!kart.mark) {
+    kart.mark = { x, y };
+    return;
+  }
+  if (Math.hypot(x - kart.mark.x, y - kart.mark.y) < 0.75) return;
+  const mark: Skid = { x: kart.mark.x, y: kart.mark.y, x2: x, y2: y };
+  sim.skids.push(mark);
+  sim.skidOut.push(mark);
+  if (sim.skids.length > 28) sim.skids.shift();
+  kart.mark = { x, y };
+}
+
+function touchWheel(wheel: Wheel, body: Bumper) {
+  const p1: [number, number, number] = [wheel.x, wheel.y, wheel.z];
+  const p2: [number, number, number] = [body.x, body.y, body.z];
+  const v1: [number, number, number] = [wheel.vx, wheel.vy, wheel.vz];
+  const v2: [number, number, number] = [body.vx, body.vy, body.vz];
+  bumpBodies(p1, p2, v1, v2, WHEEL_R, body.radius, 0.22, body.mass, 60);
+  wheel.x = p1[0];
+  wheel.y = p1[1];
+  wheel.z = p1[2];
+  wheel.vx = v1[0];
+  wheel.vy = v1[1];
+  wheel.vz = v1[2];
+  body.x = p2[0];
+  body.y = p2[1];
+  body.z = p2[2];
+  body.vx = v2[0];
+  body.vy = v2[1];
+  body.vz = v2[2];
 }
 
 function resetKart(kart: Kart, i: number) {
@@ -402,6 +644,15 @@ function resetKart(kart: Kart, i: number) {
   kart.vy = 0;
   kart.vz = 0;
   kart.air = false;
+  kart.pitch = 0;
+  kart.roll = 0;
+  kart.pitchVel = 0;
+  kart.rollVel = 0;
+  kart.invert = 0;
+  kart.nox = 1;
+  kart.flame = false;
+  kart.mark = null;
+  kart.wheels = fresh.wheels.map((wheel) => ({ ...wheel }));
   kart.travel = fresh.travel;
   kart.finishedAt = null;
 }
@@ -414,14 +665,21 @@ export function stepSim(sim: Sim, dt: number, peers: Bumper[] = []) {
   const player = sim.karts[0]!;
   const playerSteer = readSteer(sim);
   const gas = throttle(sim);
+  const playerBrake = readBrake(sim);
+  const playerBoost = readBoost(sim);
 
   for (const kart of sim.karts) {
     const bot = kart.ai && kart.finishedAt == null ? aiSteer(kart, sim.level) : null;
     const steer = kart.finishedAt != null ? 0 : bot ? bot.steer : playerSteer;
     const drive = kart.finishedAt != null ? 0 : bot ? bot.throttle : gas;
+    const brake = kart.finishedAt != null ? 0 : bot ? bot.brake : playerBrake;
+    const wantsBoost = kart.finishedAt == null && (bot ? bot.boost : playerBoost) && kart.nox > 0.04;
+    if (wantsBoost) kart.nox = Math.max(0, kart.nox - dt * 0.34);
+    else kart.nox = Math.min(1, kart.nox + dt * 0.12);
     const built = kart === player ? sim.cart : null;
     const cap = kart.ai ? Math.min(33, kart.cruise + (sim.level - 1) * 2.2) : MAX_SPEED * (built?.speed ?? 1);
-    ride(kart, steer, drive, built, dt, cap);
+    const skidding = ride(kart, steer, drive, brake, wantsBoost, built, dt, cap);
+    laySkid(sim, kart, skidding);
     advanceTravel(kart);
     contain(kart);
     if (kart === player && kart.finishedAt == null) {
@@ -468,6 +726,8 @@ export function stepSim(sim: Sim, dt: number, peers: Bumper[] = []) {
       const a = sim.karts[i]!;
       const b = sim.karts[j]!;
       const closing = touch(a, b);
+      for (const wheel of a.wheels) touchWheel(wheel, b);
+      for (const wheel of b.wheels) touchWheel(wheel, a);
       if (closing > 1.2 && (a === player || b === player) && sim.tick - sim.bumpTick > 8) {
         sim.bumpTick = sim.tick;
         const amount = Math.min(1, closing / 16);
@@ -480,6 +740,7 @@ export function stepSim(sim: Sim, dt: number, peers: Bumper[] = []) {
     for (const peer of peers) {
       const ghost: Bumper = { ...peer };
       const closing = touch(kart, ghost);
+      for (const wheel of kart.wheels) touchWheel(wheel, ghost);
       if (closing > 1.2 && kart === player && sim.tick - sim.bumpTick > 8) {
         sim.bumpTick = sim.tick;
         const amount = Math.min(1, closing / 16);
@@ -494,6 +755,7 @@ export function stepSim(sim: Sim, dt: number, peers: Bumper[] = []) {
     if (courseIndex() >= courseCount() - 1) {
       sim.level = Math.min(12, sim.level + 1);
       setCourse(0);
+      sim.skids = [];
     } else {
       setCourse(courseIndex() + 1);
     }
@@ -534,6 +796,8 @@ export function parkOn(sim: Sim, courseId: string) {
   sim.wrongWay = false;
   sim.promoted = false;
   sim.level = 1;
+  sim.skids = [];
+  sim.skidOut = [];
   sim.running = false;
   sim.banner = courseName();
 }
@@ -554,6 +818,15 @@ export function parkHuman(sim: Sim, courseId: string, name: string, slot: number
   you.vy = 0;
   you.vz = 0;
   you.air = false;
+  you.pitch = 0;
+  you.roll = 0;
+  you.pitchVel = 0;
+  you.rollVel = 0;
+  you.invert = 0;
+  you.nox = 1;
+  you.flame = false;
+  you.mark = null;
+  you.wheels = fresh.wheels.map((wheel) => ({ ...wheel }));
   you.travel = fresh.travel;
   you.finishedAt = null;
   sim.karts = [you];
@@ -563,6 +836,8 @@ export function parkHuman(sim: Sim, courseId: string, name: string, slot: number
   sim.wrongWay = false;
   sim.promoted = true;
   sim.level = 1;
+  sim.skids = [];
+  sim.skidOut = [];
   sim.running = false;
   sim.banner = "Hold for the flag";
 }
