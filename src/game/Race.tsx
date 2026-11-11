@@ -6,7 +6,7 @@ import { createSim, installProbe, lapOf, parkHuman, parkOn, placeOf, stepSim, ty
 import { chaseCamera, raceSun } from "./scene";
 import { createRaceAudio, hearAt, type RaceAudio } from "./sound";
 import { duneHeight, rainAt } from "./terrain";
-import { COURSES, GATES, course, gateAnchor, gateSway, halfWidth, lapCount, pointAt } from "./track";
+import { COURSES, GATES, course, gateAnchor, gateSway, halfWidth, lapCount, pointAt, trackRibbon } from "./track";
 import { freshCode, openBoard, type ListedRoom, type MarketListing } from "./lobby";
 import type { RaceNet, RoomPerson } from "./net";
 import { openWallet, shortAddress, writePurse, type Wallet } from "./wallet";
@@ -705,6 +705,10 @@ export function Race() {
       paintWorker = worker;
       const mine = ++paintGen;
       let presentedAt = 0;
+      let fadeCanvas: HTMLCanvasElement | null = null;
+      let fade = 1;
+      let fadeSize = "";
+      let fadeAt = performance.now();
       worker.onmessage = (event: MessageEvent<{ type?: string; bitmap?: ImageBitmap; pictureW?: number; pictureH?: number }>) => {
         if (mine !== paintGen) {
           event.data.bitmap?.close();
@@ -713,10 +717,33 @@ export function Race() {
         const bitmap = event.data.bitmap;
         if (!bitmap || !ctx2d) return;
         const stamp = performance.now();
+        const dt = Math.min(80, stamp - fadeAt);
+        fadeAt = stamp;
         if (presentedAt) presentMs = Math.min(160, stamp - presentedAt);
         presentedAt = stamp;
-        if (event.data.pictureW && event.data.pictureH) canvas.dataset.picture = `${event.data.pictureW}x${event.data.pictureH}`;
-        ctx2d.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+        const key = event.data.pictureW && event.data.pictureH ? `${event.data.pictureW}x${event.data.pictureH}` : "";
+        if (key) canvas.dataset.picture = key;
+        if (key && key !== fadeSize) {
+          if (fadeSize && canvas.width > 2) {
+            if (!fadeCanvas) fadeCanvas = document.createElement("canvas");
+            if (fadeCanvas.width !== canvas.width || fadeCanvas.height !== canvas.height) {
+              fadeCanvas.width = canvas.width;
+              fadeCanvas.height = canvas.height;
+            }
+            fadeCanvas.getContext("2d")?.drawImage(canvas, 0, 0);
+            fade = 0;
+          }
+          fadeSize = key;
+        }
+        if (fade < 1 && fadeCanvas) {
+          fade = Math.min(1, fade + dt / 480);
+          ctx2d.drawImage(fadeCanvas, 0, 0);
+          ctx2d.globalAlpha = fade;
+          ctx2d.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+          ctx2d.globalAlpha = 1;
+        } else {
+          ctx2d.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+        }
         bitmap.close();
       };
       worker.postMessage({ cmd: "init", mode: budget.mode, tune, viewW, viewH });
@@ -892,6 +919,8 @@ export function Race() {
         rain: rainAt(weatherRef.current),
         sun: raceSun(weatherRef.current),
         course: course().id,
+        ribbon: trackRibbon(160),
+        half: halfWidth(),
         skids: current.skids,
         rails: current.rails,
         time: now / 1000,

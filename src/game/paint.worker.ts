@@ -1,6 +1,7 @@
 import { paintFace, type FaceImage } from "./faces";
 import { createPace, picturePixels, stepPace, type PaceState } from "./pace";
 import { buildPicture } from "./scene";
+import { setCourseById } from "./track";
 
 type Painter = {
   paint: (scene: unknown, w: number, h: number) => boolean;
@@ -33,6 +34,9 @@ type FrameMsg = {
   rails?: { x: number; y: number; x2: number; y2: number; hp: number }[];
   time?: number;
   nextGate?: number;
+  /** Centerline from the race thread: x, y, tx, ty. The painter must not guess the course. */
+  ribbon?: Float32Array;
+  half?: number;
   /** Milliseconds since the previous presented frame on the main thread. */
   pace?: number;
 };
@@ -53,6 +57,9 @@ let tune: { spheres: number; boxes: number; shapes: number } | undefined;
 let viewW = 960;
 let viewH = 540;
 let pace: PaceState = createPace();
+let drawnCourse = "";
+let drawnW = 0;
+let drawnH = 0;
 let lastDrawAt = 0;
 let ready = false;
 let painting = false;
@@ -72,7 +79,7 @@ function faceFor(seed: number) {
 }
 
 function pictureSize() {
-  return picturePixels(viewW, viewH, pace.scale);
+  return picturePixels(viewW, viewH, pace.shown);
 }
 
 /**
@@ -85,17 +92,26 @@ function budget(gap: number, cost: number) {
 
 function draw(frame: FrameMsg) {
   if (!canvas) return;
+  if (frame.course && frame.course !== drawnCourse) {
+    setCourseById(frame.course);
+    drawnCourse = frame.course;
+  }
   const now = performance.now();
   const period = lastDrawAt ? Math.min(160, now - lastDrawAt) : 0;
   lastDrawAt = now;
   const hinted = Math.min(160, Math.max(0, frame.pace || 0));
   const size = pictureSize();
+  const resized = size.w !== drawnW || size.h !== drawnH;
+  drawnW = size.w;
+  drawnH = size.h;
   const charge = (cost: number) => {
     // A zero paint time means the GPU timer returned before the work landed.
     // The gap until the next paint is the real cost in that case.
+    // Resizing the picture is a one-frame hitch. Don't let it knock the size again.
     const pictureCost = cost >= 1 ? cost : Math.max(period, hinted);
     const gap = Math.max(pictureCost, hinted, period);
-    budget(gap, pictureCost);
+    if (resized && pace.ema > 0) budget(Math.min(gap, pace.ema), Math.min(pictureCost, Math.max(pace.ema, 1)));
+    else budget(gap, pictureCost);
   };
   const report = () => {
     const bitmap = canvas!.transferToImageBitmap();
@@ -128,7 +144,21 @@ function draw(frame: FrameMsg) {
     name: body.name,
     face: faceFor(body.seed),
   }));
-  const picture = buildPicture(bodies, frame.camera, traceW, traceH, frame.still, frame.sun, frame.rain, frame.rails ?? [], frame.time ?? 0, frame.nextGate ?? 0);
+  const picture = buildPicture(
+    bodies,
+    frame.camera,
+    traceW,
+    traceH,
+    frame.still,
+    frame.sun,
+    frame.rain,
+    frame.rails ?? [],
+    frame.time ?? 0,
+    frame.nextGate ?? 0,
+    frame.course ?? "",
+    frame.ribbon,
+    frame.half ?? 0,
+  );
   const started = performance.now();
   if (painter) {
     const ok = painter.paint(picture, traceW, traceH);
@@ -199,6 +229,8 @@ scope.onmessage = (event: MessageEvent) => {
     rails?: FrameMsg["rails"];
     time?: number;
     nextGate?: number;
+    ribbon?: Float32Array;
+    half?: number;
     pace?: number;
   };
   if (message.cmd === "stop") {
@@ -211,6 +243,9 @@ scope.onmessage = (event: MessageEvent) => {
     viewW = message.viewW || viewW;
     viewH = message.viewH || viewH;
     pace = createPace();
+    drawnCourse = "";
+    drawnW = 0;
+    drawnH = 0;
     lastDrawAt = 0;
     canvas = new OffscreenCanvas(viewW, viewH);
     void (async () => {
@@ -256,6 +291,8 @@ scope.onmessage = (event: MessageEvent) => {
       rails: message.rails,
       time: message.time,
       nextGate: message.nextGate,
+      ribbon: message.ribbon,
+      half: message.half,
       pace: message.pace,
     };
     if (!ready) {

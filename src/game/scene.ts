@@ -1,6 +1,6 @@
 import type { FaceImage } from "./faces";
 import { duneHeight } from "./terrain";
-import { course, GATES, gateAnchor, gateSway, halfWidth, leftNormal, pointAt, trackRibbon } from "./track";
+import { course, GATES, gateAnchor, gateSway, halfWidth, leftNormal, pointAt, setCourseById, trackRibbon } from "./track";
 
 type V3 = [number, number, number];
 
@@ -218,7 +218,13 @@ export function buildPicture(
   rails: { x: number; y: number; x2: number; y2: number; hp: number }[] = [],
   time = 0,
   nextGate = 0,
+  courseId = "",
+  ribbon?: Float32Array,
+  roadHalf = 0,
 ): Picture {
+  if (courseId) setCourseById(courseId);
+  const samples = ribbon && ribbon.length >= 16 ? ribbon : trackRibbon(160);
+  const road = roadHalf > 0 ? roadHalf : halfWidth();
   const faces: SceneObject[] = [];
   const rest: SceneObject[] = [];
   for (const body of bodies) kartParts(body, faces, rest);
@@ -302,7 +308,7 @@ export function buildPicture(
     miss: [0.45, 0.62, 0.82, 1],
     sun,
     objects: [...faces, ...rest, ...trackObjects(), ...bars, ...balloons],
-    track: { half: halfWidth(), count: 160, samples: trackRibbon(160) },
+    track: { half: road, count: (samples.length / 4) | 0, samples },
     rain,
     fovea: {
       x: 0.5,

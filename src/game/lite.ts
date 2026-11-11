@@ -6,6 +6,9 @@ type Frame = {
   camera: { x: number; y: number; z: number; dir: [number, number, number] };
   sun: [number, number, number];
   course?: string;
+  /** Centerline packed x, y, tx, ty. Comes from the race thread so the road cannot stay on the oval. */
+  ribbon?: Float32Array;
+  half?: number;
   skids?: { x: number; y: number; x2: number; y2: number }[];
   rails?: { x: number; y: number; x2: number; y2: number; hp: number }[];
   time?: number;
@@ -461,22 +464,37 @@ export function createLitePainter(canvas: OffscreenCanvas) {
   let courseId = "";
   let road = 8;
   const loc = (name: string) => gl.getUniformLocation(program, name);
-  const loadCourse = (id?: string) => {
+  const loadCourse = (frame?: Frame) => {
+    const id = frame?.course;
     if (id && id !== courseId) {
       setCourseById(id);
       courseId = id;
     }
-    const ribbon = trackRibbon(64);
+    const src = frame?.ribbon;
+    const n = src && src.length >= 16 ? Math.min(160, (src.length / 4) | 0) : 0;
     track.fill(0);
-    const count = Math.min(64, ribbon.length / 4);
-    for (let i = 0; i < count; i++) {
-      const j = (i + 1) % count;
-      track[i * 4] = ribbon[i * 4]!;
-      track[i * 4 + 1] = ribbon[i * 4 + 1]!;
-      track[i * 4 + 2] = ribbon[j * 4]!;
-      track[i * 4 + 3] = ribbon[j * 4 + 1]!;
+    if (src && n >= 8) {
+      for (let i = 0; i < 64; i++) {
+        const i0 = Math.floor((i * n) / 64) % n;
+        const i1 = Math.floor(((i + 1) * n) / 64) % n;
+        track[i * 4] = src[i0 * 4]!;
+        track[i * 4 + 1] = src[i0 * 4 + 1]!;
+        track[i * 4 + 2] = src[i1 * 4]!;
+        track[i * 4 + 3] = src[i1 * 4 + 1]!;
+      }
+      road = frame?.half && frame.half > 0 ? frame.half : halfWidth();
+    } else {
+      const ribbon = trackRibbon(64);
+      const count = Math.min(64, ribbon.length / 4);
+      for (let i = 0; i < count; i++) {
+        const j = (i + 1) % count;
+        track[i * 4] = ribbon[i * 4]!;
+        track[i * 4 + 1] = ribbon[i * 4 + 1]!;
+        track[i * 4 + 2] = ribbon[j * 4]!;
+        track[i * 4 + 3] = ribbon[j * 4 + 1]!;
+      }
+      road = halfWidth();
     }
-    road = halfWidth();
     gates.fill(0);
     for (let i = 0; i < 4; i++) {
       const gate = gateAnchor(i);
@@ -526,7 +544,7 @@ export function createLitePainter(canvas: OffscreenCanvas) {
       faceDirty = true;
     },
     paint(frame: Frame, pixels?: { w: number; h: number }) {
-      loadCourse(frame.course);
+      loadCourse(frame);
       if (faceDirty && tex) {
         gl.bindTexture(gl.TEXTURE_2D, tex);
         gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);

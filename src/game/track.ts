@@ -15,6 +15,8 @@ export type Course = {
   laps: number;
   halfW: number;
   length: number;
+  /** Top speed for this layout, world units. Tight courses stay slower. */
+  pace: number;
   pointAt: (u: number) => Sample;
 };
 
@@ -172,6 +174,7 @@ export const COURSES: Course[] = [
     laps: 3,
     halfW: STADIUM_HALF,
     length: STADIUM_LEN,
+    pace: 12,
     pointAt: (u) => stadiumRaw((((u % 1) + 1) % 1) * STADIUM_LEN + STRAIGHT / 2),
   },
   {
@@ -180,6 +183,7 @@ export const COURSES: Course[] = [
     laps: 2,
     halfW: RIDGE_HALF,
     length: ridge.length,
+    pace: 22,
     pointAt: ridge.pointAt,
   },
   {
@@ -188,6 +192,7 @@ export const COURSES: Course[] = [
     laps: 2,
     halfW: 7.2,
     length: lake.length,
+    pace: 16,
     pointAt: lake.pointAt,
   },
   {
@@ -196,6 +201,7 @@ export const COURSES: Course[] = [
     laps: 2,
     halfW: 7.4,
     length: cinder.length,
+    pace: 18,
     pointAt: cinder.pointAt,
   },
   {
@@ -204,6 +210,7 @@ export const COURSES: Course[] = [
     laps: 2,
     halfW: 6.4,
     length: caldera.length,
+    pace: 14,
     pointAt: caldera.pointAt,
   },
   {
@@ -212,6 +219,7 @@ export const COURSES: Course[] = [
     laps: 2,
     halfW: 6.6,
     length: summit.length,
+    pace: 16,
     pointAt: summit.pointAt,
   },
 ];
@@ -250,6 +258,10 @@ export function halfWidth() {
 
 export function lapCount() {
   return course().laps;
+}
+
+export function coursePace() {
+  return course().pace;
 }
 
 export function courseName() {

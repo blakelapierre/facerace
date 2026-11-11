@@ -1,6 +1,6 @@
 import { bumpBodies } from "./contact";
 import { duneHeight, waterAt } from "./terrain";
-import { courseCount, courseIndex, courseName, GATES, gateAnchor, gateU, guardRails, halfWidth, lapCount, leftNormal, nearestU, pointAt, setCourse, setCourseById } from "./track";
+import { courseCount, courseIndex, courseName, coursePace, GATES, gateAnchor, gateU, guardRails, halfWidth, lapCount, leftNormal, nearestU, pointAt, setCourse, setCourseById } from "./track";
 
 export type Kart = {
   id: string;
@@ -116,7 +116,6 @@ const COLORS: [number, number, number][] = [
 
 const NAMES = ["You", "Vesper", "Nox", "Ione", "Bram", "Sol"];
 const TURN = 2.35;
-const MAX_SPEED = 26;
 const BODY = 0.82;
 const RIDE = 0.5;
 const GRAVITY = 18;
@@ -367,6 +366,14 @@ function passGates(kart: Kart) {
   return true;
 }
 
+/** Bots stay with the course. A later heat is a little quicker, but never the pace of a faster layout. */
+function fieldPace(level: number, cruise: number) {
+  const base = coursePace();
+  const personality = 0.9 + (cruise - 17.2) / 40;
+  const heat = 1 + Math.min(0.08, Math.max(0, level - 1) * 0.01);
+  return Math.min(base * 1.02, Math.max(base * 0.8, base * personality * heat));
+}
+
 function aiSteer(kart: Kart, level: number) {
   const u = ((kart.travel % 1) + 1) % 1;
   const lookAhead = Math.max(0.018, 0.04 - (level - 1) * 0.003);
@@ -379,7 +386,7 @@ function aiSteer(kart: Kart, level: number) {
   const diff = wrap(desired - kart.yaw);
   const steer = Math.max(-1, Math.min(1, -diff / 0.42));
   const slow = Math.abs(diff) > 0.9 ? 0.85 : 1;
-  const pace = Math.min(33, kart.cruise + (level - 1) * 2.2);
+  const pace = fieldPace(level, kart.cruise);
   const brake = Math.abs(diff) > 1.05 ? 1 : 0;
   const boost = Math.abs(diff) < 0.2 && kart.speed + 0.8 < pace;
   return { steer, throttle: kart.speed < pace * slow ? 1 : 0.25, brake, boost };
@@ -425,7 +432,7 @@ function ride(kart: Kart, steer: number, drive: number, brake: number, boost: bo
     const drag = 0.16 + brake * 0.4;
     vx += (faceX * driveAccel + rx * latAccel + nx * inv * GRAVITY * inv - vx * drag) * dt;
     vy += (faceY * driveAccel + ry * latAccel + ny * inv * GRAVITY * inv - vy * drag) * dt;
-    const capNow = cap + (boost && !skidBrake ? 10 : 0);
+    const capNow = cap + (boost && !skidBrake ? cap * 0.22 : 0);
     const fwdNow = vx * faceX + vy * faceY;
     if (fwdNow > capNow) {
       vx -= faceX * (fwdNow - capNow);
@@ -789,7 +796,7 @@ export function stepSim(sim: Sim, dt: number, peers: Bumper[] = []) {
     if (wantsBoost) kart.nox = Math.max(0, kart.nox - dt * 0.34);
     else kart.nox = Math.min(1, kart.nox + dt * 0.12);
     const built = kart === player ? sim.cart : null;
-    const cap = kart.ai ? Math.min(33, kart.cruise + (sim.level - 1) * 2.2) : MAX_SPEED * (built?.speed ?? 1);
+    const cap = kart.ai ? fieldPace(sim.level, kart.cruise) : coursePace() * (built?.speed ?? 1);
     const skidding = ride(kart, steer, drive, brake, wantsBoost, built, dt, cap);
     laySkid(sim, kart, skidding);
     hitRails(sim, kart);
