@@ -602,6 +602,7 @@ export function Race() {
     let alive = true;
     let paintWorker: Worker | null = null;
     let paintGen = 0;
+    let presentMs = 0;
 
     const fitSize = () => {
       const box = canvas.parentElement?.getBoundingClientRect();
@@ -703,13 +704,18 @@ export function Race() {
       const worker = new Worker(new URL("./paint.worker.ts", import.meta.url), { type: "module" });
       paintWorker = worker;
       const mine = ++paintGen;
-      worker.onmessage = (event: MessageEvent<{ type?: string; bitmap?: ImageBitmap }>) => {
+      let presentedAt = 0;
+      worker.onmessage = (event: MessageEvent<{ type?: string; bitmap?: ImageBitmap; pictureW?: number; pictureH?: number }>) => {
         if (mine !== paintGen) {
           event.data.bitmap?.close();
           return;
         }
         const bitmap = event.data.bitmap;
         if (!bitmap || !ctx2d) return;
+        const stamp = performance.now();
+        if (presentedAt) presentMs = Math.min(160, stamp - presentedAt);
+        presentedAt = stamp;
+        if (event.data.pictureW && event.data.pictureH) canvas.dataset.picture = `${event.data.pictureW}x${event.data.pictureH}`;
         ctx2d.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
         bitmap.close();
       };
@@ -740,7 +746,8 @@ export function Race() {
     const frameLoop = (now: number) => {
       if (!alive) return;
       raf = requestAnimationFrame(frameLoop);
-      const dt = Math.min(0.05, (now - last) / 1000);
+      const frameMs = Math.min(160, Math.max(0, now - last));
+      const dt = Math.min(0.05, frameMs / 1000);
       last = now;
       weatherRef.current += dt;
       const current = simRef.current;
@@ -889,6 +896,7 @@ export function Race() {
         rails: current.rails,
         time: now / 1000,
         nextGate: player.gate,
+        pace: Math.max(frameMs, presentMs),
       });
       const bubbles = [
         ...current.karts

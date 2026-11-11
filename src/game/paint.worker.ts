@@ -1,4 +1,5 @@
 import { paintFace, type FaceImage } from "./faces";
+import { createPace, picturePixels, stepPace, type PaceState } from "./pace";
 import { buildPicture } from "./scene";
 
 type Painter = {
@@ -32,6 +33,8 @@ type FrameMsg = {
   rails?: { x: number; y: number; x2: number; y2: number; hp: number }[];
   time?: number;
   nextGate?: number;
+  /** Milliseconds since the previous presented frame on the main thread. */
+  pace?: number;
 };
 
 const scope = self as unknown as {
@@ -42,15 +45,15 @@ const scope = self as unknown as {
 
 let canvas: OffscreenCanvas | null = null;
 let painter: Painter | null = null;
-let lite: { paint: (frame: FrameMsg, pixels?: { w: number; h: number }) => void; setFace?: (seed: number, face: FaceImage) => void } | null = null;
+let lite: { paint: (frame: FrameMsg, pixels?: { w: number; h: number }) => number; setFace?: (seed: number, face: FaceImage) => void } | null = null;
 let cpu: { paintFrame: (scene: unknown, w: number, h: number) => Uint8ClampedArray } | null = null;
 let ctx2d: OffscreenCanvasRenderingContext2D | null = null;
 let mode = "discrete";
 let tune: { spheres: number; boxes: number; shapes: number } | undefined;
 let viewW = 960;
 let viewH = 540;
-let pictureScale = 1;
-let scaleEased = false;
+let pace: PaceState = createPace();
+let lastDrawAt = 0;
 let ready = false;
 let painting = false;
 let queued: FrameMsg | null = null;
@@ -69,36 +72,46 @@ function faceFor(seed: number) {
 }
 
 function pictureSize() {
-  if (pictureScale > 0.97) return { w: viewW, h: viewH };
-  const w = Math.max(160, Math.min(viewW, Math.round((viewW * pictureScale) / 8) * 8));
-  const h = Math.max(90, Math.min(viewH, Math.round((w * viewH) / Math.max(1, viewW) / 8) * 8));
-  return { w, h };
+  return picturePixels(viewW, viewH, pace.scale);
 }
 
-/** Prefer a short frame. Drop hard when a frame runs long, and climb back the moment frames are cheap. */
-function budgetScale(ms: number) {
-  if (ms > 34) pictureScale = Math.max(0.2, pictureScale * 0.55);
-  else if (ms > 22) pictureScale = Math.max(0.2, pictureScale * 0.72);
-  else if (ms > 17) pictureScale = Math.max(0.2, pictureScale * 0.86);
-  else if (ms < 8) pictureScale = Math.min(1, pictureScale * 1.35);
-  else if (ms < 12) pictureScale = Math.min(1, pictureScale * 1.18);
-  else if (ms < 15) pictureScale = Math.min(1, pictureScale * 1.06);
+/**
+ * Hold ~30fps. If that misses, spend resolution to reach 20, and only the floor if 12 is in trouble.
+ * `gap` is the present interval. `cost` is this picture alone, so a cheap picture is not ground down.
+ */
+function budget(gap: number, cost: number) {
+  pace = stepPace(pace, gap, cost);
 }
 
 function draw(frame: FrameMsg) {
   if (!canvas) return;
-  scaleEased = false;
+  const now = performance.now();
+  const period = lastDrawAt ? Math.min(160, now - lastDrawAt) : 0;
+  lastDrawAt = now;
+  const hinted = Math.min(160, Math.max(0, frame.pace || 0));
   const size = pictureSize();
+  const charge = (cost: number) => {
+    // A zero paint time means the GPU timer returned before the work landed.
+    // The gap until the next paint is the real cost in that case.
+    const pictureCost = cost >= 1 ? cost : Math.max(period, hinted);
+    const gap = Math.max(pictureCost, hinted, period);
+    budget(gap, pictureCost);
+  };
+  const report = () => {
+    const bitmap = canvas!.transferToImageBitmap();
+    scope.postMessage({ type: "bitmap", bitmap, pictureW: size.w, pictureH: size.h }, [bitmap]);
+  };
   if (lite) {
     for (const body of frame.bodies) {
       const face = body.seed === liveSeed && liveFace ? liveFace : faceFor(body.seed);
       lite.setFace?.(body.seed, face);
     }
     const started = performance.now();
-    lite.paint(frame, size);
-    budgetScale(performance.now() - started);
-    const bitmap = canvas.transferToImageBitmap();
-    scope.postMessage({ type: "bitmap", bitmap }, [bitmap]);
+    const gpu = Number(lite.paint(frame, size)) || 0;
+    const cpu = performance.now() - started;
+    const cost = Math.max(cpu, gpu);
+    charge(cost);
+    report();
     return;
   }
   const traceW = mode === "software" ? Math.max(80, Math.min(192, size.w)) : size.w;
@@ -120,10 +133,10 @@ function draw(frame: FrameMsg) {
   if (painter) {
     const ok = painter.paint(picture, traceW, traceH);
     if (ok) painter.present(1);
-    budgetScale(performance.now() - started);
-    scope.postMessage({ type: "painted", ms: performance.now() - started, ok });
-    const bitmap = canvas.transferToImageBitmap();
-    scope.postMessage({ type: "bitmap", bitmap }, [bitmap]);
+    const cost = performance.now() - started;
+    charge(cost);
+    scope.postMessage({ type: "painted", ms: cost, ok });
+    report();
     return;
   }
   if (!cpu || !ctx2d) return;
@@ -133,9 +146,9 @@ function draw(frame: FrameMsg) {
   scratch.getContext("2d")?.putImageData(image, 0, 0);
   ctx2d.imageSmoothingEnabled = true;
   ctx2d.drawImage(scratch, 0, 0, canvas.width, canvas.height);
-  budgetScale(performance.now() - started);
-  const bitmap = canvas.transferToImageBitmap();
-  scope.postMessage({ type: "bitmap", bitmap, ms: performance.now() - started }, [bitmap]);
+  const cost = performance.now() - started;
+  charge(cost);
+  report();
 }
 
 async function bootGpu() {
@@ -186,6 +199,7 @@ scope.onmessage = (event: MessageEvent) => {
     rails?: FrameMsg["rails"];
     time?: number;
     nextGate?: number;
+    pace?: number;
   };
   if (message.cmd === "stop") {
     scope.close();
@@ -196,7 +210,8 @@ scope.onmessage = (event: MessageEvent) => {
     tune = message.tune;
     viewW = message.viewW || viewW;
     viewH = message.viewH || viewH;
-    pictureScale = 1;
+    pace = createPace();
+    lastDrawAt = 0;
     canvas = new OffscreenCanvas(viewW, viewH);
     void (async () => {
       try {
@@ -241,6 +256,7 @@ scope.onmessage = (event: MessageEvent) => {
       rails: message.rails,
       time: message.time,
       nextGate: message.nextGate,
+      pace: message.pace,
     };
     if (!ready) {
       queued = frame;
@@ -248,10 +264,6 @@ scope.onmessage = (event: MessageEvent) => {
     }
     if (painting) {
       queued = frame;
-      if (!scaleEased) {
-        pictureScale = Math.max(0.2, pictureScale * 0.85);
-        scaleEased = true;
-      }
       return;
     }
     painting = true;

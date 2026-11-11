@@ -423,6 +423,10 @@ export function createLitePainter(canvas: OffscreenCanvas) {
   gl.bindAttribLocation(program, 0, "a");
   gl.linkProgram(program);
   if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return null;
+  const timer = gl.getExtension("EXT_disjoint_timer_query_webgl2") as {
+    TIME_ELAPSED_EXT: number;
+    GPU_DISJOINT_EXT: number;
+  } | null;
   const buffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
@@ -532,6 +536,8 @@ export function createLitePainter(canvas: OffscreenCanvas) {
       const rw = Math.max(2, pixels?.w || canvas.width);
       const rh = Math.max(2, pixels?.h || canvas.height);
       const shrink = Boolean(scratch && scratchFbo) && (rw < canvas.width - 8 || rh < canvas.height - 8);
+      const query = timer ? gl.createQuery() : null;
+      if (timer && query) gl.beginQuery(timer.TIME_ELAPSED_EXT, query);
       if (shrink && scratch && scratchFbo) {
         if (rw !== bufW || rh !== bufH) {
           bufW = rw;
@@ -636,7 +642,15 @@ export function createLitePainter(canvas: OffscreenCanvas) {
         gl.blitFramebuffer(0, 0, rw, rh, 0, 0, canvas.width, canvas.height, gl.COLOR_BUFFER_BIT, gl.LINEAR);
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
       }
+      if (timer && query) gl.endQuery(timer.TIME_ELAPSED_EXT);
       gl.finish();
+      if (!timer || !query) return 0;
+      let gpu = 0;
+      if (!gl.getParameter(timer.GPU_DISJOINT_EXT) && gl.getQueryParameter(query, gl.QUERY_RESULT_AVAILABLE)) {
+        gpu = (Number(gl.getQueryParameter(query, gl.QUERY_RESULT)) || 0) / 1e6;
+      }
+      gl.deleteQuery(query);
+      return gpu;
     },
   };
 }
