@@ -51,6 +51,8 @@ export type Sim = {
   bannerUntil: number;
   /** The stadium has already handed off to the next course. */
   promoted: boolean;
+  /** Built cart. Stock is null. */
+  cart: { speed: number; turn: number; grip: number; color: [number, number, number] } | null;
 };
 
 const COLORS: [number, number, number][] = [
@@ -128,6 +130,7 @@ export function createSim(playerName = "You"): Sim {
     wrongWay: false,
     bannerUntil: 0,
     promoted: false,
+    cart: null,
   };
 }
 
@@ -214,16 +217,18 @@ export function stepSim(sim: Sim, dt: number) {
     const steer = bot ? bot.steer : playerSteer;
     const drive = bot ? bot.throttle : gas;
     const reverse = kart.speed >= 0 ? 1 : -1;
+    const built = kart === player ? sim.cart : null;
     const speedFactor = Math.max(0.28, Math.min(1, Math.abs(kart.speed) / 8));
-    kart.yaw -= steer * TURN * speedFactor * reverse * dt;
+    kart.yaw -= steer * TURN * (built?.turn ?? 1) * speedFactor * reverse * dt;
     if (drive > 0) kart.speed += 22 * dt;
     else if (drive < 0) kart.speed -= 30 * dt;
     else kart.speed -= Math.sign(kart.speed) * 6 * dt;
     const aheadX = kart.x + Math.sin(kart.yaw) * 2;
     const aheadY = kart.y + Math.cos(kart.yaw) * 2;
     const grade = (duneHeight(aheadX, aheadY) - duneHeight(kart.x, kart.y)) / 2;
-    kart.speed -= grade * 16 * dt;
-    if (kart.speed > MAX_SPEED) kart.speed = MAX_SPEED;
+    kart.speed -= (grade * 16 * dt) / (built?.grip ?? 1);
+    const cap = MAX_SPEED * (built?.speed ?? 1);
+    if (kart.speed > cap) kart.speed = cap;
     if (kart.speed < -9) kart.speed = -9;
     if (Math.abs(kart.speed) < 0.08 && drive === 0) kart.speed = 0;
     kart.x += Math.sin(kart.yaw) * kart.speed * dt;
@@ -338,7 +343,9 @@ export function stepSim(sim: Sim, dt: number) {
   }
   sim.wrongWay = wrong;
   const named = sim.time < sim.bannerUntil;
-  sim.banner = player.finishedAt != null ? "Finished" : named ? courseName() : wrong ? "Wrong way" : "";
+  if (!sim.banner.startsWith("Won")) {
+    sim.banner = player.finishedAt != null ? "Finished" : named ? courseName() : wrong ? "Wrong way" : "";
+  }
 }
 
 export function parkOn(sim: Sim, courseId: string) {

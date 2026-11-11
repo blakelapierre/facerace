@@ -6,8 +6,29 @@ import { buildPicture, chaseCamera, raceSun, type DrawBody } from "./scene";
 import { createRaceAudio, hearAt, type RaceAudio } from "./sound";
 import { rainAt } from "./terrain";
 import { COURSES, lapCount } from "./track";
-import { freshCode, openBoard, type ListedRoom } from "./lobby";
+import { freshCode, openBoard, type ListedRoom, type MarketListing } from "./lobby";
 import type { RaceNet } from "./net";
+import { credit, openWallet, shortAddress, type Wallet } from "./wallet";
+import {
+  HEATS,
+  MECHANICS,
+  alreadyPaid,
+  dropCart,
+  giveCart,
+  hire,
+  listingIsReal,
+  loadYard,
+  mechanicById,
+  payIsReal,
+  rememberPay,
+  selectCart,
+  signListing,
+  signPay,
+  specOf,
+  stakeHeat,
+  type Heat,
+  type Yard,
+} from "./yard";
 
 function fmt(seconds: number) {
   const s = Math.max(0, seconds);
@@ -69,7 +90,10 @@ export function Race() {
   const lookingRef = useRef(false);
   const lookPoint = useRef<{ id: number; x: number; y: number } | null>(null);
   const audioRef = useRef<RaceAudio | null>(null);
-  const boardRef = useRef<{ announce: (card: { code: string; course: string; host: string; live: boolean }) => void; close: () => void } | null>(null);
+  const boardRef = useRef<{ announce: (card: { code: string; course: string; host: string; live: boolean }) => void; post: (catalog: string) => void; close: () => void } | null>(null);
+  const walletRef = useRef<Wallet | null>(null);
+  const yardRef = useRef<Yard>(loadYard());
+  const heatRef = useRef<(Heat & { paid: boolean }) | null>(null);
   const weatherRef = useRef(12);
   const armRef = useRef(false);
   const leaveRef = useRef<() => void>(() => {});
@@ -79,6 +103,11 @@ export function Race() {
   const [rooms, setRooms] = useState<ListedRoom[]>([]);
   const [boardNote, setBoardNote] = useState("Looking for rooms…");
   const [roomCode, setRoomCode] = useState("");
+  const [wallet, setWallet] = useState<Wallet | null>(null);
+  const [yard, setYard] = useState<Yard>(yardRef.current);
+  const [desk, setDesk] = useState<"race" | "yard" | "purse">("race");
+  const [listings, setListings] = useState<MarketListing[]>([]);
+  const [yardNote, setYardNote] = useState("");
   const [camOn, setCamOn] = useState(false);
   const [camError, setCamError] = useState("");
   const [muted, setMuted] = useState(false);
@@ -99,11 +128,44 @@ export function Race() {
     faceRef.current = paintFace(7);
 
     let closedBoard = false;
-    void openBoard((found, note) => {
+    void openWallet().then((opened) => {
       if (closedBoard) return;
-      setRooms(found);
-      setBoardNote(note);
-    }).then((board) => {
+      walletRef.current = opened;
+      setWallet(opened);
+    });
+    void openBoard(
+      (found, note) => {
+        if (closedBoard) return;
+        setRooms(found);
+        setBoardNote(note);
+      },
+      (found, pays) => {
+        if (closedBoard) return;
+        void (async () => {
+          const real: MarketListing[] = [];
+          for (const listing of found) {
+            if (await listingIsReal(listing.mechanic, listing.price, listing.seller, listing.nonce, listing.x, listing.y, listing.sig)) real.push(listing);
+          }
+          if (!closedBoard) setListings(real);
+          let purse = walletRef.current;
+          let owned = yardRef.current;
+          if (!purse) return;
+          for (const pay of pays) {
+            if (pay.seller !== purse.address || alreadyPaid(pay.id)) continue;
+            if (!(await payIsReal(pay.seller, pay.amount, pay.buyer, pay.nonce, pay.mechanic, pay.x, pay.y, pay.sig))) continue;
+            rememberPay(pay.id);
+            purse = credit(purse, pay.amount);
+            owned = dropCart(owned, pay.mechanic);
+          }
+          walletRef.current = purse;
+          yardRef.current = owned;
+          if (!closedBoard) {
+            setWallet(purse);
+            setYard(owned);
+          }
+        })();
+      },
+    ).then((board) => {
       if (closedBoard) board.close();
       else boardRef.current = board;
     });
@@ -408,6 +470,17 @@ export function Race() {
         if (speedRef.current) speedRef.current.textContent = String(Math.round(Math.abs(player.speed) * 8));
         if (lapRef.current) lapRef.current.textContent = `${lapOf(player)} / ${lapCount()}`;
         if (placeRef.current) placeRef.current.textContent = ordinal(placeOf(current, player));
+        const heat = heatRef.current;
+        if (heat && !heat.paid && player.finishedAt != null && placeOf(current, player) === 1) {
+          heat.paid = true;
+          const purse = walletRef.current;
+          if (purse) {
+            const paid = credit(purse, heat.purse);
+            walletRef.current = paid;
+            setWallet(paid);
+            current.banner = `Won ${heat.purse}`;
+          }
+        }
         if (clockRef.current) {
           const shown = player.finishedAt ?? current.time;
           clockRef.current.textContent = current.running ? fmt(shown) : "0:00.00";
@@ -580,6 +653,9 @@ export function Race() {
     const name = nameRef.current?.value.trim().slice(0, 16) || "You";
     parkOn(sim, course);
     sim.karts[0]!.name = name;
+    const built = specOf(yardRef.current);
+    sim.cart = { speed: built.speed, turn: built.turn, grip: built.grip, color: built.color };
+    sim.karts[0]!.color = built.color;
     const orient = DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<string> };
     if (typeof orient.requestPermission === "function") {
       try {
@@ -625,6 +701,65 @@ export function Race() {
     setSeat("host");
     boardRef.current?.announce({ code, course: courseId, host: name, live: false });
     if (statusRef.current) statusRef.current.textContent = "Room posted";
+  }
+
+  function keep(nextWallet: Wallet, nextYard: Yard, note = "") {
+    walletRef.current = nextWallet;
+    yardRef.current = nextYard;
+    setWallet(nextWallet);
+    setYard(nextYard);
+    setYardNote(note);
+  }
+
+  function hireMechanic(id: string) {
+    const purse = walletRef.current;
+    if (!purse) return;
+    const result = hire(purse, yardRef.current, id);
+    keep(result.wallet, result.yard, result.error || `${mechanicById(id).name} rolled it out.`);
+  }
+
+  async function listSelected() {
+    const purse = walletRef.current;
+    const selected = yardRef.current.carts.find((cart) => cart.id === yardRef.current.selected);
+    if (!purse || !selected || selected.mechanic === "stock") {
+      setYardNote("Pick a built cart to list.");
+      return;
+    }
+    const price = mechanicById(selected.mechanic).cost;
+    const signed = await signListing(purse, selected.mechanic, price);
+    boardRef.current?.post(`s|${selected.mechanic}|${price}|${signed.wallet.address}|${signed.nonce}|${signed.wallet.x}|${signed.wallet.y}|${signed.sig}`);
+    keep(signed.wallet, yardRef.current, `Listed ${mechanicById(selected.mechanic).name} for ${price}.`);
+  }
+
+  async function buyListing(listing: MarketListing) {
+    const purse = walletRef.current;
+    if (!purse) return;
+    if (listing.seller === purse.address) {
+      setYardNote("That’s your own listing.");
+      return;
+    }
+    const next = stakeHeat(purse, { id: "buy", name: "buy", stake: listing.price, purse: 0 });
+    if (!next) {
+      setYardNote("Not enough chips.");
+      return;
+    }
+    const paid = await signPay(next, listing.seller, listing.price, listing.mechanic);
+    const owned = giveCart(yardRef.current, listing.mechanic);
+    boardRef.current?.post(`p|${listing.seller}|${listing.price}|${paid.wallet.address}|${paid.nonce}|${listing.mechanic}|${paid.wallet.x}|${paid.wallet.y}|${paid.sig}`);
+    keep(paid.wallet, owned, `${mechanicById(listing.mechanic).name} is in your yard.`);
+  }
+
+  function enterHeat(heat: Heat) {
+    const purse = walletRef.current;
+    if (!purse) return;
+    const next = stakeHeat(purse, heat);
+    if (!next) {
+      setYardNote("Not enough chips for that heat.");
+      return;
+    }
+    keep(next, yardRef.current, `${heat.name} heat. Win pays ${heat.purse}.`);
+    heatRef.current = { ...heat, paid: false };
+    void begin("", courseId);
   }
 
   useEffect(() => {
@@ -708,57 +843,132 @@ export function Race() {
           <p className="race-kicker">Pit lane</p>
           {seat === "pick" ? (
             <>
-              <h2>Pick a course.</h2>
-              <label className="pit-name">
-                Name
-                <input ref={nameRef} name="name" defaultValue="You" maxLength={16} autoComplete="nickname" />
-              </label>
-              <div className="course-row">
-                {COURSES.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className={`course-chip ${courseId === item.id ? "is-on" : ""}`}
-                    onClick={() => setCourseId(item.id)}
-                  >
-                    {item.name}
-                  </button>
-                ))}
-              </div>
-              <div className="room-line">
-                {rooms.length === 0 ? <p className="race-note">{boardNote}</p> : null}
-                {rooms.slice(0, 2).map((room) => (
-                  <button
-                    key={room.id}
-                    type="button"
-                    className="room-row"
-                    onClick={() => {
-                      setRoomCode(room.code);
-                      setCourseId(room.course);
-                      setSeat(room.live ? "pick" : "wait");
-                      if (room.live) void begin(room.code, room.course);
-                    }}
-                  >
-                    <strong>{room.host}</strong>
-                    <span>
-                      {COURSES.find((item) => item.id === room.course)?.name ?? room.course} · {room.code}
-                      {room.live ? " · racing" : " · waiting"}
-                    </span>
-                  </button>
-                ))}
-              </div>
-              <div className="race-actions">
-                <button type="button" className="race-ghost" onClick={() => void useCamera()}>
-                  <Camera aria-hidden="true" />
-                  {camOn ? "Face live" : "Face"}
-                </button>
-                <button type="button" className="race-ghost" onClick={createRoom}>
-                  New room
-                </button>
-                <button type="submit" className="race-go">
+              <div className="desk-row">
+                <button type="button" className={desk === "race" ? "is-on" : ""} onClick={() => setDesk("race")}>
                   Race
                 </button>
+                <button type="button" className={desk === "yard" ? "is-on" : ""} onClick={() => setDesk("yard")}>
+                  Yard
+                </button>
+                <button type="button" className={desk === "purse" ? "is-on" : ""} onClick={() => setDesk("purse")}>
+                  Purse
+                </button>
               </div>
+              <p className="race-note">{wallet ? `${shortAddress(wallet.address)} · ${wallet.purse} chips` : "Opening a wallet…"}</p>
+              {desk === "race" ? (
+                <>
+                  <h2>Pick a course.</h2>
+                  <label className="pit-name">
+                    Name
+                    <input ref={nameRef} name="name" defaultValue="You" maxLength={16} autoComplete="nickname" />
+                  </label>
+                  <div className="course-row">
+                    {COURSES.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        className={`course-chip ${courseId === item.id ? "is-on" : ""}`}
+                        onClick={() => setCourseId(item.id)}
+                      >
+                        {item.name}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="room-line">
+                    {rooms.length === 0 ? <p className="race-note">{boardNote}</p> : null}
+                    {rooms.slice(0, 2).map((room) => (
+                      <button
+                        key={room.id}
+                        type="button"
+                        className="room-row"
+                        onClick={() => {
+                          setRoomCode(room.code);
+                          setCourseId(room.course);
+                          setSeat(room.live ? "pick" : "wait");
+                          if (room.live) void begin(room.code, room.course);
+                        }}
+                      >
+                        <strong>{room.host}</strong>
+                        <span>
+                          {COURSES.find((item) => item.id === room.course)?.name ?? room.course} · {room.code}
+                          {room.live ? " · racing" : " · waiting"}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="race-actions">
+                    <button type="button" className="race-ghost" onClick={() => void useCamera()}>
+                      <Camera aria-hidden="true" />
+                      {camOn ? "Face live" : "Face"}
+                    </button>
+                    <button type="button" className="race-ghost" onClick={createRoom}>
+                      New room
+                    </button>
+                    <button type="submit" className="race-go">
+                      Race
+                    </button>
+                  </div>
+                </>
+              ) : null}
+              {desk === "yard" ? (
+                <>
+                  <h2>Hire a mechanic.</h2>
+                  <div className="course-row">
+                    {yard.carts.map((cart) => (
+                      <button
+                        key={cart.id}
+                        type="button"
+                        className={`course-chip ${yard.selected === cart.id ? "is-on" : ""}`}
+                        onClick={() => {
+                          const next = selectCart(yard, cart.id);
+                          yardRef.current = next;
+                          setYard(next);
+                        }}
+                      >
+                        {mechanicById(cart.mechanic).name}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="room-line">
+                    {MECHANICS.map((mechanic) => (
+                      <button key={mechanic.id} type="button" className="room-row" onClick={() => hireMechanic(mechanic.id)}>
+                        <strong>{mechanic.name}</strong>
+                        <span>
+                          {mechanic.line} · {mechanic.cost}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  {yardNote ? <p className="race-note">{yardNote}</p> : null}
+                </>
+              ) : null}
+              {desk === "purse" ? (
+                <>
+                  <h2>Small stakes.</h2>
+                  <div className="race-actions">
+                    {HEATS.map((heat) => (
+                      <button key={heat.id} type="button" className="race-ghost" onClick={() => enterHeat(heat)}>
+                        {heat.name} {heat.stake}
+                      </button>
+                    ))}
+                    <button type="button" className="race-go" onClick={() => void listSelected()}>
+                      List cart
+                    </button>
+                  </div>
+                  <div className="room-line">
+                    {listings.length === 0 ? <p className="race-note">No signed carts on the trackers yet.</p> : null}
+                    {listings.slice(0, 2).map((listing) => (
+                      <button key={listing.id} type="button" className="room-row" onClick={() => void buyListing(listing)}>
+                        <strong>{mechanicById(listing.mechanic).name}</strong>
+                        <span>
+                          {listing.price} · {shortAddress(listing.seller)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  {yardNote ? <p className="race-note">{yardNote}</p> : null}
+                </>
+              ) : null}
             </>
           ) : null}
           {seat === "host" ? (

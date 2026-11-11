@@ -276,11 +276,27 @@
   margin-top: 0.55rem;
 }
 
-.course-row {
+.desk-row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 0.35rem;
-  margin: 0 0 0.45rem;
+  margin: 0.35rem 0 0.4rem;
+}
+
+.desk-row button {
+  min-height: 2.2rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  background: transparent;
+  color: var(--color-paper);
+  font: inherit;
+  font-weight: 560;
+}
+
+.desk-row button.is-on {
+  background: var(--color-lane);
+  color: var(--color-ink);
+  border-color: transparent;
 }
 
 .room-line {
