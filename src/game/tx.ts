@@ -2,7 +2,7 @@ import { sha256 } from "./sha256";
 import { signText, verifyText, type Wallet } from "./wallet";
 import { MECHANICS } from "./yard";
 
-export type TxKind = "hire" | "list" | "buy" | "drop" | "seat" | "claim";
+export type TxKind = "hire" | "list" | "buy" | "drop" | "seat" | "claim" | "send" | "wing" | "rudder" | "poach" | "swap" | "listmat" | "buymat" | "dropmat" | "crown";
 
 export type ChainTx = {
   kind: TxKind;

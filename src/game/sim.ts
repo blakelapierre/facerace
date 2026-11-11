@@ -10,6 +10,10 @@ export type Kart = {
   yaw: number;
   speed: number;
   travel: number;
+  /** Next gate that still has to be driven through. */
+  gate: number;
+  /** Laps that passed every gate. */
+  laps: number;
   finishedAt: number | null;
   ai: boolean;
   mass: number;
@@ -78,7 +82,7 @@ export type Sim = {
   /** Solo heats. Each full tour of the courses raises it, and the bots with it. */
   level: number;
   /** Built cart. Stock is null. */
-  cart: { speed: number; turn: number; grip: number; color: [number, number, number] } | null;
+  cart: { speed: number; turn: number; grip: number; color: [number, number, number]; wings?: boolean; rudder?: boolean } | null;
   /** Recent tire marks, oldest first. Shared with every painter. */
   skids: Skid[];
   /** Marks laid this step, for the net. Drained by the frame. */
@@ -180,6 +184,8 @@ function placeKart(i: number, name: string): Kart {
     yaw: sample.yaw,
     speed: 0,
     travel: u,
+    gate: 0,
+    laps: 0,
     finishedAt: null,
     ai: i !== 0,
     mass: 1,
@@ -299,21 +305,53 @@ function advanceTravel(kart: Kart) {
 }
 
 function contain(kart: Kart) {
+  const sample = pointAt(nearestU(kart.x, kart.y));
+  const dx = kart.x - sample.x;
+  const dy = kart.y - sample.y;
+  const dist = Math.hypot(dx, dy);
+  const leash = 110;
+  if (dist <= leash) return;
+  const scale = leash / dist;
+  kart.x = sample.x + dx * scale;
+  kart.y = sample.y + dy * scale;
+  kart.vx *= 0.72;
+  kart.vy *= 0.72;
+}
+
+function penalize(kart: Kart, dt: number) {
   const u = ((kart.travel % 1) + 1) % 1;
   const sample = pointAt(u);
   const [lx, ly] = leftNormal(sample);
   const lat = (kart.x - sample.x) * lx + (kart.y - sample.y) * ly;
-  const edge = halfWidth() + (kart.air ? 7 : 0.45);
-  if (Math.abs(lat) <= edge) return;
-  const clamped = Math.sign(lat) * edge;
-  kart.x = sample.x + lx * clamped;
-  kart.y = sample.y + ly * clamped;
-  const fx = Math.sin(kart.yaw);
-  const fy = Math.cos(kart.yaw);
-  const forward = kart.vx * fx + kart.vy * fy;
-  kart.vx = fx * forward * 0.9;
-  kart.vy = fy * forward * 0.9;
-  kart.speed = forward * 0.9;
+  const off = Math.abs(lat) - halfWidth();
+  if (off <= 0 || kart.air) return;
+  const h = duneHeight(kart.x, kart.y);
+  let drag = 1.6 + Math.min(5, off * 0.22);
+  if (h > 8) drag += 2.2;
+  if (h < 1.15) drag += 1.1;
+  if (waterAt(kart.x, kart.y) != null) drag += 3.5;
+  const keep = Math.exp(-drag * dt);
+  kart.vx *= keep;
+  kart.vy *= keep;
+  kart.speed = kart.vx * Math.sin(kart.yaw) + kart.vy * Math.cos(kart.yaw);
+}
+
+const GATES = 8;
+
+function passGates(kart: Kart) {
+  if (kart.finishedAt != null) return false;
+  const u = ((kart.travel % 1) + 1) % 1;
+  const target = kart.gate / GATES;
+  let ahead = u - target;
+  if (ahead > 0.5) ahead -= 1;
+  if (ahead < -0.5) ahead += 1;
+  if (ahead < 0 || ahead > 0.08) return false;
+  const sample = pointAt(target);
+  if (Math.hypot(kart.x - sample.x, kart.y - sample.y) > halfWidth() * 2.5) return false;
+  kart.gate = (kart.gate + 1) % GATES;
+  if (kart.gate !== 0) return false;
+  kart.laps += 1;
+  return true;
 }
 
 function aiSteer(kart: Kart, level: number) {
@@ -393,9 +431,11 @@ function ride(kart: Kart, steer: number, drive: number, brake: number, boost: bo
   const reverse = forward >= -0.4 ? 1 : -1;
   const speedFactor = Math.max(0.22, Math.min(1, spd / 7));
   if (traction > 0) kart.yaw -= steer * TURN * (built?.turn ?? 1) * speedFactor * reverse * (brake > 0.5 ? 1.2 : 1) * dt;
-  else kart.yaw -= steer * 0.55 * dt;
+  else kart.yaw -= steer * (built?.rudder ? 1.65 : 0.55) * dt;
 
-  vz -= GRAVITY * dt;
+  const glide = built?.wings && spd > 8 ? 0.5 : 1;
+  vz -= GRAVITY * glide * dt;
+  if (built?.wings && kart.air && spd > 12) vz += 4.5 * dt;
   kart.x += vx * dt;
   kart.y += vy * dt;
   kart.z += vz * dt;
@@ -654,6 +694,8 @@ function resetKart(kart: Kart, i: number) {
   kart.mark = null;
   kart.wheels = fresh.wheels.map((wheel) => ({ ...wheel }));
   kart.travel = fresh.travel;
+  kart.gate = 0;
+  kart.laps = 0;
   kart.finishedAt = null;
 }
 
@@ -681,7 +723,9 @@ export function stepSim(sim: Sim, dt: number, peers: Bumper[] = []) {
     const skidding = ride(kart, steer, drive, brake, wantsBoost, built, dt, cap);
     laySkid(sim, kart, skidding);
     advanceTravel(kart);
+    penalize(kart, dt);
     contain(kart);
+    const crossed = passGates(kart);
     if (kart === player && kart.finishedAt == null) {
       const uNow = ((kart.travel % 1) + 1) % 1;
       const sampleNow = pointAt(uNow);
@@ -692,13 +736,12 @@ export function stepSim(sim: Sim, dt: number, peers: Bumper[] = []) {
         sim.events.push({ kind: "scrape", amount: Math.min(1, Math.abs(kart.speed) / 20), x: kart.x, y: kart.y });
         sim.shake = Math.min(1, sim.shake + 0.28);
       }
-      const lap = Math.floor(kart.travel);
-      if (lap > sim.lapSeen && lap < lapCount()) {
+      if (crossed && kart.laps < lapCount()) {
         sim.events.push({ kind: "lap", amount: 1, x: kart.x, y: kart.y });
       }
-      sim.lapSeen = Math.max(sim.lapSeen, lap);
+      sim.lapSeen = Math.max(sim.lapSeen, kart.laps);
     }
-    if (kart.travel >= lapCount() && kart.finishedAt == null) {
+    if (kart.laps >= lapCount() && kart.finishedAt == null) {
       kart.finishedAt = sim.time;
       kart.speed *= 0.5;
       kart.vx *= 0.5;
@@ -828,6 +871,8 @@ export function parkHuman(sim: Sim, courseId: string, name: string, slot: number
   you.mark = null;
   you.wheels = fresh.wheels.map((wheel) => ({ ...wheel }));
   you.travel = fresh.travel;
+  you.gate = 0;
+  you.laps = 0;
   you.finishedAt = null;
   sim.karts = [you];
   sim.time = 0;
@@ -844,11 +889,11 @@ export function parkHuman(sim: Sim, courseId: string, name: string, slot: number
 
 export function lapOf(kart: Kart) {
   if (kart.finishedAt != null) return lapCount();
-  return Math.min(lapCount(), Math.floor(kart.travel) + 1);
+  return Math.min(lapCount(), kart.laps + 1);
 }
 
 export function placeOf(sim: Sim, kart: Kart) {
-  const rank = (k: Kart) => (k.finishedAt != null ? 100 + (100000 - k.finishedAt) : k.travel);
+  const rank = (k: Kart) => (k.finishedAt != null ? 100 + (100000 - k.finishedAt) : k.laps * 10 + k.gate + ((k.travel % 1) + 1) % 1);
   const sorted = [...sim.karts].sort((a, b) => rank(b) - rank(a));
   return sorted.findIndex((k) => k === kart) + 1;
 }

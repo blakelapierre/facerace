@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Camera, Flag, Gauge, Users, Volume2, VolumeX } from "lucide-react";
 import { paintFace, type FaceImage } from "./faces";
+import { paintPortrait } from "./portrait";
 import { createSim, installProbe, lapOf, parkHuman, parkOn, placeOf, stepSim, type Sim } from "./sim";
 import { chaseCamera, raceSun } from "./scene";
 import { createRaceAudio, hearAt, type RaceAudio } from "./sound";
@@ -10,7 +11,7 @@ import { freshCode, openBoard, type ListedRoom, type MarketListing } from "./lob
 import type { RaceNet, RoomPerson } from "./net";
 import { openWallet, shortAddress, writePurse, type Wallet } from "./wallet";
 import { startMiner, type MineStatus } from "./miner";
-import { holdings, purseTable, submitTx, watchChain, type Holdings, type OpenPurse } from "./chain";
+import { holdings, market, purseTable, recentBlocks, submitTx, watchChain, type Holdings, type OpenPurse } from "./chain";
 import { cartIdFor, signTx } from "./tx";
 import {
   MECHANICS,
@@ -157,6 +158,11 @@ export function Race() {
   const clockRef = useRef<HTMLSpanElement>(null);
   const noxRef = useRef<HTMLSpanElement>(null);
   const mapRef = useRef<HTMLCanvasElement>(null);
+  const portraitRef = useRef<HTMLCanvasElement>(null);
+  const kartPortraitRef = useRef<HTMLCanvasElement>(null);
+  const sendToRef = useRef<HTMLInputElement>(null);
+  const sendAmtRef = useRef<HTMLInputElement>(null);
+  const crownedRef = useRef("");
   const bannerRef = useRef<HTMLParagraphElement>(null);
   const statusRef = useRef<HTMLParagraphElement>(null);
   const standRef = useRef<HTMLUListElement>(null);
@@ -195,13 +201,16 @@ export function Race() {
   const [offers, setOffers] = useState<Offer[]>(offerRef.current);
   const [book, setBook] = useState<Holdings | null>(null);
   const syncRef = useRef<() => void>(() => {});
-  const [desk, setDesk] = useState<"race" | "yard" | "purse" | "wallet">("race");
+  const [desk, setDesk] = useState<"race" | "yard" | "purse" | "wallet" | "chain">("race");
   const [listings, setListings] = useState<MarketListing[]>([]);
   const [yardNote, setYardNote] = useState("");
   const [lobby, setLobby] = useState<RoomPerson[]>([]);
   const [purses, setPurses] = useState<OpenPurse[]>([]);
+  const [board, setBoard] = useState(market);
+  const [blocks, setBlocks] = useState(recentBlocks);
   const [sizePick, setSizePick] = useState(4);
   const [stakePick, setStakePick] = useState<"s" | "h">("s");
+  const [talk, setTalk] = useState("ada");
   const [mine, setMine] = useState<MineStatus>({ height: 0, rate: "0 H/s", power: 10, gpu: false, load: 0, mined: 0, detail: "" });
   const [camOn, setCamOn] = useState(false);
   const [camError, setCamError] = useState("");
@@ -209,6 +218,27 @@ export function Race() {
   const [hands, setHands] = useState<"tilt" | "stick">(preferredHands);
   const setMutedRef = useRef(setMuted);
   setMutedRef.current = setMuted;
+
+  useEffect(() => {
+    if (phase !== "menu" || desk !== "yard") return;
+    let frame = 0;
+    let last = 0;
+    const loop = (now: number) => {
+      frame = requestAnimationFrame(loop);
+      if (now - last < 80) return;
+      last = now;
+      const time = now / 1000;
+      const selected = yardRef.current.carts.find((cart) => cart.id === yardRef.current.selected);
+      const crewId = selected && selected.mechanic !== "stock" ? selected.mechanic : talk;
+      const tint = mechanicById(crewId).color;
+      const face = portraitRef.current?.getContext("2d");
+      const body = kartPortraitRef.current?.getContext("2d");
+      if (face) paintPortrait(face, "mechanic", tint, time);
+      if (body) paintPortrait(body, "kart", tint, time);
+    };
+    frame = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(frame);
+  }, [phase, desk, talk, yard.selected]);
 
   useEffect(() => {
     const sim = createSim();
@@ -266,6 +296,8 @@ export function Race() {
         setOffers(offerRef.current);
         setBook(held);
         setPurses(purseTable());
+        setBoard(market());
+        setBlocks(recentBlocks(6));
       };
       syncRef.current = sync;
       sync();
@@ -597,7 +629,7 @@ export function Race() {
       if (now - hudAt > 80) {
         hudAt = now;
         if (speedRef.current) speedRef.current.textContent = String(Math.round(Math.abs(player.speed) * 8));
-        if (lapRef.current) lapRef.current.textContent = `${lapOf(player)} / ${lapCount()}`;
+        if (lapRef.current) lapRef.current.textContent = `${lapOf(player)} / ${lapCount()} · ${player.gate + 1}/8`;
         if (placeRef.current) placeRef.current.textContent = ordinal(placeOf(current, player));
         if (noxRef.current) noxRef.current.style.transform = `scaleX(${Math.max(0, Math.min(1, player.nox))})`;
         drawMap(mapRef.current, current, remotes);
@@ -614,7 +646,7 @@ export function Race() {
                 const tx = await signTx(purse, {
                   kind: "claim",
                   nonce: held.nonce + 1,
-                  mechanic: "stock",
+                  mechanic: yardRef.current.selected,
                   cartId: race.key,
                   seller: purse.address,
                   price: pot,
@@ -625,6 +657,32 @@ export function Race() {
                 });
                 const err = await submitTx(tx);
                 current.banner = err || `Won ${pot}`;
+                syncRef.current();
+              })();
+            }
+          }
+        } else if (player.finishedAt != null && yardRef.current.selected !== "stock") {
+          const token = `${yardRef.current.selected}:${player.finishedAt}`;
+          if (crownedRef.current !== token) {
+            crownedRef.current = token;
+            const purse = walletRef.current;
+            const cartId = yardRef.current.selected;
+            if (purse) {
+              void (async () => {
+                const held = holdings(purse.address);
+                const tx = await signTx(purse, {
+                  kind: "crown",
+                  nonce: held.nonce + 1,
+                  mechanic: cartId,
+                  cartId,
+                  seller: "",
+                  price: 0,
+                  ask: "",
+                  askNonce: 0,
+                  sx: "",
+                  sy: "",
+                });
+                await submitTx(tx);
                 syncRef.current();
               })();
             }
@@ -820,6 +878,7 @@ export function Race() {
     gunAtRef.current = 0;
     netCodeRef.current = "";
     purseRef.current = null;
+    crownedRef.current = "";
     setLobby([]);
     setSeat("pick");
     setPhase("menu");
@@ -880,7 +939,17 @@ export function Race() {
     else parkOn(sim, courseName);
     sim.karts[0]!.name = name;
     const built = specOf(yardRef.current);
-    sim.cart = { speed: built.speed, turn: built.turn, grip: built.grip, color: built.color };
+    const owned = holdings(walletRef.current?.address || "").carts.find((item) => item.id === yardRef.current.selected);
+    const crew = holdings(walletRef.current?.address || "").jobs.find((job) => job.id === built.id);
+    const skill = crew && crew.boss === walletRef.current?.address ? 1 + (crew.skill - 1) * 0.02 : 1;
+    sim.cart = {
+      speed: built.speed * skill,
+      turn: built.turn,
+      grip: built.grip,
+      color: built.color,
+      wings: owned?.wings,
+      rudder: owned?.rudder,
+    };
     sim.karts[0]!.color = built.color;
     const orient = DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<string> };
     if (typeof orient.requestPermission === "function") {
@@ -955,12 +1024,175 @@ export function Race() {
       seller: "",
       price: mechanic.cost,
       ask: "",
-      askNonce: 0,
+      askNonce: 1,
       sx: "",
       sy: "",
     });
     const err = await submitTx(tx);
     setYardNote(err || `${mechanic.name} mints when the next block confirms it.`);
+    syncRef.current();
+  }
+
+  async function poachMechanic(id: string) {
+    const purse = walletRef.current;
+    if (!purse) return;
+    const mechanic = mechanicById(id);
+    const job = book?.jobs.find((item) => item.id === id);
+    const price = Math.max(job?.wage ?? mechanic.cost, mechanic.cost) + 4;
+    const held = holdings(purse.address);
+    if (held.chips < price) {
+      setYardNote("Not enough chips to poach.");
+      return;
+    }
+    const tx = await signTx(purse, {
+      kind: "poach",
+      nonce: held.nonce + 1,
+      mechanic: id,
+      cartId: "poach",
+      seller: job?.boss || "",
+      price,
+      ask: "",
+      askNonce: 0,
+      sx: "",
+      sy: "",
+    });
+    const err = await submitTx(tx);
+    setYardNote(err || `${mechanic.name} changes crews when the block confirms ${price}.`);
+    syncRef.current();
+  }
+
+  async function fitPart(kind: "wing" | "rudder") {
+    const purse = walletRef.current;
+    const cartId = yardRef.current.selected;
+    if (!purse || cartId === "stock") {
+      setYardNote("Mint a cart before fitting parts.");
+      return;
+    }
+    const held = holdings(purse.address);
+    const tx = await signTx(purse, {
+      kind,
+      nonce: held.nonce + 1,
+      mechanic: kind === "wing" ? "oil" : "battery",
+      cartId,
+      seller: "",
+      price: kind === "wing" ? 8 : 6,
+      ask: "",
+      askNonce: kind === "wing" ? 2 : 1,
+      sx: "",
+      sy: "",
+    });
+    const err = await submitTx(tx);
+    setYardNote(err || `${kind === "wing" ? "Wings" : "A rudder"} fits when the next block confirms it.`);
+    syncRef.current();
+  }
+
+  async function sendValue(token: string, to: string, amount: number) {
+    const purse = walletRef.current;
+    if (!purse) return;
+    const who = to.trim();
+    if (!who) {
+      setYardNote("Name a wallet.");
+      return;
+    }
+    const held = holdings(purse.address);
+    const tx = await signTx(purse, {
+      kind: "send",
+      nonce: held.nonce + 1,
+      mechanic: token === "chips" ? "" : token,
+      cartId: "send",
+      seller: who,
+      price: token === "chips" ? amount : 0,
+      ask: "",
+      askNonce: token === "chips" ? 0 : amount,
+      sx: "",
+      sy: "",
+    });
+    const err = await submitTx(tx);
+    setYardNote(err || `Sending when the next block confirms it.`);
+    syncRef.current();
+  }
+
+  async function swapToken(token: "oil" | "battery" | "engine", side: "buy" | "sell", spend = 4) {
+    const purse = walletRef.current;
+    if (!purse) return;
+    const held = holdings(purse.address);
+    const tx = await signTx(purse, {
+      kind: "swap",
+      nonce: held.nonce + 1,
+      mechanic: token,
+      cartId: side,
+      seller: "",
+      price: side === "buy" ? spend : 0,
+      ask: "",
+      askNonce: side === "sell" ? 1 : 0,
+      sx: "",
+      sy: "",
+    });
+    const err = await submitTx(tx);
+    setYardNote(err || `${side === "buy" ? "Buy" : "Sell"} ${token} waits for a block.`);
+    syncRef.current();
+  }
+
+  async function listMaterial(token: "oil" | "battery" | "engine") {
+    const purse = walletRef.current;
+    if (!purse) return;
+    const held = holdings(purse.address);
+    const tx = await signTx(purse, {
+      kind: "listmat",
+      nonce: held.nonce + 1,
+      mechanic: token,
+      cartId: "list",
+      seller: purse.address,
+      price: token === "engine" ? 8 : 3,
+      ask: "",
+      askNonce: 1,
+      sx: "",
+      sy: "",
+    });
+    const err = await submitTx(tx);
+    setYardNote(err || `Listed 1 ${token}.`);
+    syncRef.current();
+  }
+
+  async function buyMaterial(id: string, cost: number) {
+    const purse = walletRef.current;
+    if (!purse) return;
+    const held = holdings(purse.address);
+    const tx = await signTx(purse, {
+      kind: "buymat",
+      nonce: held.nonce + 1,
+      mechanic: "",
+      cartId: id,
+      seller: "",
+      price: cost,
+      ask: "",
+      askNonce: 0,
+      sx: "",
+      sy: "",
+    });
+    const err = await submitTx(tx);
+    setYardNote(err || "The trade waits for a block.");
+    syncRef.current();
+  }
+
+  async function dropMaterial(id: string) {
+    const purse = walletRef.current;
+    if (!purse) return;
+    const held = holdings(purse.address);
+    const tx = await signTx(purse, {
+      kind: "dropmat",
+      nonce: held.nonce + 1,
+      mechanic: "",
+      cartId: id,
+      seller: "",
+      price: 0,
+      ask: "",
+      askNonce: 0,
+      sx: "",
+      sy: "",
+    });
+    const err = await submitTx(tx);
+    setYardNote(err || "The listing comes back when the block confirms it.");
     syncRef.current();
   }
 
@@ -1117,7 +1349,7 @@ export function Race() {
       const tx = await signTx(purse, {
         kind: "seat",
         nonce: held.nonce + 1,
-        mechanic: "stock",
+        mechanic: yardRef.current.selected,
         cartId: row.key,
         seller: purse.address,
         price: row.stake,
@@ -1265,6 +1497,9 @@ export function Race() {
                 <button type="button" className={desk === "wallet" ? "is-on" : ""} onClick={() => setDesk("wallet")}>
                   Wallet
                 </button>
+                <button type="button" className={desk === "chain" ? "is-on" : ""} onClick={() => setDesk("chain")}>
+                  Chain
+                </button>
               </div>
               <p className="race-note">{wallet ? `${shortAddress(wallet.address)} · ${wallet.purse} chips` : "Opening a wallet…"}</p>
               {desk === "race" ? (
@@ -1325,33 +1560,80 @@ export function Race() {
               {desk === "yard" ? (
                 <>
                   <h2>Mint a cart.</h2>
-                  <p className="race-note">A hire mints the cart when the next block confirms it.</p>
-                  <div className="course-row">
-                    {yard.carts.map((cart) => (
-                      <button
-                        key={cart.id}
-                        type="button"
-                        className={`course-chip ${yard.selected === cart.id ? "is-on" : ""}`}
-                        onClick={() => {
-                          const next = selectCart(yard, cart.id);
-                          yardRef.current = next;
-                          setYard(next);
-                        }}
-                      >
-                        {mechanicById(cart.mechanic).name}
-                        {offers.some((offer) => offer.cartId === cart.id) ? " · sale" : ""}
-                      </button>
-                    ))}
+                  <div className="portrait-row">
+                    <canvas ref={portraitRef} className="portrait" width={180} height={96} />
+                    <canvas ref={kartPortraitRef} className="portrait" width={180} height={96} />
                   </div>
+                  <p className="race-note">
+                    Fees split to the developer pool and the bonus purse. Wings are 8 chips and 2 oil. A rudder is 6 chips and 1 battery. Bag · oil {book?.mats.oil ?? 0} · battery {book?.mats.battery ?? 0} · engine {book?.mats.engine ?? 0}
+                  </p>
+                  <div className="course-row">
+                    {yard.carts.map((cart) => {
+                      const chain = book?.carts.find((item) => item.id === cart.id);
+                      return (
+                        <button
+                          key={cart.id}
+                          type="button"
+                          className={`course-chip ${yard.selected === cart.id ? "is-on" : ""}`}
+                          onClick={() => {
+                            const next = selectCart(yard, cart.id);
+                            yardRef.current = next;
+                            setYard(next);
+                          }}
+                        >
+                          {mechanicById(cart.mechanic).name}
+                          {chain ? ` · ${chain.wins}w` : ""}
+                          {chain?.wings ? " · wings" : ""}
+                          {chain?.rudder ? " · rudder" : ""}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {(() => {
+                    const chain = book?.carts.find((item) => item.id === yard.selected);
+                    if (!chain) return <p className="race-note">Stock has no record yet. Hire a mechanic to mint one.</p>;
+                    return (
+                      <p className="race-note">
+                        {chain.races} races · {chain.wins} wins · {chain.purseWins} purse wins
+                        {chain.wings ? " · wings" : ""}
+                        {chain.rudder ? " · rudder" : ""}
+                      </p>
+                    );
+                  })()}
                   <div className="room-line">
-                    {MECHANICS.map((mechanic) => (
-                      <button key={mechanic.id} type="button" className="room-row" onClick={() => hireMechanic(mechanic.id)}>
-                        <strong>{mechanic.name}</strong>
-                        <span>
-                          {mechanic.line} · mint {mechanic.cost}
-                        </span>
-                      </button>
-                    ))}
+                    {MECHANICS.map((mechanic) => {
+                      const job = book?.jobs.find((item) => item.id === mechanic.id);
+                      const taken = Boolean(job?.boss && job.boss !== wallet?.address);
+                      const price = Math.max(job?.wage ?? mechanic.cost, mechanic.cost) + (taken ? 4 : 0);
+                      return (
+                        <button
+                          key={mechanic.id}
+                          type="button"
+                          className="room-row"
+                          onPointerEnter={() => setTalk(mechanic.id)}
+                          onFocus={() => setTalk(mechanic.id)}
+                          onClick={() => {
+                            setTalk(mechanic.id);
+                            void (taken ? poachMechanic(mechanic.id) : hireMechanic(mechanic.id));
+                          }}
+                        >
+                          <strong>{mechanic.name}</strong>
+                          <span>
+                            {mechanic.line} · skill {job?.skill ?? 1}
+                            {job?.boss ? ` · ${shortAddress(job.boss)}` : " · free"}
+                            {taken ? ` · poach ${price}` : ` · mint ${mechanic.cost}`}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="race-actions">
+                    <button type="button" className="race-ghost" onClick={() => void fitPart("wing")}>
+                      Wings · 8
+                    </button>
+                    <button type="button" className="race-ghost" onClick={() => void fitPart("rudder")}>
+                      Rudder · 6
+                    </button>
                   </div>
                   {yardNote ? <p className="race-note">{yardNote}</p> : null}
                 </>
@@ -1361,7 +1643,7 @@ export function Race() {
                   <h2>Your pit.</h2>
                   <p className="race-note">
                     {book?.pending[0]
-                      ? `${book.pending[0].kind === "hire" ? "Mint" : book.pending[0].kind} ${mechanicById(book.pending[0].mechanic).name} · waiting for a block`
+                      ? `${book.pending[0].kind} ${book.pending[0].mechanic || book.pending[0].cartId} · waiting for a block`
                       : "Nothing is waiting on a block."}
                   </p>
                   <div className="room-line">
@@ -1462,6 +1744,113 @@ export function Race() {
                     <button type="button" className="race-go" onClick={() => void sitPurse(sizePick, stakePick)}>
                       Sit {sizePick} · {stakePick === "s" ? "Small" : "High"}
                     </button>
+                  </div>
+                  {yardNote ? <p className="race-note">{yardNote}</p> : null}
+                </>
+              ) : null}
+              {desk === "chain" ? (
+                <>
+                  <h2>Chain</h2>
+                  <p className="race-note">
+                    Dev pool {board.dev} · bonus purse {board.bonus}. A quarter of that bonus tops the next purse win. Height {mine.height}.
+                  </p>
+                  <p className="race-note">
+                    You hold {wallet?.purse ?? 0} chips · oil {book?.mats.oil ?? 0} · battery {book?.mats.battery ?? 0} · engine {book?.mats.engine ?? 0}
+                  </p>
+                  <div className="send-line">
+                    <input
+                      ref={sendToRef}
+                      placeholder="Their wallet"
+                      autoComplete="off"
+                      spellCheck={false}
+                      onKeyDown={(event) => event.key === "Enter" && event.preventDefault()}
+                    />
+                    <input
+                      ref={sendAmtRef}
+                      defaultValue="4"
+                      inputMode="numeric"
+                      aria-label="Amount"
+                      onKeyDown={(event) => event.key === "Enter" && event.preventDefault()}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const amount = Math.max(1, Math.floor(Number(sendAmtRef.current?.value) || 0));
+                        void sendValue("chips", sendToRef.current?.value || "", amount);
+                      }}
+                    >
+                      Send chips
+                    </button>
+                  </div>
+                  <div className="course-row">
+                    {(["oil", "battery", "engine"] as const).map((token) => (
+                      <button
+                        key={token}
+                        type="button"
+                        className="course-chip"
+                        onClick={() => {
+                          const amount = Math.max(1, Math.floor(Number(sendAmtRef.current?.value) || 0));
+                          void sendValue(token, sendToRef.current?.value || "", amount);
+                        }}
+                      >
+                        Send {token}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="room-line chain-scroll">
+                    {(["oil", "battery", "engine"] as const).map((token) => {
+                      const pool = board.amm[token];
+                      const spend = pool.token > 1 ? Math.ceil(pool.chips / (pool.token - 1)) : 0;
+                      const quote = spend > 0 ? Math.floor((pool.token * spend) / (pool.chips + spend)) : 0;
+                      return (
+                        <div key={token} className="room-row">
+                          <strong>
+                            {token} · pool {pool.token}/{pool.chips}
+                          </strong>
+                          <span className="row-actions">
+                            <button type="button" onClick={() => void swapToken(token, "buy", spend)}>
+                              Buy {quote} · {spend}
+                            </button>
+                            <button type="button" onClick={() => void swapToken(token, "sell")}>
+                              Sell 1
+                            </button>
+                            <button type="button" onClick={() => void listMaterial(token)}>
+                              List 1
+                            </button>
+                          </span>
+                        </div>
+                      );
+                    })}
+                    {board.mats.slice(0, 6).map((item) => (
+                      <div key={item.id} className="room-row">
+                        <strong>
+                          {item.amount} {item.token} · {item.price * item.amount}
+                        </strong>
+                        <span className="row-actions">
+                          {item.seller === wallet?.address ? (
+                            <button type="button" onClick={() => void dropMaterial(item.id)}>
+                              Pull
+                            </button>
+                          ) : (
+                            <button type="button" onClick={() => void buyMaterial(item.id, item.price * item.amount)}>
+                              Buy · {shortAddress(item.seller)}
+                            </button>
+                          )}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="room-line chain-scroll">
+                    {blocks.map((row) => (
+                      <div key={row.height} className="room-row">
+                        <strong>
+                          #{row.height} · {row.kind}
+                        </strong>
+                        <span>
+                          {row.detail} · {shortAddress(row.miner)}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                   {yardNote ? <p className="race-note">{yardNote}</p> : null}
                 </>
