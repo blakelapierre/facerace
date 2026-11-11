@@ -6,7 +6,7 @@ import { createSim, installProbe, lapOf, parkHuman, parkOn, placeOf, stepSim, ty
 import { chaseCamera, raceSun } from "./scene";
 import { createRaceAudio, hearAt, type RaceAudio } from "./sound";
 import { rainAt } from "./terrain";
-import { COURSES, course, lapCount, pointAt } from "./track";
+import { COURSES, course, halfWidth, lapCount, pointAt } from "./track";
 import { freshCode, openBoard, type ListedRoom, type MarketListing } from "./lobby";
 import type { RaceNet, RoomPerson } from "./net";
 import { openWallet, shortAddress, writePurse, type Wallet } from "./wallet";
@@ -78,6 +78,22 @@ function clampUnit(n: number) {
   return n;
 }
 
+function bendAhead(travel: number) {
+  let bend = 0;
+  let prev = pointAt(travel).yaw;
+  for (let i = 1; i <= 10; i++) {
+    const yaw = pointAt(travel + i * 0.01).yaw;
+    let d = yaw - prev;
+    if (d > Math.PI) d -= Math.PI * 2;
+    if (d < -Math.PI) d += Math.PI * 2;
+    bend += Math.abs(d);
+    prev = yaw;
+  }
+  return bend;
+}
+
+let mapTight = 0;
+
 function drawMap(canvas: HTMLCanvasElement | null, sim: Sim, remotes: { x: number; y: number }[]) {
   if (!canvas) return;
   const ctx = canvas.getContext("2d");
@@ -86,19 +102,36 @@ function drawMap(canvas: HTMLCanvasElement | null, sim: Sim, remotes: { x: numbe
   const w = canvas.width;
   const h = canvas.height;
   ctx.clearRect(0, 0, w, h);
-  const scale = w / 96;
+  const tight = Math.min(1, bendAhead(you.travel) / 1.15);
+  mapTight += (tight - mapTight) * 0.2;
+  const span = 0.28 - mapTight * 0.15;
+  const world = 156 - mapTight * 70;
+  const scale = w / world;
   const to = (x: number, y: number) => [w / 2 + (x - you.x) * scale, h / 2 - (y - you.y) * scale] as const;
-  ctx.strokeStyle = "rgba(232, 196, 92, 0.92)";
-  ctx.lineWidth = 4;
   ctx.lineJoin = "round";
+  ctx.lineCap = "round";
   ctx.beginPath();
-  for (let i = 0; i <= 32; i++) {
-    const sample = pointAt(you.travel - 0.05 + (i / 32) * 0.13);
+  for (let i = 0; i <= 42; i++) {
+    const sample = pointAt(you.travel - span * 0.34 + (i / 42) * span);
     const [px, py] = to(sample.x, sample.y);
     if (i === 0) ctx.moveTo(px, py);
     else ctx.lineTo(px, py);
   }
+  ctx.strokeStyle = "rgba(232, 196, 92, 0.28)";
+  ctx.lineWidth = Math.max(6, halfWidth() * 2 * scale);
   ctx.stroke();
+  ctx.strokeStyle = "rgba(232, 196, 92, 0.95)";
+  ctx.lineWidth = 2.4;
+  ctx.stroke();
+  const u = ((you.travel % 1) + 1) % 1;
+  const nextGate = (Math.floor(u * 8 + 1e-4) + 1) / 8;
+  const gate = pointAt(nextGate);
+  const [gx, gy] = to(gate.x, gate.y);
+  ctx.fillStyle = "#f4efe4";
+  ctx.fillRect(gx - 3.5, gy - 3.5, 7, 7);
+  ctx.strokeStyle = "#1a120c";
+  ctx.lineWidth = 1.2;
+  ctx.strokeRect(gx - 3.5, gy - 3.5, 7, 7);
   const dot = (x: number, y: number, color: string, radius = 3.4) => {
     const [px, py] = to(x, y);
     ctx.fillStyle = color;
@@ -250,6 +283,23 @@ function preferredHands(): "tilt" | "stick" {
   return window.matchMedia("(pointer: coarse)").matches ? "tilt" : "stick";
 }
 
+const COURSE_HINT: Record<string, string> = {
+  stadium: "A flat oval. Start here.",
+  ridge: "Long rolling dunes.",
+  lake: "Water is slow. Stay on the road.",
+  cinder: "A loop around the cinder cone.",
+  caldera: "The rim of the volcano.",
+  summit: "Up the mountain and back down.",
+};
+
+const DESK_HELP = {
+  race: "Race the computer, or open a room so friends can join. Drive through every yellow checkpoint or the lap does not count.",
+  yard: "Hire a mechanic and they build you a kart. Wings hold a jump. A rudder lets you steer in the air. Wins make that mechanic better.",
+  purse: "A purse is a race against other people, no bots. Everyone pays the stake. The winner takes the pot.",
+  wallet: "This address lives in this browser. Mining earns chips. Give someone the address if you want them to pay you.",
+  chain: "The ledger confirms hires and trades. Send chips or parts to another address, or swap parts with the pool.",
+};
+
 export function Race() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -297,7 +347,7 @@ export function Race() {
   const [seat, setSeat] = useState<"pick" | "host" | "wait" | "purse">("pick");
   const [courseId, setCourseId] = useState(COURSES[0]!.id);
   const [rooms, setRooms] = useState<ListedRoom[]>([]);
-  const [boardNote, setBoardNote] = useState("Looking for rooms…");
+  const [boardNote, setBoardNote] = useState("Looking for friends…");
   const [roomCode, setRoomCode] = useState("");
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [yard, setYard] = useState<Yard>(yardRef.current);
@@ -783,7 +833,7 @@ export function Race() {
       if (now - hudAt > 80) {
         hudAt = now;
         if (speedRef.current) speedRef.current.textContent = String(Math.round(Math.abs(player.speed) * 8));
-        if (lapRef.current) lapRef.current.textContent = `${lapOf(player)} / ${lapCount()} · ${player.gate + 1}/8`;
+        if (lapRef.current) lapRef.current.textContent = `Lap ${lapOf(player)}/${lapCount()} · gate ${player.gate + 1}`;
         if (placeRef.current) placeRef.current.textContent = ordinal(placeOf(current, player));
         if (noxRef.current) noxRef.current.style.transform = `scaleX(${Math.max(0, Math.min(1, player.nox))})`;
         drawMap(mapRef.current, current, remotes);
@@ -1078,7 +1128,7 @@ export function Race() {
       const sim = simRef.current;
       if (!sim) return;
       sim.skids.push(mark);
-      if (sim.skids.length > 28) sim.skids.shift();
+      if (sim.skids.length > 40) sim.skids.shift();
     });
     netRef.current = net;
     return net;
@@ -1588,7 +1638,7 @@ export function Race() {
             <span ref={placeRef}>6th</span>
           </span>
           <span className="race-meter">
-            <span ref={lapRef}>1 / 3</span>
+            <span ref={lapRef}>Lap 1/3</span>
           </span>
           <span className="race-meter">
             <Gauge aria-hidden="true" />
@@ -1646,22 +1696,23 @@ export function Race() {
                   Race
                 </button>
                 <button type="button" className={desk === "yard" ? "is-on" : ""} onClick={() => setDesk("yard")}>
-                  Yard
+                  Garage
                 </button>
                 <button type="button" className={desk === "purse" ? "is-on" : ""} onClick={() => setDesk("purse")}>
-                  Purse
+                  Stakes
                 </button>
                 <button type="button" className={desk === "wallet" ? "is-on" : ""} onClick={() => setDesk("wallet")}>
                   Wallet
                 </button>
                 <button type="button" className={desk === "chain" ? "is-on" : ""} onClick={() => setDesk("chain")}>
-                  Chain
+                  Blocks
                 </button>
               </div>
-              <p className="race-note">{wallet ? `${shortAddress(wallet.address)} · ${wallet.purse} chips` : "Opening a wallet…"}</p>
+              <p className="desk-help">{DESK_HELP[desk]}</p>
+              <p className="race-note">{wallet ? `${wallet.purse} chips to spend` : "Opening a wallet…"}</p>
               {desk === "race" ? (
                 <>
-                  <h2>Pick a course.</h2>
+                  <h2>Where do you want to race?</h2>
                   <label className="pit-name">
                     Name
                     <input
@@ -1685,6 +1736,7 @@ export function Race() {
                       </button>
                     ))}
                   </div>
+                  <p className="race-note course-blurb">{COURSE_HINT[courseId] ?? "Pick a course."}</p>
                   <div className="room-line">
                     {rooms.length === 0 ? <p className="race-note">{boardNote}</p> : null}
                     {rooms.slice(0, 2).map((room) => (
@@ -1710,26 +1762,32 @@ export function Race() {
                   <div className="race-actions">
                     <button type="button" className="race-ghost" onClick={() => void useCamera()}>
                       <Camera aria-hidden="true" />
-                      {camOn ? "Face live" : "Face"}
+                      {camOn ? "Camera on" : "My face"}
                     </button>
                     <button type="button" className="race-ghost" onClick={createRoom}>
-                      New room
+                      With friends
                     </button>
                     <button type="submit" className="race-go">
-                      Race
+                      Race bots
                     </button>
                   </div>
                 </>
               ) : null}
               {desk === "yard" ? (
                 <>
-                  <h2>Mint a cart.</h2>
+                  <h2>Build a kart</h2>
                   <div className="portrait-row">
-                    <canvas ref={portraitRef} className="portrait" width={180} height={96} />
-                    <canvas ref={kartPortraitRef} className="portrait" width={180} height={96} />
+                    <figure>
+                      <canvas ref={portraitRef} className="portrait" width={180} height={96} />
+                      <figcaption>Crew</figcaption>
+                    </figure>
+                    <figure>
+                      <canvas ref={kartPortraitRef} className="portrait" width={180} height={96} />
+                      <figcaption>Kart</figcaption>
+                    </figure>
                   </div>
                   <p className="race-note">
-                    Fees split to the developer pool and the bonus purse. Wings are 8 chips and 2 oil. A rudder is 6 chips and 1 battery. Bag · oil {book?.mats.oil ?? 0} · battery {book?.mats.battery ?? 0} · engine {book?.mats.engine ?? 0}
+                    Wings are 8 chips and 2 oil. A rudder is 6 chips and 1 battery. You hold oil {book?.mats.oil ?? 0}, batteries {book?.mats.battery ?? 0}, engines {book?.mats.engine ?? 0}.
                   </p>
                   <div className="course-row">
                     {yard.carts.map((cart) => {
@@ -1755,7 +1813,7 @@ export function Race() {
                   </div>
                   {(() => {
                     const chain = book?.carts.find((item) => item.id === yard.selected);
-                    if (!chain) return <p className="race-note">Stock has no record yet. Hire a mechanic to mint one.</p>;
+                    if (!chain) return <p className="race-note">Stock is the free kart. Hire a mechanic below to build a better one.</p>;
                     return (
                       <p className="race-note">
                         {chain.races} races · {chain.wins} wins · {chain.purseWins} purse wins
@@ -1784,8 +1842,8 @@ export function Race() {
                           <strong>{mechanic.name}</strong>
                           <span>
                             {mechanic.line} · skill {job?.skill ?? 1}
-                            {job?.boss ? ` · ${shortAddress(job.boss)}` : " · free"}
-                            {taken ? ` · poach ${price}` : ` · mint ${mechanic.cost}`}
+                            {job?.boss ? ` · works for ${shortAddress(job.boss)}` : " · available"}
+                            {taken ? ` · hire away ${price} chips` : ` · hire ${mechanic.cost} chips`}
                           </span>
                         </button>
                       );
@@ -1793,10 +1851,10 @@ export function Race() {
                   </div>
                   <div className="race-actions">
                     <button type="button" className="race-ghost" onClick={() => void fitPart("wing")}>
-                      Wings · 8
+                      Fit wings · 8
                     </button>
                     <button type="button" className="race-ghost" onClick={() => void fitPart("rudder")}>
-                      Rudder · 6
+                      Fit rudder · 6
                     </button>
                   </div>
                   {yardNote ? <p className="race-note">{yardNote}</p> : null}
@@ -1804,15 +1862,13 @@ export function Race() {
               ) : null}
               {desk === "purse" ? (
                 <>
-                  <h2>Your pit.</h2>
+                  <h2>Race for a pot</h2>
                   <p className="race-note">
-                    {book?.pending[0]
-                      ? `${book.pending[0].kind} ${book.pending[0].mechanic || book.pending[0].cartId} · waiting for a block`
-                      : "Nothing is waiting on a block."}
+                    {book?.pending[0] ? `Waiting for a block to confirm ${book.pending[0].kind}.` : "Nothing is waiting to be confirmed."}
                   </p>
                   <div className="room-line">
                     {yard.carts.filter((cart) => cart.mechanic !== "stock").length === 0 ? (
-                      <p className="race-note">You hold the stock kart. Mint one in the yard.</p>
+                      <p className="race-note">You only have the free kart. Hire one in the garage first.</p>
                     ) : null}
                     {yard.carts
                       .filter((cart) => cart.mechanic !== "stock")
@@ -1824,24 +1880,24 @@ export function Race() {
                           <div key={cart.id} className="room-row">
                             <strong>
                               {mechanicById(cart.mechanic).name}
-                              {chain ? " · on chain" : offer ? " · on trackers" : ""}
+                              {chain ? " · listed for sale" : offer ? " · announced" : ""}
                             </strong>
                             <span className="row-actions">
                               {chain ? (
                                 <button type="button" onClick={() => void buyChain(cart.id, chain.seller, chain.price, chain.mechanic)}>
-                                  Pull {chain.price}
+                                  Cancel · {chain.price}
                                 </button>
                               ) : offer ? (
                                 <button type="button" onClick={() => cancelOffer(cart.id)}>
-                                  Pull trackers
+                                  Stop announcing
                                 </button>
                               ) : (
                                 <>
                                   <button type="button" onClick={() => void listOnChain(cart.id)}>
-                                    Chain
+                                    Sell on ledger
                                   </button>
                                   <button type="button" onClick={() => void listSelected(cart.id)}>
-                                    Trackers
+                                    Announce
                                   </button>
                                 </>
                               )}
@@ -1856,7 +1912,7 @@ export function Race() {
                         <button key={item.cartId} type="button" className="room-row" onClick={() => void buyChain(item.cartId, item.seller, item.price, item.mechanic)}>
                           <strong>{mechanicById(item.mechanic).name}</strong>
                           <span>
-                            Buy {item.price} · chain · {shortAddress(item.seller)}
+                            Buy for {item.price} chips · {shortAddress(item.seller)}
                           </span>
                         </button>
                       ))}
@@ -1867,13 +1923,13 @@ export function Race() {
                         <button key={listing.id} type="button" className="room-row" onClick={() => void buyListing(listing)}>
                           <strong>{mechanicById(listing.mechanic).name}</strong>
                           <span>
-                            Buy {listing.price} · trackers · {shortAddress(listing.seller)}
+                            Buy for {listing.price} chips · {shortAddress(listing.seller)}
                           </span>
                         </button>
                       ))}
                   </div>
                   {purses.filter((row) => row.seats.length > 0 && !row.started).length === 0 ? (
-                    <p className="race-note">No purses are waiting. Sit to open one. One purse per size and stake.</p>
+                    <p className="race-note">No one is waiting yet.</p>
                   ) : (
                     <div className="room-line purse-list">
                       {purses
@@ -1881,15 +1937,16 @@ export function Race() {
                         .map((row) => (
                           <button key={row.key} type="button" className="room-row" onClick={() => void sitPurse(row.size, row.stakeId)}>
                             <strong>
-                              {row.size} karts · {row.stakeId === "s" ? "Small" : "High"}
+                              {row.size} drivers · {row.stakeId === "s" ? "small stake" : "high stake"}
                             </strong>
                             <span>
-                              {row.seats.length}/{row.size} waiting · stake {row.stake} · pot {row.stake * row.size}
+                              {row.seats.length} of {row.size} seated · {row.stake} chips each · pot {row.stake * row.size}
                             </span>
                           </button>
                         ))}
                     </div>
                   )}
+                  <p className="race-note">How many drivers</p>
                   <div className="course-row">
                     {PURSE_SIZES.map((size) => (
                       <button key={size} type="button" className={`course-chip ${sizePick === size ? "is-on" : ""}`} onClick={() => setSizePick(size)}>
@@ -1897,6 +1954,7 @@ export function Race() {
                       </button>
                     ))}
                   </div>
+                  <p className="race-note">Chips each driver pays</p>
                   <div className="course-row">
                     {PURSE_STAKES.map((stake) => (
                       <button key={stake.id} type="button" className={`course-chip ${stakePick === stake.id ? "is-on" : ""}`} onClick={() => setStakePick(stake.id)}>
@@ -1906,7 +1964,7 @@ export function Race() {
                   </div>
                   <div className="race-actions">
                     <button type="button" className="race-go" onClick={() => void sitPurse(sizePick, stakePick)}>
-                      Sit {sizePick} · {stakePick === "s" ? "Small" : "High"}
+                      Join · {sizePick} drivers · {stakePick === "s" ? "4" : "20"} chips
                     </button>
                   </div>
                   {yardNote ? <p className="race-note">{yardNote}</p> : null}
@@ -1914,17 +1972,17 @@ export function Race() {
               ) : null}
               {desk === "chain" ? (
                 <>
-                  <h2>Chain</h2>
+                  <h2>Send and trade</h2>
                   <p className="race-note">
-                    Dev pool {board.dev} · bonus purse {board.bonus}. A quarter of that bonus tops the next purse win. Height {mine.height}.
+                    Developer pool {board.dev} chips · bonus pot {board.bonus} chips. A quarter of the bonus is added to the next purse win. Block {mine.height}.
                   </p>
                   <p className="race-note">
-                    You hold {wallet?.purse ?? 0} chips · oil {book?.mats.oil ?? 0} · battery {book?.mats.battery ?? 0} · engine {book?.mats.engine ?? 0}
+                    You hold {wallet?.purse ?? 0} chips, oil {book?.mats.oil ?? 0}, batteries {book?.mats.battery ?? 0}, engines {book?.mats.engine ?? 0}.
                   </p>
                   <div className="send-line">
                     <input
                       ref={sendToRef}
-                      placeholder="Their wallet"
+                      placeholder="Their address"
                       autoComplete="off"
                       spellCheck={false}
                       onKeyDown={(event) => event.key === "Enter" && event.preventDefault()}
@@ -1961,6 +2019,7 @@ export function Race() {
                       </button>
                     ))}
                   </div>
+                  <p className="race-note">The pool sells parts for chips. The price moves as people trade. Offer 1 is a part for another player.</p>
                   <div className="room-line chain-scroll">
                     {(["oil", "battery", "engine"] as const).map((token) => {
                       const pool = board.amm[token];
@@ -1969,17 +2028,17 @@ export function Race() {
                       return (
                         <div key={token} className="room-row">
                           <strong>
-                            {token} · pool {pool.token}/{pool.chips}
+                            {token} · {pool.token} parts, {pool.chips} chips
                           </strong>
                           <span className="row-actions">
                             <button type="button" onClick={() => void swapToken(token, "buy", spend)}>
-                              Buy {quote} · {spend}
+                              Buy {quote} for {spend}
                             </button>
                             <button type="button" onClick={() => void swapToken(token, "sell")}>
                               Sell 1
                             </button>
                             <button type="button" onClick={() => void listMaterial(token)}>
-                              List 1
+                              Offer 1
                             </button>
                           </span>
                         </div>
@@ -1993,7 +2052,7 @@ export function Race() {
                         <span className="row-actions">
                           {item.seller === wallet?.address ? (
                             <button type="button" onClick={() => void dropMaterial(item.id)}>
-                              Pull
+                              Cancel
                             </button>
                           ) : (
                             <button type="button" onClick={() => void buyMaterial(item.id, item.price * item.amount)}>
@@ -2021,18 +2080,18 @@ export function Race() {
               ) : null}
               {desk === "wallet" ? (
                 <>
-                  <h2>Wallet</h2>
-                  <p className="race-note">This key signs mints and trades. The chain confirms them.</p>
+                  <h2>Your wallet</h2>
+                  <p className="race-note">This address signs your hires and trades. Copy it if someone wants to pay you. The chain confirms each one.</p>
                   <label className="pit-name">
                     Address
                     <input readOnly value={wallet?.address ?? ""} onFocus={(event) => event.currentTarget.select()} onKeyDown={(event) => event.key === "Enter" && event.preventDefault()} />
                   </label>
                   <p className="race-note">
-                    {wallet ? `${wallet.purse} chips` : "Opening…"} · chain #{mine.height} · {mine.rate} · {mine.load}% cpu · {mine.gpu ? "GPU on" : mine.detail.slice(0, 36) || "GPU off"}
+                    {wallet ? `${wallet.purse} chips` : "Opening…"} · block {mine.height} · {mine.rate} · this device {mine.load}% · {mine.gpu ? "graphics helping" : mine.detail.slice(0, 36) || "graphics off"}
                     {mine.mined ? ` · ${mine.mined} mined` : ""}
                   </p>
                   <label className="mine-row">
-                    Power {mine.power}%
+                    Mining effort {mine.power}%
                     <input
                       className="mine-range"
                       type="range"

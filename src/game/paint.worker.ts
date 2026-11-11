@@ -131,8 +131,9 @@ async function bootPicture() {
   const { createLitePainter } = await import("./lite");
   try {
     lite = createLitePainter(canvas);
-  } catch {
+  } catch (error) {
     lite = null;
+    console.error(error);
   }
   if (!lite) {
     cpu = await import("../vendor/meridian/engine/frame.js");

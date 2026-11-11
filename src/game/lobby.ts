@@ -93,7 +93,7 @@ export async function openBoard(
   try {
     opened = await startRoom(room, { slowMs: 7000 });
   } catch {
-    onRooms([], "Trackers are quiet — you can still race the field");
+    onRooms([], "No friends online. You can still race the bots.");
     return { announce() {}, post() {}, close() {} };
   }
   const pull = async () => {
@@ -113,10 +113,10 @@ export async function openBoard(
         const pay = parsePay(raw);
         if (pay) pays.push(pay);
       }
-      onRooms(rooms, rooms.length ? "Rooms on the trackers" : "No rooms yet — open one");
+      onRooms(rooms, rooms.length ? "People waiting to race" : "No one is waiting. Race the bots, or open a room.");
       onMarket?.(listings, pays);
     } catch {
-      onRooms([], "Trackers are quiet — you can still race the field");
+      onRooms([], "No friends online. You can still race the bots.");
     }
   };
   const timer = setInterval(() => void pull(), 2000);

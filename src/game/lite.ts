@@ -1,5 +1,5 @@
 import { duneHeight } from "./terrain";
-import { halfWidth, setCourseById, trackRibbon } from "./track";
+import { halfWidth, leftNormal, pointAt, setCourseById, trackRibbon } from "./track";
 
 type Frame = {
   bodies: { x: number; y: number; z?: number; yaw?: number; pitch?: number; roll?: number; flame?: number; seed?: number; color: [number, number, number] }[];
@@ -34,9 +34,10 @@ uniform vec4 uPos[12];
 uniform vec3 uTint[12];
 uniform float uSlot[12];
 uniform vec4 uLean[12];
-uniform vec4 uSkid[28];
+uniform vec4 uSkid[40];
 uniform int uSkids;
 uniform int uKarts;
+uniform vec4 uGate[8];
 uniform sampler2D uFace;
 
 float heightAt(vec2 p) {
@@ -182,18 +183,29 @@ void main() {
       ball(uCam, rd, placed(pos, fwd, side, up, vec3(0.0, -0.85, 0.02)), 0.16, vec3(1.0, 0.45, 0.08), -1.0, fwd, sun, best, rgb, hit);
     }
   }
-  float prevT = 0.35;
-  float t = 0.35;
+  for (int g = 0; g < 8; g++) {
+    vec2 c = uGate[g].xy;
+    vec2 nrm = uGate[g].zw;
+    vec2 lp = c + nrm * (uRoad + 0.2);
+    vec2 rp = c - nrm * (uRoad + 0.2);
+    vec3 post = g == 0 ? vec3(0.93, 0.2, 0.14) : vec3(0.95, 0.82, 0.28);
+    ball(uCam, rd, vec3(lp, heightAt(lp) + 1.15), 0.34, post, -1.0, uFwd, sun, best, rgb, hit);
+    ball(uCam, rd, vec3(rp, heightAt(rp) + 1.15), 0.34, post, -1.0, uFwd, sun, best, rgb, hit);
+  }
+  float prevT = 0.3;
+  float t = 0.3;
   float ground = -1.0;
-  for (int i = 0; i < 64; i++) {
-    float stride = min(320.0, 0.45 + t * 0.18);
-    float nextT = min(t + stride, 8000.0);
+  for (int i = 0; i < 80; i++) {
     vec3 a = uCam + rd * t;
+    float clearance = a.z - heightAt(a.xy);
+    float stride = t < 130.0 ? min(3.6, 0.45 + t * 0.024) : min(88.0, 4.2 + (t - 130.0) * 0.1);
+    if (clearance > 18.0 && t > 40.0) stride = max(stride, min(72.0, clearance * 0.85));
+    float nextT = min(t + stride, 8000.0);
     vec3 b = uCam + rd * nextT;
     float cones = coneBound(a.xy, b.xy, vec2(-40.0, 160.0), 104.0, 36.0);
     cones = max(cones, coneBound(a.xy, b.xy, vec2(-155.0, -55.0), 72.0, 30.0));
-    if (cones > 0.5 && min(a.z, b.z) < cones + 2.0 && stride > 4.0) {
-      nextT = min(t + max(1.4, min(12.0, stride * 0.35)), 8000.0);
+    if (cones > 0.5 && min(a.z, b.z) < cones + 2.0 && stride > 3.2) {
+      nextT = min(t + max(1.3, min(6.0, stride * 0.28)), 8000.0);
       b = uCam + rd * nextT;
     }
     if (b.z <= heightAt(b.xy)) {
@@ -209,7 +221,7 @@ void main() {
   if (ground > 0.0 && ground < best) {
     float lo = prevT;
     float hi = ground;
-    for (int i = 0; i < 7; i++) {
+    for (int i = 0; i < 8; i++) {
       float mid = 0.5 * (lo + hi);
       vec3 p = uCam + rd * mid;
       if (p.z < heightAt(p.xy)) hi = mid;
@@ -218,7 +230,7 @@ void main() {
     vec3 p = uCam + rd * hi;
     float h = heightAt(p.xy);
     float road = nearest(p.xy);
-    vec3 n = normalize(vec3(heightAt(p.xy + vec2(0.35, 0.0)) - h, heightAt(p.xy + vec2(0.0, 0.35)) - h, 0.35));
+    vec3 n = normalize(vec3(heightAt(p.xy + vec2(1.15, 0.0)) - h, heightAt(p.xy + vec2(0.0, 1.15)) - h, 1.15));
     float light = 0.42 + 0.58 * max(dot(n, sun), 0.0);
     vec3 sand = vec3(0.62, 0.48, 0.22);
     vec3 grass = vec3(0.28, 0.38, 0.18);
@@ -231,6 +243,16 @@ void main() {
       albedo = asphalt;
       if (road < 0.18) albedo = vec3(0.86, 0.74, 0.22);
       if (road > uRoad - 0.55) albedo = mix(vec3(0.92, 0.92, 0.88), vec3(0.78, 0.16, 0.11), step(0.5, fract((p.x + p.y) * 0.35)));
+      for (int g = 0; g < 8; g++) {
+        vec2 rel = p.xy - uGate[g].xy;
+        vec2 nrm = uGate[g].zw;
+        float across = dot(rel, nrm);
+        float along = abs(dot(rel, vec2(-nrm.y, nrm.x)));
+        if (along < 0.42 && abs(across) < uRoad) {
+          float check = step(0.5, fract(across * 0.38));
+          albedo = mix(vec3(0.95, 0.93, 0.86), vec3(0.1, 0.1, 0.11), check);
+        }
+      }
     } else {
       albedo *= 0.94 + 0.06 * sin(p.x * 0.7) * cos(p.y * 0.6);
     }
@@ -243,16 +265,16 @@ void main() {
     }
     albedo *= shade;
     float rubber = 0.0;
-    for (int i = 0; i < 28; i++) {
+    for (int i = 0; i < 40; i++) {
       if (i >= uSkids) break;
       vec2 a = uSkid[i].xy;
       vec2 b = uSkid[i].zw;
       vec2 ab = b - a;
       float span = max(dot(ab, ab), 0.0001);
       float u = clamp(dot(p.xy - a, ab) / span, 0.0, 1.0);
-      rubber = max(rubber, 1.0 - smoothstep(0.04, 0.26, length(p.xy - (a + ab * u))));
+      rubber = max(rubber, 1.0 - smoothstep(0.08, 0.62, length(p.xy - (a + ab * u))));
     }
-    albedo = mix(albedo, vec3(0.04, 0.04, 0.045), rubber * 0.88);
+    albedo = mix(albedo, vec3(0.02, 0.02, 0.025), rubber * 0.94);
     float fog = 1.0 - exp(-hi * 0.00012);
     rgb = mix(albedo * light, vec3(0.62, 0.72, 0.82), fog);
     hit = true;
@@ -309,7 +331,8 @@ export function createLitePainter(canvas: OffscreenCanvas) {
   const tint = new Float32Array(12 * 3);
   const slots = new Float32Array(12);
   const lean = new Float32Array(12 * 4);
-  const skid = new Float32Array(28 * 4);
+  const skid = new Float32Array(40 * 4);
+  const gates = new Float32Array(8 * 4);
   const atlas = new Uint8Array(ATLAS_W * ATLAS_H * 4);
   for (let i = 0; i < atlas.length; i += 4) {
     atlas[i] = 214;
@@ -348,6 +371,14 @@ export function createLitePainter(canvas: OffscreenCanvas) {
       track[i * 4 + 3] = ribbon[j * 4 + 1]!;
     }
     road = halfWidth();
+    for (let i = 0; i < 8; i++) {
+      const gate = pointAt(i / 8);
+      const [lx, ly] = leftNormal(gate);
+      gates[i * 4] = gate.x;
+      gates[i * 4 + 1] = gate.y;
+      gates[i * 4 + 2] = lx;
+      gates[i * 4 + 3] = ly;
+    }
   };
   loadCourse();
   return {
@@ -432,11 +463,12 @@ export function createLitePainter(canvas: OffscreenCanvas) {
       gl.uniform1f(loc("uAspect"), canvas.width / Math.max(1, canvas.height));
       gl.uniform1f(loc("uRoad"), road);
       gl.uniform4fv(loc("uTrack"), track);
+      gl.uniform4fv(loc("uGate"), gates);
       gl.uniform4fv(loc("uPos"), karts);
       gl.uniform3fv(loc("uTint"), tint);
       gl.uniform1fv(loc("uSlot"), slots);
       const marks = frame.skids ?? [];
-      const count = Math.min(28, marks.length);
+      const count = Math.min(40, marks.length);
       skid.fill(0);
       for (let i = 0; i < count; i++) {
         const mark = marks[i]!;

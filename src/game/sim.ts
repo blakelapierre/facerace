@@ -318,7 +318,7 @@ function contain(kart: Kart) {
   kart.vy *= 0.72;
 }
 
-function penalize(kart: Kart, dt: number) {
+function penalize(kart: Kart, dt: number, cap: number) {
   const u = ((kart.travel % 1) + 1) % 1;
   const sample = pointAt(u);
   const [lx, ly] = leftNormal(sample);
@@ -326,13 +326,19 @@ function penalize(kart: Kart, dt: number) {
   const off = Math.abs(lat) - halfWidth();
   if (off <= 0 || kart.air) return;
   const h = duneHeight(kart.x, kart.y);
-  let drag = 1.6 + Math.min(5, off * 0.22);
-  if (h > 8) drag += 2.2;
-  if (h < 1.15) drag += 1.1;
-  if (waterAt(kart.x, kart.y) != null) drag += 3.5;
-  const keep = Math.exp(-drag * dt);
-  kart.vx *= keep;
-  kart.vy *= keep;
+  // Grass is the mild case: a quarter off the pace, so you can rejoin. Worse ground takes more, but never stops you.
+  let keep = 0.75;
+  if (h < 1.15) keep = 0.6;
+  if (h > 8) keep = 0.5;
+  if (waterAt(kart.x, kart.y) != null) keep = 0.45;
+  keep = Math.max(0.4, keep - Math.min(0.1, Math.max(0, off - 2) * 0.008));
+  const spd = Math.hypot(kart.vx, kart.vy);
+  const limit = Math.max(7, cap * keep);
+  if (spd <= limit) return;
+  const blend = 1 - Math.exp(-2.6 * dt);
+  const scale = 1 - (1 - limit / spd) * blend;
+  kart.vx *= scale;
+  kart.vy *= scale;
   kart.speed = kart.vx * Math.sin(kart.yaw) + kart.vy * Math.cos(kart.yaw);
 }
 
@@ -572,10 +578,7 @@ function ride(kart: Kart, steer: number, drive: number, brake: number, boost: bo
     vz = Math.max(vz, Math.min(7, -aVert * 0.08));
   }
 
-  if (waterAt(kart.x, kart.y) != null) {
-    vx *= Math.pow(0.25, dt);
-    vy *= Math.pow(0.25, dt);
-  }
+  if (waterAt(kart.x, kart.y) != null) vz = Math.min(vz, 1.2);
 
   kart.vx = vx;
   kart.vy = vy;
@@ -649,7 +652,7 @@ function laySkid(sim: Sim, kart: Kart, active: boolean) {
   const mark: Skid = { x: kart.mark.x, y: kart.mark.y, x2: x, y2: y };
   sim.skids.push(mark);
   sim.skidOut.push(mark);
-  if (sim.skids.length > 28) sim.skids.shift();
+  if (sim.skids.length > 40) sim.skids.shift();
   kart.mark = { x, y };
 }
 
@@ -723,7 +726,7 @@ export function stepSim(sim: Sim, dt: number, peers: Bumper[] = []) {
     const skidding = ride(kart, steer, drive, brake, wantsBoost, built, dt, cap);
     laySkid(sim, kart, skidding);
     advanceTravel(kart);
-    penalize(kart, dt);
+    penalize(kart, dt, cap);
     contain(kart);
     const crossed = passGates(kart);
     if (kart === player && kart.finishedAt == null) {
